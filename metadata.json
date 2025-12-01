@@ -1,0 +1,5 @@
+{
+  "name": "Sınav Analiz Uzmanı",
+  "description": "MEB kazanım tablolalarına uyumlu, senaryo bazlı sınav analiz ve raporlama aracı. Öğrenci notlarını girin, kazanım başarısını analiz edin ve profesyonel PDF/Word raporları oluşturun.",
+  "requestFramePermissions": []
+}
