@@ -64,3 +64,4 @@ coverage/
 
 # Generated files
 *.generated.*
+.vercel
