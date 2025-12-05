@@ -1,7 +1,7 @@
 /**
  * INFOGRAPHIC STYLE PDF Export
  * Modern, Visual, Professional Design
- * Version 5.0 - Infographic Edition
+ * Version 6.0 - Turkish Character Support Fixed
  */
 
 import jsPDF from 'jspdf';
@@ -23,35 +23,73 @@ export interface ExportOptions {
 // Infographic Color Palette
 const C = {
     // Primary gradient colors
-    gradientStart: [99, 102, 241],    // Indigo
-    gradientEnd: [139, 92, 246],      // Purple
+    gradientStart: [99, 102, 241] as [number, number, number],
+    gradientEnd: [139, 92, 246] as [number, number, number],
 
     // Accent colors
-    blue: [59, 130, 246],
-    green: [16, 185, 129],
-    red: [239, 68, 68],
-    orange: [249, 115, 22],
-    yellow: [234, 179, 8],
-    pink: [236, 72, 153],
-    cyan: [6, 182, 212],
+    blue: [59, 130, 246] as [number, number, number],
+    green: [16, 185, 129] as [number, number, number],
+    red: [239, 68, 68] as [number, number, number],
+    orange: [249, 115, 22] as [number, number, number],
+    yellow: [234, 179, 8] as [number, number, number],
+    pink: [236, 72, 153] as [number, number, number],
+    cyan: [6, 182, 212] as [number, number, number],
 
     // Neutral
-    dark: [17, 24, 39],
-    gray: [107, 114, 128],
-    light: [243, 244, 246],
-    white: [255, 255, 255],
+    dark: [17, 24, 39] as [number, number, number],
+    gray: [107, 114, 128] as [number, number, number],
+    light: [243, 244, 246] as [number, number, number],
+    white: [255, 255, 255] as [number, number, number],
 
     // Status
-    success: [34, 197, 94],
-    danger: [239, 68, 68],
-    warning: [245, 158, 11]
+    success: [34, 197, 94] as [number, number, number],
+    danger: [239, 68, 68] as [number, number, number],
+    warning: [245, 158, 11] as [number, number, number]
 };
 
-// Turkish safe
-const tr = (t: string): string => {
-    if (!t) return '';
-    const m: Record<string, string> = { 'ş': 's', 'Ş': 'S', 'ğ': 'g', 'Ğ': 'G', 'ü': 'u', 'Ü': 'U', 'ö': 'o', 'Ö': 'O', 'ç': 'c', 'Ç': 'C', 'ı': 'i', 'İ': 'I' };
-    return t.replace(/[şŞğĞüÜöÖçÇıİ]/g, c => m[c] || c);
+/**
+ * Türkçe karakterleri ASCII karşılıklarına dönüştür
+ * jsPDF default fontları Türkçe karakterleri desteklemediği için bu gerekli
+ */
+const toASCII = (text: string): string => {
+    if (!text) return '';
+    const map: Record<string, string> = {
+        'ş': 's', 'Ş': 'S',
+        'ğ': 'g', 'Ğ': 'G',
+        'ü': 'u', 'Ü': 'U',
+        'ö': 'o', 'Ö': 'O',
+        'ç': 'c', 'Ç': 'C',
+        'ı': 'i', 'İ': 'I'
+    };
+    return text.split('').map(c => map[c] || c).join('');
+};
+
+/**
+ * Metni satır satır böl (word wrap)
+ */
+const wrapText = (text: string, maxWidth: number, fontSize: number): string[] => {
+    if (!text) return [''];
+
+    // Ortalama karakter genişliği (helvetica için yaklaşık)
+    const charWidth = fontSize * 0.5;
+    const maxChars = Math.floor(maxWidth / charWidth);
+
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+
+    words.forEach(word => {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        if (testLine.length <= maxChars) {
+            currentLine = testLine;
+        } else {
+            if (currentLine) lines.push(currentLine);
+            currentLine = word;
+        }
+    });
+
+    if (currentLine) lines.push(currentLine);
+    return lines;
 };
 
 // Draw gradient header
@@ -68,42 +106,18 @@ const drawGradientHeader = (doc: jsPDF, h: number) => {
     }
 };
 
-// Draw circle icon
-const drawCircleIcon = (doc: jsPDF, x: number, y: number, r: number, color: number[], text: string) => {
+// Draw circle icon with emoji (simplified - just colored circle)
+const drawCircleIcon = (doc: jsPDF, x: number, y: number, r: number, color: [number, number, number], label: string) => {
     doc.setFillColor(color[0], color[1], color[2]);
     doc.circle(x, y, r, 'F');
-    doc.setTextColor(...C.white);
-    doc.setFontSize(r * 1.2);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(r * 0.8);
     doc.setFont('helvetica', 'bold');
-    doc.text(text, x, y + r * 0.35, { align: 'center' });
-};
-
-// Draw progress ring (simplified arc)
-const drawProgressRing = (doc: jsPDF, x: number, y: number, r: number, pct: number, color: number[]) => {
-    // Background ring
-    doc.setDrawColor(230, 230, 230);
-    doc.setLineWidth(3);
-    doc.circle(x, y, r, 'S');
-
-    // Progress arc (simplified - full circle if >= 100%)
-    doc.setDrawColor(color[0], color[1], color[2]);
-    doc.setLineWidth(3);
-
-    // Draw arc segments
-    const segments = Math.floor((pct / 100) * 12);
-    for (let i = 0; i < segments; i++) {
-        const angle = (i * 30 - 90) * Math.PI / 180;
-        const nextAngle = ((i + 1) * 30 - 90) * Math.PI / 180;
-        const x1 = x + r * Math.cos(angle);
-        const y1 = y + r * Math.sin(angle);
-        const x2 = x + r * Math.cos(nextAngle);
-        const y2 = y + r * Math.sin(nextAngle);
-        doc.line(x1, y1, x2, y2);
-    }
+    doc.text(label.charAt(0).toUpperCase(), x, y + r * 0.3, { align: 'center' });
 };
 
 // Draw horizontal bar
-const drawBar = (doc: jsPDF, x: number, y: number, w: number, h: number, pct: number, color: number[]) => {
+const drawBar = (doc: jsPDF, x: number, y: number, w: number, h: number, pct: number, color: [number, number, number]) => {
     // Background
     doc.setFillColor(230, 230, 230);
     doc.roundedRect(x, y, w, h, h / 2, h / 2, 'F');
@@ -116,9 +130,9 @@ const drawBar = (doc: jsPDF, x: number, y: number, w: number, h: number, pct: nu
 };
 
 // Draw stat block
-const drawStatBlock = (doc: jsPDF, x: number, y: number, w: number, h: number, icon: string, value: string, label: string, color: number[]) => {
+const drawStatBlock = (doc: jsPDF, x: number, y: number, w: number, h: number, label: string, value: string, sublabel: string, color: [number, number, number]) => {
     // Background
-    doc.setFillColor(...C.white);
+    doc.setFillColor(255, 255, 255);
     doc.roundedRect(x, y, w, h, 4, 4, 'F');
 
     // Left colored bar
@@ -126,19 +140,19 @@ const drawStatBlock = (doc: jsPDF, x: number, y: number, w: number, h: number, i
     doc.roundedRect(x, y, 4, h, 2, 2, 'F');
 
     // Icon circle
-    drawCircleIcon(doc, x + 18, y + h / 2, 8, color, icon);
+    drawCircleIcon(doc, x + 18, y + h / 2, 8, color, label);
 
     // Value
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...C.dark);
+    doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
     doc.text(value, x + 32, y + h / 2 - 2);
 
     // Label
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...C.gray);
-    doc.text(label, x + 32, y + h / 2 + 6);
+    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
+    doc.text(toASCII(sublabel), x + 32, y + h / 2 + 6);
 };
 
 // Calculate stats
@@ -191,12 +205,14 @@ export const exportToPDFAdvanced = async (
     drawGradientHeader(doc, 55);
 
     // White decorative circles in header
-    doc.setFillColor(255, 255, 255, 0.1);
+    doc.setFillColor(255, 255, 255);
+    doc.setGState(new (doc as any).GState({ opacity: 0.1 }));
     doc.circle(-10, 30, 40, 'F');
     doc.circle(pw + 20, 15, 35, 'F');
+    doc.setGState(new (doc as any).GState({ opacity: 1 }));
 
     // Title
-    doc.setTextColor(...C.white);
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
     doc.text('SINAV ANALIZ RAPORU', pw / 2, 22, { align: 'center' });
@@ -204,9 +220,9 @@ export const exportToPDFAdvanced = async (
     // Subtitle
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${tr(metadata.schoolName)}`, pw / 2, 32, { align: 'center' });
+    doc.text(toASCII(metadata.schoolName), pw / 2, 32, { align: 'center' });
     doc.setFontSize(9);
-    doc.text(`${tr(metadata.className)} | ${tr(metadata.subject)} | ${metadata.date}`, pw / 2, 40, { align: 'center' });
+    doc.text(`${toASCII(metadata.className)} | ${toASCII(metadata.subject)} | ${metadata.date}`, pw / 2, 40, { align: 'center' });
 
     // Big Score Circle
     let y = 65;
@@ -217,7 +233,7 @@ export const exportToPDFAdvanced = async (
     doc.circle(pw / 2, y + 25, 28, 'F');
 
     // Inner white circle
-    doc.setFillColor(...C.white);
+    doc.setFillColor(255, 255, 255);
     doc.circle(pw / 2, y + 25, 22, 'F');
 
     // Score text
@@ -227,7 +243,7 @@ export const exportToPDFAdvanced = async (
     doc.text(`%${analysis.classAverage.toFixed(0)}`, pw / 2, y + 27, { align: 'center' });
 
     doc.setFontSize(7);
-    doc.setTextColor(...C.gray);
+    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
     doc.text('SINIF ORTALAMASI', pw / 2, y + 35, { align: 'center' });
 
     y += 60;
@@ -236,10 +252,10 @@ export const exportToPDFAdvanced = async (
     const blockW = (cw - 15) / 4;
     const blockH = 28;
     const blocks = [
-        { icon: '👥', value: students.length.toString(), label: 'OGRENCI', color: C.blue },
-        { icon: '❓', value: questions.length.toString(), label: 'SORU', color: C.cyan },
-        { icon: '✓', value: passedOutcomes.toString(), label: 'BASARILI', color: C.green },
-        { icon: '✗', value: failedOutcomes.toString(), label: 'BASARISIZ', color: C.red }
+        { icon: 'O', value: students.length.toString(), label: 'OGRENCI', color: C.blue },
+        { icon: 'S', value: questions.length.toString(), label: 'SORU', color: C.cyan },
+        { icon: 'B', value: passedOutcomes.toString(), label: 'BASARILI', color: C.green },
+        { icon: 'X', value: failedOutcomes.toString(), label: 'BASARISIZ', color: C.red }
     ];
 
     blocks.forEach((b, i) => {
@@ -249,9 +265,9 @@ export const exportToPDFAdvanced = async (
     y += blockH + 12;
 
     // Charts Section Title
-    doc.setFillColor(...C.gradientStart);
+    doc.setFillColor(C.gradientStart[0], C.gradientStart[1], C.gradientStart[2]);
     doc.roundedRect(m, y, cw, 8, 2, 2, 'F');
-    doc.setTextColor(...C.white);
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.text('GORSEL ANALIZ', m + 5, y + 5.5);
@@ -264,9 +280,9 @@ export const exportToPDFAdvanced = async (
 
     // Chart 1: Grade Distribution
     if (chartImages.gradePieChart) {
-        doc.setFillColor(...C.light);
+        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
         doc.roundedRect(m, y, chartW, chartH, 3, 3, 'F');
-        doc.setTextColor(...C.dark);
+        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
         doc.text('Not Dagilimi', m + 3, y + 6);
@@ -275,9 +291,9 @@ export const exportToPDFAdvanced = async (
 
     // Chart 2: Radar
     if (chartImages.radarChart) {
-        doc.setFillColor(...C.light);
+        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
         doc.roundedRect(m + chartW + 6, y, chartW, chartH, 3, 3, 'F');
-        doc.setTextColor(...C.dark);
+        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
         doc.text('Kazanim Haritasi', m + chartW + 9, y + 6);
@@ -288,9 +304,9 @@ export const exportToPDFAdvanced = async (
 
     // Chart 3: Histogram
     if (chartImages.histogramChart) {
-        doc.setFillColor(...C.light);
+        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
         doc.roundedRect(m, y, chartW, chartH, 3, 3, 'F');
-        doc.setTextColor(...C.dark);
+        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
         doc.text('Puan Dagilimi', m + 3, y + 6);
@@ -299,9 +315,9 @@ export const exportToPDFAdvanced = async (
 
     // Chart 4: Question Success
     if (chartImages.questionSuccessChart) {
-        doc.setFillColor(...C.light);
+        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
         doc.roundedRect(m + chartW + 6, y, chartW, chartH, 3, 3, 'F');
-        doc.setTextColor(...C.dark);
+        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
         doc.text('Soru Basarisi', m + chartW + 9, y + 6);
@@ -311,7 +327,7 @@ export const exportToPDFAdvanced = async (
     y = ph - 25;
 
     // Statistics Footer Bar
-    doc.setFillColor(...C.dark);
+    doc.setFillColor(C.dark[0], C.dark[1], C.dark[2]);
     doc.roundedRect(m, y, cw, 18, 3, 3, 'F');
 
     const statItems = [
@@ -323,19 +339,19 @@ export const exportToPDFAdvanced = async (
 
     const statW = cw / 4;
     statItems.forEach((s, i) => {
-        doc.setTextColor(...C.gray);
+        doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
         doc.setFontSize(6);
         doc.setFont('helvetica', 'normal');
         doc.text(s.label.toUpperCase(), m + 8 + i * statW, y + 6);
 
-        doc.setTextColor(...C.white);
+        doc.setTextColor(255, 255, 255);
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text(s.value, m + 8 + i * statW, y + 14);
     });
 
     // Page number
-    doc.setTextColor(...C.gray);
+    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
     doc.setFontSize(7);
     doc.text('Sayfa 1/3', pw - m, ph - 5, { align: 'right' });
 
@@ -343,9 +359,9 @@ export const exportToPDFAdvanced = async (
     doc.addPage();
 
     // Mini header
-    doc.setFillColor(...C.gradientStart);
+    doc.setFillColor(C.gradientStart[0], C.gradientStart[1], C.gradientStart[2]);
     doc.rect(0, 0, pw, 15, 'F');
-    doc.setTextColor(...C.white);
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('DETAYLI ANALIZ', pw / 2, 10, { align: 'center' });
@@ -353,9 +369,9 @@ export const exportToPDFAdvanced = async (
     y = 22;
 
     // Section: Question Analysis with bars
-    doc.setFillColor(...C.blue);
+    doc.setFillColor(C.blue[0], C.blue[1], C.blue[2]);
     doc.roundedRect(m, y, cw, 8, 2, 2, 'F');
-    doc.setTextColor(...C.white);
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.text('SORU BAZLI BASARI', m + 5, y + 5.5);
 
@@ -366,17 +382,17 @@ export const exportToPDFAdvanced = async (
         const barColor = q.successRate < 50 ? C.red : q.successRate < 75 ? C.orange : C.green;
 
         // Question number circle
-        doc.setFillColor(...C.light);
+        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
         doc.circle(m + 6, y + 4, 5, 'F');
-        doc.setTextColor(...C.dark);
+        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
         doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');
         doc.text((i + 1).toString(), m + 6, y + 5.5, { align: 'center' });
 
         // Outcome code
-        doc.setTextColor(...C.gradientStart);
+        doc.setTextColor(C.gradientStart[0], C.gradientStart[1], C.gradientStart[2]);
         doc.setFontSize(6);
-        doc.text(tr(q.outcome.code), m + 14, y + 3);
+        doc.text(toASCII(q.outcome.code), m + 14, y + 3);
 
         // Progress bar
         drawBar(doc, m + 14, y + 5, cw - 40, 4, q.successRate, barColor);
@@ -393,9 +409,9 @@ export const exportToPDFAdvanced = async (
     y += 5;
 
     // Section: Outcome Status
-    doc.setFillColor(...C.cyan);
+    doc.setFillColor(C.cyan[0], C.cyan[1], C.cyan[2]);
     doc.roundedRect(m, y, cw, 8, 2, 2, 'F');
-    doc.setTextColor(...C.white);
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.text('KAZANIM DURUMU', m + 5, y + 5.5);
 
@@ -412,7 +428,7 @@ export const exportToPDFAdvanced = async (
         const oy = y + row * (outcomeCardH + 3);
 
         const cardColor = o.isFailed ? C.red : C.green;
-        const bgColor = o.isFailed ? [254, 242, 242] : [240, 253, 244];
+        const bgColor: [number, number, number] = o.isFailed ? [254, 242, 242] : [240, 253, 244];
 
         // Card
         doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
@@ -423,29 +439,29 @@ export const exportToPDFAdvanced = async (
         doc.roundedRect(ox, oy, 3, outcomeCardH, 1, 1, 'F');
 
         // Code
-        doc.setTextColor(...C.dark);
+        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
         doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');
-        doc.text(tr(o.code), ox + 6, oy + 5);
+        doc.text(toASCII(o.code), ox + 6, oy + 5);
 
         // Description (truncated)
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(5);
-        doc.setTextColor(...C.gray);
-        const desc = tr(o.description);
+        doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
+        const desc = toASCII(o.description);
         doc.text(desc.length > 40 ? desc.substring(0, 40) + '...' : desc, ox + 6, oy + 10);
 
         // Percentage badge
         doc.setFillColor(cardColor[0], cardColor[1], cardColor[2]);
         doc.roundedRect(ox + outcomeCardW - 18, oy + 3, 15, 8, 2, 2, 'F');
-        doc.setTextColor(...C.white);
+        doc.setTextColor(255, 255, 255);
         doc.setFontSize(6);
         doc.setFont('helvetica', 'bold');
         doc.text(`%${o.successRate.toFixed(0)}`, ox + outcomeCardW - 10.5, oy + 8.5, { align: 'center' });
     });
 
     // Page number
-    doc.setTextColor(...C.gray);
+    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
     doc.setFontSize(7);
     doc.text('Sayfa 2/3', pw - m, ph - 5, { align: 'right' });
 
@@ -453,9 +469,9 @@ export const exportToPDFAdvanced = async (
     doc.addPage();
 
     // Mini header
-    doc.setFillColor(...C.gradientEnd);
+    doc.setFillColor(C.gradientEnd[0], C.gradientEnd[1], C.gradientEnd[2]);
     doc.rect(0, 0, pw, 15, 'F');
-    doc.setTextColor(...C.white);
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('OGRENCI SIRALAMA', pw / 2, 10, { align: 'center' });
@@ -486,19 +502,20 @@ export const exportToPDFAdvanced = async (
                 doc.roundedRect(px, y + 40 - podiumHeights[i], 40, podiumHeights[i], 3, 3, 'F');
 
                 // Rank
-                doc.setTextColor(...C.white);
+                doc.setTextColor(255, 255, 255);
                 doc.setFontSize(14);
                 doc.setFont('helvetica', 'bold');
                 doc.text(podiumLabels[i], px + 20, y + 48 - podiumHeights[i], { align: 'center' });
 
                 // Name above
-                doc.setTextColor(...C.dark);
+                doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
                 doc.setFontSize(8);
-                doc.text(tr(sorted[i].name.length > 15 ? sorted[i].name.substring(0, 15) : sorted[i].name), px + 20, y + 25 - podiumHeights[i], { align: 'center' });
+                const studentName = sorted[i].name.length > 15 ? sorted[i].name.substring(0, 15) : sorted[i].name;
+                doc.text(toASCII(studentName), px + 20, y + 25 - podiumHeights[i], { align: 'center' });
 
                 // Score
                 doc.setFontSize(7);
-                doc.setTextColor(...C.gray);
+                doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
                 doc.text(`%${pct.toFixed(0)}`, px + 20, y + 32 - podiumHeights[i], { align: 'center' });
             }
         }
@@ -507,9 +524,9 @@ export const exportToPDFAdvanced = async (
     y += 55;
 
     // Full student table
-    doc.setFillColor(...C.blue);
+    doc.setFillColor(C.blue[0], C.blue[1], C.blue[2]);
     doc.roundedRect(m, y, cw, 8, 2, 2, 'F');
-    doc.setTextColor(...C.white);
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.text('TUM OGRENCILER', m + 5, y + 5.5);
 
@@ -518,7 +535,7 @@ export const exportToPDFAdvanced = async (
     const sRows = sorted.map((s, i) => {
         const total = Object.values(s.scores).reduce((sum: number, v: number) => sum + v, 0);
         const pct = (total / stats.maxPossible) * 100;
-        return [(i + 1).toString(), tr(s.name), total.toString(), `%${pct.toFixed(1)}`];
+        return [(i + 1).toString(), toASCII(s.name), total.toString(), `%${pct.toFixed(1)}`];
     });
 
     autoTable(doc, {
@@ -527,7 +544,7 @@ export const exportToPDFAdvanced = async (
         body: sRows,
         theme: 'plain',
         styles: { fontSize: 8, cellPadding: 2.5 },
-        headStyles: { fillColor: C.light, textColor: C.dark, fontStyle: 'bold' },
+        headStyles: { fillColor: C.light as [number, number, number], textColor: C.dark as [number, number, number], fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [250, 250, 250] },
         columnStyles: {
             0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
@@ -550,32 +567,32 @@ export const exportToPDFAdvanced = async (
 
     // Footer with signature
     y = ph - 28;
-    doc.setFillColor(...C.light);
+    doc.setFillColor(C.light[0], C.light[1], C.light[2]);
     doc.roundedRect(m, y, cw, 22, 3, 3, 'F');
 
-    doc.setTextColor(...C.dark);
+    doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.text('Rapor Bilgileri', m + 5, y + 6);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
-    doc.setTextColor(...C.gray);
-    doc.text(`Hazirlayan: ${tr(metadata.teacherName)}`, m + 5, y + 12);
+    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
+    doc.text(`Hazirlayan: ${toASCII(metadata.teacherName)}`, m + 5, y + 12);
     doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, m + 5, y + 17);
 
-    doc.setTextColor(...C.dark);
+    doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
     doc.text('Imza:', pw - m - 35, y + 12);
-    doc.setDrawColor(...C.gray);
+    doc.setDrawColor(C.gray[0], C.gray[1], C.gray[2]);
     doc.line(pw - m - 35, y + 17, pw - m - 5, y + 17);
 
     // Page number
-    doc.setTextColor(...C.gray);
+    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
     doc.setFontSize(7);
     doc.text('Sayfa 3/3', pw - m, ph - 5, { align: 'right' });
 
     // Save
-    const safe = (s: string) => tr(s).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+    const safe = (s: string) => toASCII(s).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
     doc.save(`${safe(metadata.className)}_${safe(metadata.subject)}_Infografik.pdf`);
 };
 
@@ -624,29 +641,29 @@ export const exportIndividualStudentReports = async (
 
         // Header
         drawGradientHeader(doc, 35);
-        doc.setTextColor(...C.white);
+        doc.setTextColor(255, 255, 255);
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text(tr(metadata.schoolName), pw / 2, 15, { align: 'center' });
+        doc.text(toASCII(metadata.schoolName), pw / 2, 15, { align: 'center' });
         doc.setFontSize(10);
-        doc.text(`${tr(metadata.subject)} - ${tr(metadata.className)}`, pw / 2, 25, { align: 'center' });
+        doc.text(`${toASCII(metadata.subject)} - ${toASCII(metadata.className)}`, pw / 2, 25, { align: 'center' });
 
         let y = 45;
 
         // Student card
-        doc.setFillColor(...C.light);
+        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
         doc.roundedRect(m, y, pw - 2 * m, 35, 4, 4, 'F');
 
-        doc.setTextColor(...C.dark);
+        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text(tr(student.name), m + 8, y + 12);
+        doc.text(toASCII(student.name), m + 8, y + 12);
 
         // Score circle
         const scoreColor = pass ? C.success : C.danger;
         doc.setFillColor(scoreColor[0], scoreColor[1], scoreColor[2]);
         doc.circle(pw - m - 25, y + 17, 15, 'F');
-        doc.setFillColor(...C.white);
+        doc.setFillColor(255, 255, 255);
         doc.circle(pw - m - 25, y + 17, 11, 'F');
 
         doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
@@ -656,9 +673,9 @@ export const exportIndividualStudentReports = async (
         y += 45;
 
         // Question results
-        doc.setFillColor(...C.blue);
+        doc.setFillColor(C.blue[0], C.blue[1], C.blue[2]);
         doc.roundedRect(m, y, pw - 2 * m, 8, 2, 2, 'F');
-        doc.setTextColor(...C.white);
+        doc.setTextColor(255, 255, 255);
         doc.setFontSize(9);
         doc.text('SORU SONUCLARI', m + 5, y + 5.5);
 
@@ -667,7 +684,7 @@ export const exportIndividualStudentReports = async (
         const qData = analysis.questionStats.map((q, i) => {
             const score = student.scores[q.questionId] || 0;
             const maxQ = questions.find(qu => qu.id === q.questionId)?.maxScore || 1;
-            return [(i + 1).toString(), tr(q.outcome.code), score.toString(), maxQ.toString()];
+            return [(i + 1).toString(), toASCII(q.outcome.code), score.toString(), maxQ.toString()];
         });
 
         autoTable(doc, {
@@ -676,11 +693,11 @@ export const exportIndividualStudentReports = async (
             body: qData,
             theme: 'grid',
             styles: { fontSize: 9, cellPadding: 3 },
-            headStyles: { fillColor: C.gradientStart, textColor: C.white },
+            headStyles: { fillColor: C.gradientStart as [number, number, number], textColor: C.white as [number, number, number] },
             margin: { left: m, right: m }
         });
 
-        const safe = (s: string) => tr(s).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+        const safe = (s: string) => toASCII(s).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
         doc.save(`${safe(student.name)}_Karne.pdf`);
         await new Promise(r => setTimeout(r, 100));
     }
