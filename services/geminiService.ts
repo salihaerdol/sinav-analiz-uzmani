@@ -1,15 +1,75 @@
+/**
+ * GEMINI AI SERVICE
+ * Kullanıcıların kendi API anahtarlarını kullanarak AI analizi yapmasını sağlar
+ */
+
 import { GoogleGenAI } from "@google/genai";
 import { AnalysisResult, ExamMetadata } from '../types';
+import { userApiKeyService } from './userApiKeyService';
 
-export const generateAIAnalysis = async (
-  analysis: AnalysisResult,
-  metadata: ExamMetadata
-): Promise<string> => {
-  if (!process.env.API_KEY) {
-    return "API Anahtarı bulunamadı. Lütfen .env dosyasını kontrol edin.";
+// Geçici API key cache (session bazlı)
+let cachedApiKey: string | null = null;
+
+/**
+ * API Key'i ayarla (session bazlı cache)
+ */
+export const setApiKey = (apiKey: string) => {
+  cachedApiKey = apiKey;
+};
+
+/**
+ * Mevcut API Key'i al
+ */
+export const getApiKey = async (): Promise<string | null> => {
+  // Önce cache kontrol et
+  if (cachedApiKey) return cachedApiKey;
+
+  // Supabase'den kullanıcının API key'ini al
+  const userKey = await userApiKeyService.getGeminiApiKey();
+  if (userKey) {
+    cachedApiKey = userKey;
+    return userKey;
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // En son .env'den kontrol et (fallback)
+  const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (envKey) return envKey;
+
+  return null;
+};
+
+/**
+ * API Key'in geçerli olup olmadığını kontrol et
+ */
+export const validateApiKey = async (apiKey: string): Promise<boolean> => {
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+      { method: 'GET' }
+    );
+    return response.ok;
+  } catch (error) {
+    console.error('API key doğrulama hatası:', error);
+    return false;
+  }
+};
+
+/**
+ * AI analizi oluştur
+ */
+export const generateAIAnalysis = async (
+  analysis: AnalysisResult,
+  metadata: ExamMetadata,
+  customApiKey?: string
+): Promise<string> => {
+  // API Key'i belirle
+  const apiKey = customApiKey || await getApiKey();
+
+  if (!apiKey) {
+    return "⚠️ API Anahtarı bulunamadı. Lütfen Ayarlar bölümünden Gemini API anahtarınızı girin.";
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
 
   // Identify lowest performing questions
   const lowestQuestions = [...analysis.questionStats]
@@ -65,13 +125,83 @@ export const generateAIAnalysis = async (
   `;
 
   try {
+    // API kullanımını kaydet
+    await userApiKeyService.incrementAiRequestCount();
+
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
     return response.text || "Analiz oluşturulamadı.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Error:", error);
+
+    if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('401')) {
+      return "❌ API anahtarınız geçersiz. Lütfen Ayarlar bölümünden geçerli bir Gemini API anahtarı girin.";
+    }
+
+    if (error.message?.includes('quota') || error.message?.includes('429')) {
+      return "⚠️ API kullanım kotanız dolmuş. Lütfen daha sonra tekrar deneyin veya başka bir API anahtarı kullanın.";
+    }
+
     return "Yapay zeka analizi sırasında bir hata oluştu. Lütfen tekrar deneyin.";
   }
+};
+
+/**
+ * Hızlı soru-cevap için AI kullan
+ */
+export const askAI = async (
+  question: string,
+  context?: string,
+  customApiKey?: string
+): Promise<string> => {
+  const apiKey = customApiKey || await getApiKey();
+
+  if (!apiKey) {
+    return "⚠️ API Anahtarı bulunamadı.";
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  const prompt = context
+    ? `Bağlam: ${context}\n\nSoru: ${question}`
+    : question;
+
+  try {
+    await userApiKeyService.incrementAiRequestCount();
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: prompt,
+    });
+    return response.text || "Yanıt oluşturulamadı.";
+  } catch (error) {
+    console.error("Gemini Error:", error);
+    return "Bir hata oluştu.";
+  }
+};
+
+/**
+ * API Key durumunu kontrol et
+ */
+export const checkApiKeyStatus = async (): Promise<{
+  hasKey: boolean;
+  isValid: boolean;
+  source: 'user' | 'env' | 'none';
+}> => {
+  // Kullanıcının kendi key'i var mı?
+  const hasUserKey = await userApiKeyService.hasValidApiKey();
+  if (hasUserKey) {
+    return { hasKey: true, isValid: true, source: 'user' };
+  }
+
+  // .env'den key var mı?
+  const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (envKey) {
+    const isValid = await validateApiKey(envKey);
+    return { hasKey: true, isValid, source: 'env' };
+  }
+
+  return { hasKey: false, isValid: false, source: 'none' };
 };

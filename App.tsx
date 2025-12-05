@@ -1,14 +1,18 @@
-import React, { useState, useMemo, useEffect } from 'react';
+﻿import React, { useState, useMemo, useEffect } from 'react';
 import { getScenarioData, getOutcomeDescription } from './data/curriculum';
-import { QuestionConfig, Student, ExamMetadata, AnalysisResult } from './types';
+import { QuestionConfig, Student, ExamMetadata, AnalysisResult, SavedAnalysis } from './types';
 import { AnalysisView } from './components/AnalysisView';
-import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X, History, TrendingUp, Key } from 'lucide-react';
 import { ScenarioVisualSelector } from './components/ScenarioVisualSelector';
 import { MEB_SCENARIOS_ADVANCED } from './services/mebScraperAdvanced';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
 import { classListService, ClassList } from './services/supabase';
 import { DataImport } from './components/DataImport';
+import { ProgressDashboard } from './components/ProgressDashboard';
+import { SettingsModal } from './components/SettingsModal';
+import { saveAnalysis, getAllAnalyses } from './services/historyService';
+import { analysisHistoryService } from './services/supabaseHistoryService';
 
 // Steps Enum
 enum Step {
@@ -54,6 +58,9 @@ function MainApp() {
   const [savedClasses, setSavedClasses] = useState<ClassList[]>([]);
   const [bulkStudentText, setBulkStudentText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [showProgressDashboard, setShowProgressDashboard] = useState(false);
+  const [analysisCount, setAnalysisCount] = useState(0);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // --- PERSISTENCE LOGIC ---
 
@@ -88,6 +95,29 @@ function MainApp() {
   }, [metadata, questions, students, step, isLoaded]);
 
   // --- NEW FEATURES HANDLERS ---
+
+  // Update analysis count
+  useEffect(() => {
+    setAnalysisCount(getAllAnalyses().length);
+  }, [showProgressDashboard]);
+
+  const handleSaveAnalysis = () => {
+    if (questions.length === 0 || students.length === 0) {
+      alert('Kaydedilecek analiz verisi bulunamadı.');
+      return;
+    }
+    saveAnalysis(metadata, analysis, questions, students);
+    setAnalysisCount(getAllAnalyses().length);
+    alert('Analiz başarıyla kaydedildi!');
+  };
+
+  const handleLoadAnalysis = (savedAnalysis: SavedAnalysis) => {
+    setMetadata(savedAnalysis.metadata);
+    setQuestions(savedAnalysis.questions);
+    setStudents(savedAnalysis.students);
+    setStep(Step.ANALYSIS);
+    setShowProgressDashboard(false);
+  };
 
   const resetAnalysis = () => {
     if (confirm('Mevcut analiz verileri silinecek ve yeni bir analiz başlatılacak. Emin misiniz?')) {
@@ -284,7 +314,7 @@ function MainApp() {
     const totalMaxScore = questions.reduce((sum, q) => sum + q.maxScore, 0);
 
     const studentStats = students.map(s => {
-      const totalScore = Object.values(s.scores).reduce((a, b) => a + b, 0);
+      const totalScore = Object.values(s.scores).reduce((a: number, b: number) => a + b, 0);
       return {
         studentId: s.id,
         totalScore,
@@ -674,7 +704,7 @@ function MainApp() {
                   </td>
                 ))}
                 <td className="px-4 py-3 text-center font-black text-indigo-700 bg-slate-50 text-lg border-l border-slate-100">
-                  {Object.values(student.scores).reduce((a, b) => a + b, 0)}
+                  {Object.values(student.scores).reduce((a: number, b: number) => a + b, 0)}
                 </td>
                 <td className="px-4 py-3 text-center">
                   <button onClick={() => removeStudent(student.id)} className="text-slate-300 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-full">
@@ -705,9 +735,17 @@ function MainApp() {
           <h1 className="text-2xl font-bold text-slate-800">Analiz Sonuçları</h1>
           <p className="text-slate-500 text-sm">Rapor hazır. İndirebilir veya yapay zeka ile yorumlayabilirsiniz.</p>
         </div>
-        <button onClick={() => setStep(Step.SCORES)} className="text-indigo-600 font-bold hover:text-indigo-800 flex items-center bg-indigo-50 px-5 py-2.5 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-colors">
-          <ChevronLeft className="w-5 h-5 mr-1" /> Düzenlemeye Dön
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveAnalysis}
+            className="text-green-600 font-bold hover:text-green-800 flex items-center bg-green-50 px-5 py-2.5 rounded-lg border border-green-100 hover:bg-green-100 transition-colors"
+          >
+            <Save className="w-5 h-5 mr-1" /> Kaydet
+          </button>
+          <button onClick={() => setStep(Step.SCORES)} className="text-indigo-600 font-bold hover:text-indigo-800 flex items-center bg-indigo-50 px-5 py-2.5 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-colors">
+            <ChevronLeft className="w-5 h-5 mr-1" /> Düzenlemeye Dön
+          </button>
+        </div>
       </div>
 
       <AnalysisView
@@ -739,6 +777,24 @@ function MainApp() {
                 className="ml-6 flex items-center px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors"
               >
                 <Plus className="w-4 h-4 mr-1" /> Yeni Analiz
+              </button>
+              <button
+                onClick={() => setShowProgressDashboard(true)}
+                className="ml-2 flex items-center px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors relative"
+              >
+                <History className="w-4 h-4 mr-1" /> Geçmiş
+                {analysisCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                    {analysisCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="ml-2 flex items-center px-3 py-1.5 bg-violet-50 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-100 transition-colors"
+                title="API Ayarları"
+              >
+                <Key className="w-4 h-4 mr-1" /> API
               </button>
             </div>
             <div className="flex items-center space-x-4">
@@ -852,6 +908,19 @@ function MainApp() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Progress Dashboard Modal */}
+      {showProgressDashboard && (
+        <ProgressDashboard
+          onLoadAnalysis={handleLoadAnalysis}
+          onClose={() => setShowProgressDashboard(false)}
+        />
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <SettingsModal onClose={() => setShowSettingsModal(false)} />
       )}
     </div>
   );

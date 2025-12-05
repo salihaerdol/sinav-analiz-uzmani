@@ -8,6 +8,8 @@ export interface QuestionConfig {
   order: number;
   maxScore: number;
   outcome: LearningOutcome;
+  cognitiveLevel?: 'Bilgi' | 'Kavrama' | 'Uygulama' | 'Analiz' | 'Sentez' | 'Değerlendirme';
+  difficulty?: 'Kolay' | 'Orta' | 'Zor';
 }
 
 export interface Student {
@@ -54,4 +56,107 @@ export interface AnalysisResult {
   }[];
   classAverage: number;
   totalQuestions: number;
+}
+
+// ==================== YENİ TIPLER - GELİŞİM TAKİP SİSTEMİ ====================
+
+/**
+ * Kaydedilmiş analiz - tüm verileri içerir
+ */
+export interface SavedAnalysis {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata: ExamMetadata;
+  analysis: AnalysisResult;
+  questions: QuestionConfig[];
+  students: Student[];
+  aiSummary?: string;
+  notes?: string;
+  tags?: string[];
+}
+
+/**
+ * Öğrenci gelişim kaydı
+ */
+export interface StudentProgress {
+  studentId: string;
+  studentName: string;
+  className: string;
+  examHistory: {
+    analysisId: string;
+    date: string;
+    subject: string;
+    examType: string;
+    score: number;
+    percentage: number;
+    classAverage: number;
+    rank: number;
+    totalStudents: number;
+  }[];
+  outcomeProgress: {
+    outcomeCode: string;
+    outcomeDescription: string;
+    history: {
+      date: string;
+      successRate: number;
+    }[];
+  }[];
+  overallTrend: 'improving' | 'stable' | 'declining';
+  averagePercentage: number;
+}
+
+/**
+ * Sınıf gelişim kaydı
+ */
+export interface ClassProgress {
+  className: string;
+  subject: string;
+  examHistory: {
+    analysisId: string;
+    date: string;
+    examType: string;
+    classAverage: number;
+    highestScore: number;
+    lowestScore: number;
+    passRate: number;
+    studentCount: number;
+  }[];
+  outcomeProgress: {
+    outcomeCode: string;
+    outcomeDescription: string;
+    history: {
+      date: string;
+      successRate: number;
+      isFailed: boolean;
+    }[];
+  }[];
+  overallTrend: 'improving' | 'stable' | 'declining';
+}
+
+/**
+ * Dashboard özet verileri
+ */
+export interface DashboardSummary {
+  totalAnalyses: number;
+  totalStudents: number;
+  totalClasses: number;
+  recentAnalyses: SavedAnalysis[];
+  topPerformingStudents: {
+    name: string;
+    className: string;
+    averageScore: number;
+    trend: 'up' | 'down' | 'stable';
+  }[];
+  classPerformance: {
+    className: string;
+    averageScore: number;
+    trend: 'up' | 'down' | 'stable';
+  }[];
+  weakOutcomes: {
+    code: string;
+    description: string;
+    averageSuccessRate: number;
+    frequency: number;
+  }[];
 }

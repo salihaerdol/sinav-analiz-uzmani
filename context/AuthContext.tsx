@@ -9,6 +9,7 @@ interface AuthContextType {
     signInWithGoogle: () => Promise<void>;
     signOut: () => Promise<void>;
     loading: boolean;
+    error: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,9 +20,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
 
+    const [error, setError] = useState<string | null>(null);
+
     useEffect(() => {
         // Check active sessions and sets the user
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        supabase.auth.getSession().then(({ data: { session }, error }) => {
+            if (error) {
+                console.error('Error getting session:', error);
+                setError(error.message);
+            }
             setSession(session);
             setUser(session?.user ?? null);
             checkAdmin(session?.user);
@@ -49,6 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signInWithGoogle = async () => {
         try {
+            setError(null);
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
@@ -59,23 +67,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 },
             });
             if (error) throw error;
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error signing in with Google:', error);
-            alert('Giriş yapılırken bir hata oluştu.');
+            setError(error.message || 'Giriş yapılırken bir hata oluştu.');
         }
     };
 
     const signOut = async () => {
         try {
+            setError(null);
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error signing out:', error);
+            setError(error.message || 'Çıkış yapılırken bir hata oluştu.');
         }
     };
 
     return (
-        <AuthContext.Provider value={{ user, session, isAdmin, signInWithGoogle, signOut, loading }}>
+        <AuthContext.Provider value={{ user, session, isAdmin, signInWithGoogle, signOut, loading, error }}>
             {children}
         </AuthContext.Provider>
     );

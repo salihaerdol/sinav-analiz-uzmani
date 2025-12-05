@@ -1,4 +1,4 @@
-/**
+﻿/**
  * EXCEL SERVICE - Import/Export functionality
  * Professional Excel handling for exam analysis
  */
@@ -382,7 +382,7 @@ export const parseScoresFromClipboard = (
 /**
  * Download template as Excel
  */
-export const downloa dStudentListTemplate = () => {
+export const downloadStudentListTemplate = () => {
     const template = [
         ['No', 'Öğrenci No', 'Ad Soyad', 'Cinsiyet (M/F)', 'E-posta', 'Veli Telefon', 'Notlar'],
         ['1', '101', 'Örnek Öğrenci 1', 'M', 'ornek1@email.com', '0555 123 4567', ''],
