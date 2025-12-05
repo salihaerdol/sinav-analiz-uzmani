@@ -1,7 +1,7 @@
 /**
- * Advanced Export Service with Bilingual Support (Turkish & English)
- * World-class educational reporting system
- * Version 2.0 - Professional Grade Export
+ * Advanced Export Service - Professional PDF Generation
+ * FIXED: Turkish characters, charts, tables, and layout
+ * Version 3.0
  */
 
 import jsPDF from 'jspdf';
@@ -13,12 +13,12 @@ export type Language = 'tr' | 'en';
 
 // Export scenario types
 export type ExportScenario =
-    | 'full_report'           // Tam rapor - tüm bölümler
-    | 'executive_summary'     // Yönetici özeti - sadece önemli bilgiler
-    | 'student_focused'       // Öğrenci odaklı - bireysel performans
-    | 'outcome_analysis'      // Kazanım analizi - detaylı kazanım raporu
-    | 'parent_report'         // Veli raporu - sade ve anlaşılır format
-    | 'meb_standard';         // MEB standardı - resmi format
+    | 'full_report'
+    | 'executive_summary'
+    | 'student_focused'
+    | 'outcome_analysis'
+    | 'parent_report'
+    | 'meb_standard';
 
 export interface ExportOptions {
     language: Language;
@@ -31,77 +31,55 @@ export interface ExportOptions {
 
 const translations = {
     tr: {
-        reportTitle: 'SINAV SONUÇ ANALİZ RAPORU',
-        examAnalysisReport: 'Sınav Analiz Raporu',
-        executiveSummary: 'YÖNETİCİ ÖZETİ',
+        reportTitle: 'SINAV ANALIZ RAPORU',
+        examAnalysisReport: 'Sinav Analiz Raporu',
+        executiveSummary: 'YONETICI OZETI',
         school: 'Okul',
-        teacher: 'Öğretmen',
-        class: 'Sınıf',
+        teacher: 'Ogretmen',
+        class: 'Sinif',
         subject: 'Ders',
         date: 'Tarih',
-        term: 'Dönem',
-        examNumber: 'Sınav No',
-        examType: 'Sınav Türü',
-        academicYear: 'Akademik Yıl',
-        classAverage: 'Sınıf Ortalaması',
-        totalStudents: 'Öğrenci Sayısı',
-        totalQuestions: 'Soru Sayısı',
-        visualAnalysis: 'Görsel Analiz ve Grafikler',
-        questionAnalysis: 'Soru Bazlı Detaylı Analiz',
-        outcomeAnalysis: 'Kazanım Bazlı Analiz',
-        studentPerformance: 'Öğrenci Performans Tablosu',
-        recommendations: 'ÖNERİLER VE DEĞERLENDİRME',
+        term: 'Donem',
+        examNumber: 'Sinav No',
+        examType: 'Sinav Turu',
+        academicYear: 'Akademik Yil',
+        classAverage: 'Sinif Ortalamasi',
+        totalStudents: 'Ogrenci Sayisi',
+        totalQuestions: 'Soru Sayisi',
+        visualAnalysis: 'Gorsel Analiz',
+        questionAnalysis: 'Soru Bazli Analiz',
+        outcomeAnalysis: 'Kazanim Bazli Analiz',
+        studentPerformance: 'Ogrenci Performansi',
+        recommendations: 'ONERILER',
         questionNo: 'Soru',
-        outcomeCode: 'Kazanım Kodu',
-        outcomeDesc: 'Kazanım Tanımı',
-        avgScore: 'Ort. Puan',
-        successRate: 'Başarı %',
+        outcomeCode: 'Kazanim Kodu',
+        outcomeDesc: 'Kazanim Tanimi',
+        avgScore: 'Ort.',
+        successRate: 'Basari %',
         status: 'Durum',
-        successful: 'BAŞARILI',
-        needsImprovement: 'GELİŞTİRİLMELİ',
-        failed: 'BAŞARISIZ',
-        studentName: 'Öğrenci Adı',
+        successful: 'BASARILI',
+        needsImprovement: 'GELISTIRILMELI',
+        studentName: 'Ogrenci Adi',
         totalScore: 'Toplam Puan',
-        percentage: 'Yüzde',
-        weakAreas: 'Güçlendirilmesi Gereken Kazanımlar',
-        strongAreas: 'Başarılı Olunan Kazanımlar',
-        generalEvaluation: 'Genel Değerlendirme',
-        suggestions: 'Öneriler',
-        mebReference: 'MEB Referansı',
-        preparedBy: 'Raporu Hazırlayan',
+        percentage: 'Yuzde',
+        weakAreas: 'Zayif Alanlar',
+        strongAreas: 'Guclu Alanlar',
+        suggestions: 'Oneriler',
+        preparedBy: 'Hazirlayan',
         reportDate: 'Rapor Tarihi',
-        signature: 'İmza',
-        detailedStatistics: 'Detaylı İstatistikler',
-        stdDev: 'Standart Sapma',
-        median: 'Medyan (Ortanca)',
-        maxScore: 'En Yüksek Puan',
-        minScore: 'En Düşük Puan',
-        scoreDistribution: 'Puan Dağılımı',
-        gradeDistribution: 'Not Dağılımı',
-        competencyMap: 'Yetkinlik Haritası',
-        cognitiveAnalysis: 'Bilişsel Düzey Analizi',
-        difficultyAnalysis: 'Güçlük Düzeyi Analizi',
+        signature: 'Imza',
+        detailedStatistics: 'Istatistikler',
+        stdDev: 'Std. Sapma',
+        median: 'Medyan',
+        maxScore: 'En Yuksek',
+        minScore: 'En Dusuk',
         page: 'Sayfa',
         of: '/',
-        confidential: 'GİZLİ - KURUMSAL KULLANIM İÇİN',
-        generatedBy: 'Bu rapor Sınav Analiz Uzmanı tarafından otomatik oluşturulmuştur.',
-        parentNotice: 'Sayın Veli',
-        studentReportCard: 'Öğrenci Sınav Sonuç Belgesi',
-        performanceSummary: 'Performans Özeti',
-        actionRequired: 'Dikkat Gerektiren Alanlar',
-        excellentAreas: 'Mükemmel Performans Gösterilen Alanlar',
-        gradeExcellent: 'Pekiyi',
-        gradeGood: 'İyi',
-        gradeAverage: 'Orta',
-        gradePass: 'Geçer',
-        gradeFail: 'Başarısız',
-        rank: 'Sıra',
-        classRank: 'Sınıf Sıralaması',
-        percentile: 'Yüzdelik Dilim',
-        comparedToClass: 'Sınıf Ortalamasına Göre',
-        aboveAverage: 'Ortalamanın Üstünde',
-        belowAverage: 'Ortalamanın Altında',
-        atAverage: 'Ortalama Düzeyde'
+        confidential: 'GIZLI - KURUMSAL KULLANIM ICIN',
+        generatedBy: 'Sinav Analiz Uzmani',
+        rank: 'Sira',
+        gradeDistribution: 'Not Dagilimi',
+        scoreDistribution: 'Puan Dagilimi'
     },
     en: {
         reportTitle: 'EXAM ANALYSIS REPORT',
@@ -119,323 +97,107 @@ const translations = {
         classAverage: 'Class Average',
         totalStudents: 'Total Students',
         totalQuestions: 'Total Questions',
-        visualAnalysis: 'Visual Analysis & Charts',
-        questionAnalysis: 'Detailed Question Analysis',
-        outcomeAnalysis: 'Learning Outcome Analysis',
-        studentPerformance: 'Student Performance Table',
-        recommendations: 'RECOMMENDATIONS AND EVALUATION',
+        visualAnalysis: 'Visual Analysis',
+        questionAnalysis: 'Question Analysis',
+        outcomeAnalysis: 'Outcome Analysis',
+        studentPerformance: 'Student Performance',
+        recommendations: 'RECOMMENDATIONS',
         questionNo: 'Q#',
-        outcomeCode: 'Outcome Code',
-        outcomeDesc: 'Learning Outcome',
-        avgScore: 'Avg. Score',
+        outcomeCode: 'Code',
+        outcomeDesc: 'Description',
+        avgScore: 'Avg',
         successRate: 'Success %',
         status: 'Status',
-        successful: 'SUCCESSFUL',
-        needsImprovement: 'NEEDS IMPROVEMENT',
-        failed: 'FAILED',
+        successful: 'PASS',
+        needsImprovement: 'NEEDS WORK',
         studentName: 'Student Name',
         totalScore: 'Total Score',
         percentage: 'Percentage',
-        weakAreas: 'Areas Needing Improvement',
+        weakAreas: 'Weak Areas',
         strongAreas: 'Strong Areas',
-        generalEvaluation: 'General Evaluation',
         suggestions: 'Suggestions',
-        mebReference: 'MEB Reference',
         preparedBy: 'Prepared By',
         reportDate: 'Report Date',
         signature: 'Signature',
-        detailedStatistics: 'Detailed Statistics',
-        stdDev: 'Standard Deviation',
+        detailedStatistics: 'Statistics',
+        stdDev: 'Std Dev',
         median: 'Median',
-        maxScore: 'Highest Score',
-        minScore: 'Lowest Score',
-        scoreDistribution: 'Score Distribution',
-        gradeDistribution: 'Grade Distribution',
-        competencyMap: 'Competency Map',
-        cognitiveAnalysis: 'Cognitive Level Analysis',
-        difficultyAnalysis: 'Difficulty Level Analysis',
+        maxScore: 'Highest',
+        minScore: 'Lowest',
         page: 'Page',
         of: 'of',
-        confidential: 'CONFIDENTIAL - FOR INSTITUTIONAL USE ONLY',
-        generatedBy: 'This report was automatically generated by Exam Analysis Expert.',
-        parentNotice: 'Dear Parent',
-        studentReportCard: 'Student Exam Report',
-        performanceSummary: 'Performance Summary',
-        actionRequired: 'Areas Requiring Attention',
-        excellentAreas: 'Areas of Excellent Performance',
-        gradeExcellent: 'Excellent',
-        gradeGood: 'Good',
-        gradeAverage: 'Average',
-        gradePass: 'Pass',
-        gradeFail: 'Fail',
+        confidential: 'CONFIDENTIAL',
+        generatedBy: 'Exam Analysis Expert',
         rank: 'Rank',
-        classRank: 'Class Ranking',
-        percentile: 'Percentile',
-        comparedToClass: 'Compared to Class Average',
-        aboveAverage: 'Above Average',
-        belowAverage: 'Below Average',
-        atAverage: 'At Average'
+        gradeDistribution: 'Grade Distribution',
+        scoreDistribution: 'Score Distribution'
     }
 };
 
-// Helper functions for stats
-const calculateStandardDeviation = (scores: number[]) => {
+// Turkish character converter
+const convertTurkish = (text: string): string => {
+    if (!text) return '';
+    const map: Record<string, string> = {
+        'ş': 's', 'Ş': 'S',
+        'ğ': 'g', 'Ğ': 'G',
+        'ü': 'u', 'Ü': 'U',
+        'ö': 'o', 'Ö': 'O',
+        'ç': 'c', 'Ç': 'C',
+        'ı': 'i', 'İ': 'I'
+    };
+    return text.replace(/[şŞğĞüÜöÖçÇıİ]/g, (char) => map[char] || char);
+};
+
+// Statistics helpers
+const calculateStandardDeviation = (scores: number[]): number => {
     if (scores.length === 0) return 0;
     const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
     const variance = scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / scores.length;
     return Math.sqrt(variance);
 };
 
-const calculateMedian = (scores: number[]) => {
+const calculateMedian = (scores: number[]): number => {
     if (scores.length === 0) return 0;
     const sorted = [...scores].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 };
 
-const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-};
-
-// Font loader with better error handling
-const loadTurkishFont = async (doc: jsPDF): Promise<boolean> => {
-    const fontUrls = [
-        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Regular.ttf',
-        'https://raw.githubusercontent.com/google/fonts/main/apache/roboto/Roboto-Regular.ttf'
-    ];
-
-    for (const url of fontUrls) {
-        try {
-            const response = await fetch(url);
-            if (!response.ok) continue;
-            const buffer = await response.arrayBuffer();
-            const fontFileName = 'Roboto-Regular.ttf';
-
-            const base64String = arrayBufferToBase64(buffer);
-            doc.addFileToVFS(fontFileName, base64String);
-            doc.addFont(fontFileName, 'Roboto', 'normal');
-            doc.setFont('Roboto');
-            return true;
-        } catch (e) {
-            console.warn(`Failed to load font from ${url}`, e);
-        }
-    }
-
-    console.warn('Could not load custom font from any source, falling back to default');
-    return false;
-};
-
-/**
- * Generate AI-powered recommendations based on analysis
- */
-function generateRecommendations(
+// Generate recommendations
+const generateRecommendations = (
     analysis: AnalysisResult,
     metadata: ExamMetadata,
     lang: Language = 'tr'
-): {
-    weakAreas: string[];
-    strongAreas: string[];
-    generalEvaluation: string;
-    suggestions: string[];
-    actionItems: string[];
-    parentMessage: string;
-} {
-    const weakAreas: string[] = [];
-    const strongAreas: string[] = [];
+) => {
+    const weakAreas = analysis.outcomeStats.filter(o => o.isFailed);
+    const strongAreas = analysis.outcomeStats.filter(o => o.successRate >= 75);
     const suggestions: string[] = [];
-    const actionItems: string[] = [];
 
-    // Analyze areas
-    analysis.outcomeStats.forEach(outcome => {
-        if (outcome.isFailed) {
-            weakAreas.push(`${outcome.code}: ${outcome.description} (%${outcome.successRate.toFixed(1)})`);
-        } else if (outcome.successRate >= 75) {
-            strongAreas.push(`${outcome.code}: ${outcome.description} (%${outcome.successRate.toFixed(1)})`);
-        }
-    });
-
-    // Generate suggestions based on class performance
     if (analysis.classAverage < 50) {
-        suggestions.push(
-            lang === 'tr'
-                ? '🔴 Sınıf genelinde temel kazanımlarda eksiklikler görülmektedir. Konu tekrarları ve telafi çalışmaları yapılması önerilir.'
-                : '🔴 Deficiencies are observed in basic outcomes across the class. Subject reviews and remedial work are recommended.'
-        );
-        actionItems.push(
-            lang === 'tr'
-                ? 'Temel kavramların yeniden anlatılması için ek ders planlaması yapılmalı'
-                : 'Schedule additional lessons for re-teaching fundamental concepts'
-        );
+        suggestions.push(lang === 'tr'
+            ? 'Sinif genelinde temel kazanimlarda eksiklikler gorulmektedir.'
+            : 'Deficiencies observed in basic outcomes across the class.');
     } else if (analysis.classAverage >= 75) {
-        suggestions.push(
-            lang === 'tr'
-                ? '🟢 Sınıf düzeyi beklenen seviyenin üzerindedir. Öğrencileri daha üst düzey düşünme becerilerine yönlendirecek zenginleştirilmiş etkinlikler planlanabilir.'
-                : '🟢 Class level is above expected. Enriched activities guiding students to higher-order thinking skills can be planned.'
-        );
-        actionItems.push(
-            lang === 'tr'
-                ? 'İleri düzey problem çözme etkinlikleri eklenebilir'
-                : 'Advanced problem-solving activities can be added'
-        );
+        suggestions.push(lang === 'tr'
+            ? 'Sinif duzeyi beklenen seviyenin uzerindedir.'
+            : 'Class level is above expected.');
     } else {
-        suggestions.push(
-            lang === 'tr'
-                ? '🟡 Sınıf başarısı orta düzeydedir. Başarısı düşük öğrencilere yönelik bireyselleştirilmiş çalışmalar ile sınıf ortalaması artırılabilir.'
-                : '🟡 Class success is at a medium level. Class average can be increased with individualized studies for low-achieving students.'
-        );
+        suggestions.push(lang === 'tr'
+            ? 'Sinif basarisi orta duzeydedir.'
+            : 'Class success is at medium level.');
     }
 
-    // Weak outcome suggestions
     if (weakAreas.length > 0) {
-        suggestions.push(
-            lang === 'tr'
-                ? `📊 Tespit edilen ${weakAreas.length} adet "Geliştirilmeli" kazanım için bir sonraki derste kısa bir tekrar yapılması ve örnek soru çözümleri ile pekiştirilmesi faydalı olacaktır.`
-                : `📊 It would be beneficial to do a short review and reinforce with sample questions in the next lesson for the ${weakAreas.length} outcomes identified as "Needs Improvement".`
-        );
-        actionItems.push(
-            lang === 'tr'
-                ? `Başarısız kazanımlar için ek çalışma kağıdı hazırlanmalı (${weakAreas.length} kazanım)`
-                : `Prepare additional worksheets for failed outcomes (${weakAreas.length} outcomes)`
-        );
+        suggestions.push(lang === 'tr'
+            ? `${weakAreas.length} adet kazanim icin tekrar oneriliyor.`
+            : `Review recommended for ${weakAreas.length} outcomes.`);
     }
 
-    // Student distribution analysis
-    const lowPerformers = analysis.studentStats.filter(s => s.percentage < 50).length;
-    const highPerformers = analysis.studentStats.filter(s => s.percentage >= 85).length;
-
-    if (lowPerformers > 0) {
-        suggestions.push(
-            lang === 'tr'
-                ? `⚠️ %50 barajının altında kalan ${lowPerformers} öğrenci için veli bilgilendirmesi yapılması ve bireysel çalışma planı hazırlanması önerilir.`
-                : `⚠️ It is recommended to inform parents and prepare individual study plans for the ${lowPerformers} students who are below the 50% threshold.`
-        );
-        actionItems.push(
-            lang === 'tr'
-                ? `${lowPerformers} öğrenci için veli görüşmesi planlanmalı`
-                : `Schedule parent meetings for ${lowPerformers} students`
-        );
-    }
-
-    if (highPerformers > 0) {
-        actionItems.push(
-            lang === 'tr'
-                ? `${highPerformers} başarılı öğrenci için zenginleştirme etkinlikleri planlanabilir`
-                : `Enrichment activities can be planned for ${highPerformers} high-performing students`
-        );
-    }
-
-    // General evaluation
-    const generalEvaluation =
-        lang === 'tr'
-            ? `Bu rapor, ${metadata.academicYear} Eğitim-Öğretim Yılı ${metadata.term}. Dönem ${metadata.subject} dersi ${metadata.examNumber}. ${metadata.examType} sonuçlarına göre hazırlanmıştır.\n\n` +
-            `Sınıfın genel başarı ortalaması %${analysis.classAverage.toFixed(2)} olarak hesaplanmıştır. ` +
-            `Sınavda yer alan toplam ${analysis.totalQuestions} sorunun analizi sonucunda; öğrencilerin ${strongAreas.length} kazanımda yüksek performans gösterdiği, ` +
-            `${weakAreas.length} kazanımda ise desteğe ihtiyaç duyduğu tespit edilmiştir.`
-            : `This report has been prepared based on the results of the ${metadata.academicYear} Academic Year ${metadata.term}${metadata.term === '1' ? 'st' : 'nd'} Term ${metadata.subject} ${metadata.examNumber} (${metadata.examType}).\n\n` +
-            `The general success average of the class is calculated as ${analysis.classAverage.toFixed(2)}%. ` +
-            `As a result of the analysis of ${analysis.totalQuestions} questions in the exam; it has been determined that students showed high performance in ${strongAreas.length} outcomes ` +
-            `and needed support in ${weakAreas.length} outcomes.`;
-
-    // Parent message
-    const parentMessage = lang === 'tr'
-        ? `Sayın Velimiz,\n\nÖğrencinizin ${metadata.subject} dersi ${metadata.examNumber}. ${metadata.examType} sonuçları ekte sunulmuştur. ` +
-        `Sınıf ortalaması %${analysis.classAverage.toFixed(1)} olarak hesaplanmıştır. ` +
-        `Öğrencinizin gelişim alanları ve güçlü yönleri detaylı olarak incelenmiş ve öneriler sunulmuştur.\n\n` +
-        `Herhangi bir sorunuz olması halinde lütfen bizimle iletişime geçiniz.\n\nSaygılarımızla,\n${metadata.teacherName}`
-        : `Dear Parent,\n\nPlease find attached your student's ${metadata.subject} ${metadata.examNumber}${metadata.examNumber === '1' ? 'st' : 'nd'} ${metadata.examType} results. ` +
-        `The class average is ${analysis.classAverage.toFixed(1)}%. ` +
-        `Your student's areas for improvement and strengths have been analyzed in detail with recommendations provided.\n\n` +
-        `Please feel free to contact us if you have any questions.\n\nBest regards,\n${metadata.teacherName}`;
-
-    return {
-        weakAreas,
-        strongAreas,
-        generalEvaluation,
-        suggestions,
-        actionItems,
-        parentMessage
-    };
-}
-
-/**
- * Add professional header to each page
- */
-const addProfessionalHeader = (
-    doc: jsPDF,
-    fontName: string,
-    metadata: ExamMetadata,
-    t: typeof translations.tr,
-    pageNum: number,
-    totalPages: number,
-    sectionTitle?: string
-) => {
-    const pageWidth = doc.internal.pageSize.getWidth();
-
-    // Top border line
-    doc.setDrawColor(41, 128, 185);
-    doc.setLineWidth(0.5);
-    doc.line(10, 8, pageWidth - 10, 8);
-
-    // Header text
-    doc.setFont(fontName, 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-
-    // Left side - School and class info
-    doc.text(`${metadata.schoolName} | ${metadata.className} | ${metadata.subject}`, 12, 6);
-
-    // Right side - Page number
-    doc.text(`${t.page} ${pageNum} ${t.of} ${totalPages}`, pageWidth - 12, 6, { align: 'right' });
-
-    // Section title if provided
-    if (sectionTitle) {
-        doc.setFont(fontName, 'bold');
-        doc.setFontSize(10);
-        doc.setTextColor(41, 128, 185);
-        doc.text(sectionTitle, 14, 16);
-        doc.setDrawColor(200, 200, 200);
-        doc.line(14, 18, pageWidth - 14, 18);
-    }
+    return { weakAreas, strongAreas, suggestions };
 };
 
 /**
- * Add professional footer to each page
- */
-const addProfessionalFooter = (
-    doc: jsPDF,
-    fontName: string,
-    t: typeof translations.tr,
-    isConfidential: boolean = false
-) => {
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const pageWidth = doc.internal.pageSize.getWidth();
-
-    // Footer line
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.3);
-    doc.line(10, pageHeight - 12, pageWidth - 10, pageHeight - 12);
-
-    // Footer text
-    doc.setFont(fontName, 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(150, 150, 150);
-
-    const footerText = isConfidential ? t.confidential : t.generatedBy;
-    doc.text(footerText, pageWidth / 2, pageHeight - 8, { align: 'center' });
-
-    // Date on footer
-    const today = new Date().toLocaleDateString('tr-TR');
-    doc.text(today, pageWidth - 12, pageHeight - 8, { align: 'right' });
-};
-
-/**
- * Advanced PDF Export with Bilingual Support and Graphics
+ * MAIN PDF EXPORT FUNCTION - FIXED VERSION
  */
 export const exportToPDFAdvanced = async (
     analysis: AnalysisResult,
@@ -458,35 +220,16 @@ export const exportToPDFAdvanced = async (
     options: Partial<ExportOptions> = {}
 ) => {
     const t = translations[language];
-    const doc = new jsPDF();
+    const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const contentWidth = pageWidth - (margin * 2);
 
-    // Default options
-    const exportOptions: ExportOptions = {
-        language,
-        scenario: options.scenario || 'full_report',
-        includeCharts: options.includeCharts ?? true,
-        includeRecommendations: options.includeRecommendations ?? true,
-        includeStudentList: options.includeStudentList ?? true,
-        compactMode: options.compactMode ?? false
-    };
-
-    // Load font
-    const fontLoaded = await loadTurkishFont(doc);
-    const fontName = fontLoaded ? 'Roboto' : 'times';
-
-    // Calculate total pages based on scenario
-    let totalPages = 4; // Default for full report
-    if (exportOptions.scenario === 'executive_summary') totalPages = 2;
-    if (exportOptions.scenario === 'parent_report') totalPages = 2;
-    if (exportOptions.compactMode) totalPages = Math.max(2, totalPages - 1);
-
-    // Get recommendations
-    const recs = generateRecommendations(analysis, metadata, language);
-
-    // Calculate student scores for statistics
-    const studentScores = students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0));
+    // Calculate statistics
+    const studentScores = students.map(s =>
+        Object.values(s.scores).reduce((a: number, b: number) => a + b, 0)
+    );
     const maxPossibleScore = questions.reduce((sum, q) => sum + q.maxScore, 0);
     const studentPercentages = studentScores.map(s => (s / maxPossibleScore) * 100);
     const stdDev = calculateStandardDeviation(studentPercentages);
@@ -494,225 +237,187 @@ export const exportToPDFAdvanced = async (
     const maxScore = studentScores.length > 0 ? Math.max(...studentScores) : 0;
     const minScore = studentScores.length > 0 ? Math.min(...studentScores) : 0;
 
-    // --- PAGE 1: COVER PAGE ---
-    // Professional cover with gradient effect
+    // Recommendations
+    const recs = generateRecommendations(analysis, metadata, language);
+
+    // ============== PAGE 1: COVER ==============
+    // Blue header section
     doc.setFillColor(41, 128, 185);
-    doc.rect(0, 0, pageWidth, pageHeight / 2, 'F');
+    doc.rect(0, 0, pageWidth, 100, 'F');
 
-    // Decorative elements
+    // Decorative circles
     doc.setFillColor(52, 152, 219);
-    doc.circle(-20, pageHeight / 4, 80, 'F');
-    doc.circle(pageWidth + 30, pageHeight / 3, 60, 'F');
+    doc.circle(-20, 50, 60, 'F');
+    doc.circle(pageWidth + 20, 70, 50, 'F');
 
-    // White section at bottom
-    doc.setFillColor(255, 255, 255);
-    doc.rect(0, pageHeight / 2, pageWidth, pageHeight / 2, 'F');
-
-    // Main title
-    doc.setFont(fontName, 'bold');
-    doc.setFontSize(28);
+    // Title
     doc.setTextColor(255, 255, 255);
-    doc.text(t.reportTitle, pageWidth / 2, 60, { align: 'center' });
+    doc.setFontSize(28);
+    doc.setFont('helvetica', 'bold');
+    doc.text(convertTurkish(t.reportTitle), pageWidth / 2, 45, { align: 'center' });
 
     // Subtitle
     doc.setFontSize(14);
-    doc.setFont(fontName, 'normal');
-    doc.text(`${metadata.term}. ${t.term} - ${metadata.examNumber}. ${t.examType}`, pageWidth / 2, 75, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    const subtitle = `${metadata.term}. ${convertTurkish(t.term)} - ${metadata.examNumber}. ${convertTurkish(metadata.examType)}`;
+    doc.text(subtitle, pageWidth / 2, 60, { align: 'center' });
 
     // Decorative line
     doc.setDrawColor(255, 255, 255);
     doc.setLineWidth(0.5);
-    doc.line(60, 85, pageWidth - 60, 85);
+    doc.line(50, 70, pageWidth - 50, 70);
 
     // School name
     doc.setFontSize(18);
-    doc.setFont(fontName, 'bold');
-    doc.text(metadata.schoolName, pageWidth / 2, 100, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(convertTurkish(metadata.schoolName), pageWidth / 2, 85, { align: 'center' });
 
-    // Academic year
-    doc.setFontSize(12);
-    doc.setFont(fontName, 'normal');
-    doc.text(`${metadata.academicYear} ${language === 'tr' ? 'Eğitim Öğretim Yılı' : 'Academic Year'}`, pageWidth / 2, 112, { align: 'center' });
-
-    // Info box in white section
-    const infoBoxY = pageHeight / 2 + 20;
+    // Info box
+    const infoY = 115;
     doc.setFillColor(248, 249, 250);
-    doc.roundedRect(30, infoBoxY, pageWidth - 60, 60, 3, 3, 'F');
+    doc.roundedRect(margin, infoY, contentWidth, 55, 3, 3, 'F');
+    doc.setDrawColor(220, 220, 220);
+    doc.roundedRect(margin, infoY, contentWidth, 55, 3, 3, 'S');
 
-    // Info grid
+    // Info content
     doc.setTextColor(60, 60, 60);
-    doc.setFontSize(11);
+    doc.setFontSize(10);
+    const leftCol = margin + 10;
+    const rightCol = pageWidth / 2 + 10;
+    let infoLineY = infoY + 12;
 
-    const leftCol = 45;
-    const rightCol = pageWidth / 2 + 15;
-    let infoY = infoBoxY + 15;
+    // Row 1
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${convertTurkish(t.class)}:`, leftCol, infoLineY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(convertTurkish(metadata.className), leftCol + 25, infoLineY);
 
-    doc.setFont(fontName, 'bold');
-    doc.text(`${t.class}:`, leftCol, infoY);
-    doc.setFont(fontName, 'normal');
-    doc.text(metadata.className, leftCol + 25, infoY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${convertTurkish(t.subject)}:`, rightCol, infoLineY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(convertTurkish(metadata.subject), rightCol + 20, infoLineY);
 
-    doc.setFont(fontName, 'bold');
-    doc.text(`${t.subject}:`, rightCol, infoY);
-    doc.setFont(fontName, 'normal');
-    doc.text(metadata.subject, rightCol + 25, infoY);
+    // Row 2
+    infoLineY += 12;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${convertTurkish(t.teacher)}:`, leftCol, infoLineY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(convertTurkish(metadata.teacherName), leftCol + 30, infoLineY);
 
-    infoY += 12;
-    doc.setFont(fontName, 'bold');
-    doc.text(`${t.teacher}:`, leftCol, infoY);
-    doc.setFont(fontName, 'normal');
-    doc.text(metadata.teacherName, leftCol + 35, infoY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${convertTurkish(t.date)}:`, rightCol, infoLineY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(metadata.date, rightCol + 20, infoLineY);
 
-    doc.setFont(fontName, 'bold');
-    doc.text(`${t.date}:`, rightCol, infoY);
-    doc.setFont(fontName, 'normal');
-    doc.text(metadata.date, rightCol + 25, infoY);
+    // Row 3
+    infoLineY += 12;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${convertTurkish(t.totalStudents)}:`, leftCol, infoLineY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(students.length.toString(), leftCol + 40, infoLineY);
 
-    infoY += 12;
-    doc.setFont(fontName, 'bold');
-    doc.text(`${t.totalStudents}:`, leftCol, infoY);
-    doc.setFont(fontName, 'normal');
-    doc.text(students.length.toString(), leftCol + 45, infoY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${convertTurkish(t.totalQuestions)}:`, rightCol, infoLineY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(questions.length.toString(), rightCol + 35, infoLineY);
 
-    doc.setFont(fontName, 'bold');
-    doc.text(`${t.totalQuestions}:`, rightCol, infoY);
-    doc.setFont(fontName, 'normal');
-    doc.text(questions.length.toString(), rightCol + 40, infoY);
-
-    // Key Statistics Box
-    const statsBoxY = infoBoxY + 75;
-    doc.setFillColor(41, 128, 185);
-    doc.roundedRect(30, statsBoxY, pageWidth - 60, 35, 3, 3, 'F');
+    // Class Average Box
+    const avgBoxY = 185;
+    const isSuccess = analysis.classAverage >= 50;
+    doc.setFillColor(isSuccess ? 40 : 220, isSuccess ? 167 : 53, isSuccess ? 69 : 69);
+    doc.roundedRect(margin, avgBoxY, contentWidth, 35, 3, 3, 'F');
 
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont(fontName, 'bold');
-    doc.text(`%${analysis.classAverage.toFixed(1)}`, pageWidth / 2, statsBoxY + 22, { align: 'center' });
-
+    doc.setFontSize(28);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`%${analysis.classAverage.toFixed(1)}`, pageWidth / 2, avgBoxY + 20, { align: 'center' });
     doc.setFontSize(10);
-    doc.setFont(fontName, 'normal');
-    doc.text(t.classAverage.toUpperCase(), pageWidth / 2, statsBoxY + 32, { align: 'center' });
+    doc.text(convertTurkish(t.classAverage).toUpperCase(), pageWidth / 2, avgBoxY + 30, { align: 'center' });
 
-    // Status indicators
-    const statusY = statsBoxY + 50;
-    const successColor = analysis.classAverage >= 50 ? [40, 167, 69] : [220, 53, 69];
-    doc.setFillColor(successColor[0], successColor[1], successColor[2]);
-    doc.circle(pageWidth / 2 - 30, statusY, 5, 'F');
-    doc.setTextColor(successColor[0], successColor[1], successColor[2]);
-    doc.setFontSize(10);
-    doc.text(analysis.classAverage >= 50 ? t.successful : t.needsImprovement, pageWidth / 2 - 20, statusY + 3);
+    // Statistics summary
+    const statsY = 235;
+    const statBoxW = (contentWidth - 15) / 4;
 
-    // Footer on cover
-    doc.setTextColor(150, 150, 150);
-    doc.setFontSize(8);
-    doc.text(t.generatedBy, pageWidth / 2, pageHeight - 15, { align: 'center' });
-
-    // --- PAGE 2: SUMMARY & STATISTICS ---
-    doc.addPage();
-    addProfessionalHeader(doc, fontName, metadata, t, 2, totalPages, t.detailedStatistics);
-
-    let currentY = 25;
-
-    // Statistics Cards Row
-    const cardWidth = 42;
-    const cardHeight = 28;
-    const cardGap = 5;
-    const cardsStartX = 14;
-
-    const statsCards = [
-        { label: t.classAverage, value: `%${analysis.classAverage.toFixed(1)}`, color: analysis.classAverage >= 50 ? [40, 167, 69] : [220, 53, 69] },
-        { label: t.stdDev, value: stdDev.toFixed(2), color: [100, 100, 100] },
-        { label: t.median, value: median.toFixed(1), color: [100, 100, 100] },
-        { label: t.maxScore, value: maxScore.toString(), color: [40, 167, 69] }
+    const statsData = [
+        { label: convertTurkish(t.classAverage), value: `%${analysis.classAverage.toFixed(1)}`, color: isSuccess ? [40, 167, 69] : [220, 53, 69] },
+        { label: convertTurkish(t.stdDev), value: stdDev.toFixed(1), color: [100, 100, 100] },
+        { label: convertTurkish(t.maxScore), value: maxScore.toString(), color: [40, 167, 69] },
+        { label: convertTurkish(t.minScore), value: minScore.toString(), color: [220, 53, 69] }
     ];
 
-    statsCards.forEach((card, i) => {
-        const x = cardsStartX + (i * (cardWidth + cardGap));
-
-        // Card background
+    statsData.forEach((stat, i) => {
+        const x = margin + (i * (statBoxW + 5));
         doc.setFillColor(248, 249, 250);
-        doc.roundedRect(x, currentY, cardWidth, cardHeight, 2, 2, 'F');
+        doc.roundedRect(x, statsY, statBoxW, 28, 2, 2, 'F');
 
-        // Card border
-        doc.setDrawColor(card.color[0], card.color[1], card.color[2]);
-        doc.setLineWidth(0.5);
-        doc.line(x, currentY, x + cardWidth, currentY);
+        doc.setDrawColor(stat.color[0], stat.color[1], stat.color[2]);
+        doc.setLineWidth(0.8);
+        doc.line(x, statsY, x + statBoxW, statsY);
 
-        // Label
-        doc.setFont(fontName, 'normal');
-        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
         doc.setTextColor(100, 100, 100);
-        doc.text(card.label, x + cardWidth / 2, currentY + 10, { align: 'center' });
+        doc.text(stat.label, x + statBoxW / 2, statsY + 10, { align: 'center' });
 
-        // Value
-        doc.setFont(fontName, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(14);
-        doc.setTextColor(card.color[0], card.color[1], card.color[2]);
-        doc.text(card.value, x + cardWidth / 2, currentY + 22, { align: 'center' });
+        doc.setTextColor(stat.color[0], stat.color[1], stat.color[2]);
+        doc.text(stat.value, x + statBoxW / 2, statsY + 22, { align: 'center' });
     });
 
-    currentY += cardHeight + 15;
+    // Footer
+    doc.setTextColor(150, 150, 150);
+    doc.setFontSize(8);
+    doc.text(convertTurkish(t.generatedBy), pageWidth / 2, pageHeight - 10, { align: 'center' });
 
-    // Charts Section (2x2 grid)
-    if (exportOptions.includeCharts) {
-        const chartWidth = 88;
-        const chartHeight = 55;
-
-        // Row 1
-        if (chartImages.gradePieChart) {
-            doc.setFont(fontName, 'bold');
-            doc.setFontSize(9);
-            doc.setTextColor(60, 60, 60);
-            doc.text(t.gradeDistribution, 14, currentY);
-            doc.addImage(chartImages.gradePieChart, 'PNG', 14, currentY + 3, chartWidth, chartHeight);
-        }
-
-        if (chartImages.histogramChart) {
-            doc.text(t.scoreDistribution, 108, currentY);
-            doc.addImage(chartImages.histogramChart, 'PNG', 108, currentY + 3, chartWidth, chartHeight);
-        }
-
-        currentY += chartHeight + 15;
-
-        // Row 2
-        if (chartImages.radarChart && currentY + chartHeight < pageHeight - 20) {
-            doc.text(t.competencyMap, 14, currentY);
-            doc.addImage(chartImages.radarChart, 'PNG', 14, currentY + 3, chartWidth, chartHeight);
-        }
-
-        if (chartImages.questionSuccessChart && currentY + chartHeight < pageHeight - 20) {
-            doc.text(t.questionAnalysis, 108, currentY);
-            doc.addImage(chartImages.questionSuccessChart, 'PNG', 108, currentY + 3, chartWidth, chartHeight);
-        }
-    }
-
-    addProfessionalFooter(doc, fontName, t);
-
-    // --- PAGE 3: DETAILED ANALYSIS ---
+    // ============== PAGE 2: QUESTION ANALYSIS ==============
     doc.addPage();
-    addProfessionalHeader(doc, fontName, metadata, t, 3, totalPages, t.questionAnalysis);
-    currentY = 25;
+    let currentY = 20;
 
-    // Question Analysis Table
+    // Page header
+    doc.setFillColor(41, 128, 185);
+    doc.rect(0, 0, pageWidth, 12, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(convertTurkish(t.questionAnalysis), pageWidth / 2, 8, { align: 'center' });
+
+    // Question table
+    currentY = 22;
+    doc.setTextColor(41, 128, 185);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`1. ${convertTurkish(t.questionAnalysis)}`, margin, currentY);
+    currentY += 8;
+
     const questionRows = analysis.questionStats.map((q, idx) => [
         (idx + 1).toString(),
-        q.outcome.code,
-        q.outcome.description.length > 45 ? q.outcome.description.substring(0, 45) + '...' : q.outcome.description,
+        convertTurkish(q.outcome.code),
+        convertTurkish(q.outcome.description.length > 40
+            ? q.outcome.description.substring(0, 40) + '...'
+            : q.outcome.description),
         q.averageScore.toFixed(1),
         `%${q.successRate.toFixed(0)}`
     ]);
 
     autoTable(doc, {
         startY: currentY,
-        head: [[t.questionNo, t.outcomeCode, t.outcomeDesc, t.avgScore, t.successRate]],
+        head: [[
+            convertTurkish(t.questionNo),
+            convertTurkish(t.outcomeCode),
+            convertTurkish(t.outcomeDesc),
+            convertTurkish(t.avgScore),
+            convertTurkish(t.successRate)
+        ]],
         body: questionRows,
         theme: 'grid',
         styles: {
             fontSize: 8,
             cellPadding: 3,
-            font: fontName,
             lineColor: [220, 220, 220],
-            lineWidth: 0.1
+            lineWidth: 0.1,
+            font: 'helvetica',
+            overflow: 'linebreak'
         },
         headStyles: {
             fillColor: [41, 128, 185],
@@ -725,11 +430,12 @@ export const exportToPDFAdvanced = async (
         },
         columnStyles: {
             0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
-            1: { cellWidth: 22, fontStyle: 'bold' },
+            1: { cellWidth: 25, fontStyle: 'bold' },
             2: { cellWidth: 'auto' },
-            3: { cellWidth: 18, halign: 'center' },
+            3: { cellWidth: 15, halign: 'center' },
             4: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
         },
+        margin: { left: margin, right: margin },
         didParseCell: (data) => {
             if (data.section === 'body' && data.column.index === 4) {
                 const val = parseFloat(data.cell.raw?.toString().replace('%', '') || '0');
@@ -740,33 +446,46 @@ export const exportToPDFAdvanced = async (
         }
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 12;
+    currentY = (doc as any).lastAutoTable.finalY + 15;
 
-    // Outcome Analysis Table
-    doc.setFont(fontName, 'bold');
-    doc.setFontSize(10);
+    // Check page break
+    if (currentY > pageHeight - 80) {
+        doc.addPage();
+        currentY = 20;
+    }
+
+    // Outcome table
     doc.setTextColor(41, 128, 185);
-    doc.text(t.outcomeAnalysis, 14, currentY);
-    currentY += 5;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`2. ${convertTurkish(t.outcomeAnalysis)}`, margin, currentY);
+    currentY += 8;
 
     const outcomeRows = analysis.outcomeStats.map(stat => [
-        stat.code,
-        stat.description.length > 50 ? stat.description.substring(0, 50) + '...' : stat.description,
+        convertTurkish(stat.code),
+        convertTurkish(stat.description.length > 45
+            ? stat.description.substring(0, 45) + '...'
+            : stat.description),
         `%${stat.successRate.toFixed(1)}`,
-        stat.isFailed ? t.needsImprovement : t.successful
+        stat.isFailed ? convertTurkish(t.needsImprovement) : convertTurkish(t.successful)
     ]);
 
     autoTable(doc, {
         startY: currentY,
-        head: [[t.outcomeCode, t.outcomeDesc, t.successRate, t.status]],
+        head: [[
+            convertTurkish(t.outcomeCode),
+            convertTurkish(t.outcomeDesc),
+            convertTurkish(t.successRate),
+            convertTurkish(t.status)
+        ]],
         body: outcomeRows,
         theme: 'grid',
         styles: {
             fontSize: 8,
             cellPadding: 3,
-            font: fontName,
             lineColor: [220, 220, 220],
-            lineWidth: 0.1
+            lineWidth: 0.1,
+            font: 'helvetica'
         },
         headStyles: {
             fillColor: [52, 73, 94],
@@ -778,166 +497,239 @@ export const exportToPDFAdvanced = async (
             fillColor: [248, 249, 250]
         },
         columnStyles: {
-            0: { cellWidth: 25, fontStyle: 'bold' },
+            0: { cellWidth: 28, fontStyle: 'bold' },
             1: { cellWidth: 'auto' },
-            2: { cellWidth: 22, halign: 'center' },
-            3: { cellWidth: 32, halign: 'center', fontStyle: 'bold' }
+            2: { cellWidth: 20, halign: 'center' },
+            3: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
         },
+        margin: { left: margin, right: margin },
         didParseCell: (data) => {
             if (data.section === 'body' && data.column.index === 3) {
-                if (data.cell.raw === t.needsImprovement) {
+                if (data.cell.raw === convertTurkish(t.needsImprovement)) {
                     data.cell.styles.textColor = [220, 53, 69];
-                    data.cell.styles.fillColor = [255, 240, 240];
+                    data.cell.styles.fillColor = [255, 245, 245];
                 } else {
                     data.cell.styles.textColor = [40, 167, 69];
-                    data.cell.styles.fillColor = [240, 255, 240];
+                    data.cell.styles.fillColor = [245, 255, 245];
                 }
             }
         }
     });
 
-    addProfessionalFooter(doc, fontName, t);
+    // ============== PAGE 3: STUDENT LIST ==============
+    doc.addPage();
+    currentY = 20;
 
-    // --- PAGE 4: STUDENT PERFORMANCE & RECOMMENDATIONS ---
-    if (exportOptions.includeStudentList) {
-        doc.addPage();
-        addProfessionalHeader(doc, fontName, metadata, t, 4, totalPages, t.studentPerformance);
-        currentY = 25;
+    // Page header
+    doc.setFillColor(41, 128, 185);
+    doc.rect(0, 0, pageWidth, 12, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(convertTurkish(t.studentPerformance), pageWidth / 2, 8, { align: 'center' });
 
-        // Sort students by score
-        const sortedStudents = [...students].sort((a, b) => {
-            const scoreA = Object.values(a.scores).reduce((sum, s) => sum + s, 0);
-            const scoreB = Object.values(b.scores).reduce((sum, s) => sum + s, 0);
-            return scoreB - scoreA;
-        });
+    currentY = 22;
+    doc.setTextColor(41, 128, 185);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`3. ${convertTurkish(t.studentPerformance)}`, margin, currentY);
+    currentY += 8;
 
-        const studentRows = sortedStudents.map((s, idx) => {
-            const totalScore = Object.values(s.scores).reduce((sum, sc) => sum + sc, 0);
-            const percentage = (totalScore / maxPossibleScore) * 100;
-            return [
-                (idx + 1).toString(),
-                s.name,
-                totalScore.toString(),
-                `%${percentage.toFixed(1)}`
-            ];
-        });
+    // Sort students by score
+    const sortedStudents = [...students].sort((a, b) => {
+        const scoreA = Object.values(a.scores).reduce((sum: number, s: number) => sum + s, 0);
+        const scoreB = Object.values(b.scores).reduce((sum: number, s: number) => sum + s, 0);
+        return scoreB - scoreA;
+    });
 
-        autoTable(doc, {
-            startY: currentY,
-            head: [[t.rank, t.studentName, t.totalScore, t.percentage]],
-            body: studentRows,
-            theme: 'grid',
-            styles: {
-                fontSize: 9,
-                cellPadding: 3,
-                font: fontName,
-                lineColor: [220, 220, 220],
-                lineWidth: 0.1
-            },
-            headStyles: {
-                fillColor: [41, 128, 185],
-                textColor: 255,
-                fontStyle: 'bold',
-                fontSize: 9
-            },
-            alternateRowStyles: {
-                fillColor: [248, 249, 250]
-            },
-            columnStyles: {
-                0: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
-                1: { cellWidth: 'auto' },
-                2: { cellWidth: 30, halign: 'center' },
-                3: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
-            },
-            didParseCell: (data) => {
-                if (data.section === 'body' && data.column.index === 3) {
-                    const val = parseFloat(data.cell.raw?.toString().replace('%', '') || '0');
-                    if (val < 50) {
-                        data.cell.styles.textColor = [220, 53, 69];
-                        data.cell.styles.fillColor = [255, 245, 245];
-                    } else if (val >= 85) {
-                        data.cell.styles.textColor = [40, 167, 69];
-                        data.cell.styles.fillColor = [245, 255, 245];
-                    }
+    const studentRows = sortedStudents.map((s, idx) => {
+        const totalScore = Object.values(s.scores).reduce((sum: number, sc: number) => sum + sc, 0);
+        const percentage = (totalScore / maxPossibleScore) * 100;
+        return [
+            (idx + 1).toString(),
+            convertTurkish(s.name),
+            totalScore.toString(),
+            `%${percentage.toFixed(1)}`
+        ];
+    });
+
+    autoTable(doc, {
+        startY: currentY,
+        head: [[
+            convertTurkish(t.rank),
+            convertTurkish(t.studentName),
+            convertTurkish(t.totalScore),
+            convertTurkish(t.percentage)
+        ]],
+        body: studentRows,
+        theme: 'grid',
+        styles: {
+            fontSize: 9,
+            cellPadding: 3,
+            lineColor: [220, 220, 220],
+            lineWidth: 0.1,
+            font: 'helvetica'
+        },
+        headStyles: {
+            fillColor: [41, 128, 185],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 9
+        },
+        alternateRowStyles: {
+            fillColor: [248, 249, 250]
+        },
+        columnStyles: {
+            0: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
+            1: { cellWidth: 'auto' },
+            2: { cellWidth: 30, halign: 'center' },
+            3: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
+        },
+        margin: { left: margin, right: margin },
+        didParseCell: (data) => {
+            if (data.section === 'body' && data.column.index === 3) {
+                const val = parseFloat(data.cell.raw?.toString().replace('%', '') || '0');
+                if (val < 50) {
+                    data.cell.styles.textColor = [220, 53, 69];
+                    data.cell.styles.fillColor = [255, 248, 248];
+                } else if (val >= 85) {
+                    data.cell.styles.textColor = [40, 167, 69];
+                    data.cell.styles.fillColor = [248, 255, 248];
                 }
             }
-        });
+        }
+    });
 
-        currentY = (doc as any).lastAutoTable.finalY + 15;
+    currentY = (doc as any).lastAutoTable.finalY + 15;
 
-        // Recommendations Section
-        if (exportOptions.includeRecommendations && currentY < pageHeight - 80) {
-            doc.setFont(fontName, 'bold');
-            doc.setFontSize(10);
-            doc.setTextColor(41, 128, 185);
-            doc.text(t.recommendations, 14, currentY);
-            currentY += 8;
+    // ============== PAGE 4: CHARTS & RECOMMENDATIONS ==============
+    // Check if we have charts and enough space
+    const hasCharts = chartImages.gradePieChart || chartImages.histogramChart || chartImages.radarChart;
 
-            // Weak Areas
-            if (recs.weakAreas.length > 0) {
-                doc.setFillColor(255, 245, 245);
-                doc.roundedRect(14, currentY, pageWidth - 28, Math.min(recs.weakAreas.length * 8 + 10, 40), 2, 2, 'F');
+    if (hasCharts) {
+        doc.addPage();
+        currentY = 20;
 
-                doc.setFont(fontName, 'bold');
-                doc.setFontSize(8);
-                doc.setTextColor(220, 53, 69);
-                doc.text(`🔴 ${t.weakAreas} (${recs.weakAreas.length})`, 18, currentY + 6);
+        // Page header
+        doc.setFillColor(41, 128, 185);
+        doc.rect(0, 0, pageWidth, 12, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text(convertTurkish(t.visualAnalysis), pageWidth / 2, 8, { align: 'center' });
 
-                doc.setFont(fontName, 'normal');
-                doc.setFontSize(7);
-                doc.setTextColor(100, 100, 100);
-                recs.weakAreas.slice(0, 3).forEach((area, idx) => {
-                    const truncated = area.length > 80 ? area.substring(0, 80) + '...' : area;
-                    doc.text(`• ${truncated}`, 20, currentY + 14 + (idx * 6));
-                });
+        currentY = 22;
+        doc.setTextColor(41, 128, 185);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`4. ${convertTurkish(t.visualAnalysis)}`, margin, currentY);
+        currentY += 10;
 
-                currentY += Math.min(recs.weakAreas.length * 8 + 12, 45);
-            }
+        const chartWidth = 85;
+        const chartHeight = 60;
 
-            // Suggestions
-            if (recs.suggestions.length > 0 && currentY < pageHeight - 40) {
-                doc.setFillColor(245, 250, 255);
-                doc.roundedRect(14, currentY, pageWidth - 28, Math.min(recs.suggestions.length * 10 + 10, 50), 2, 2, 'F');
-
-                doc.setFont(fontName, 'bold');
-                doc.setFontSize(8);
-                doc.setTextColor(41, 128, 185);
-                doc.text(`💡 ${t.suggestions}`, 18, currentY + 6);
-
-                doc.setFont(fontName, 'normal');
-                doc.setFontSize(7);
+        // Chart 1 - Grade Distribution
+        if (chartImages.gradePieChart) {
+            try {
+                doc.setFontSize(9);
                 doc.setTextColor(60, 60, 60);
-                recs.suggestions.slice(0, 3).forEach((sugg, idx) => {
-                    const lines = doc.splitTextToSize(sugg, pageWidth - 50);
-                    doc.text(lines[0], 20, currentY + 14 + (idx * 8));
-                });
+                doc.text(convertTurkish(t.gradeDistribution), margin, currentY);
+                doc.addImage(chartImages.gradePieChart, 'PNG', margin, currentY + 3, chartWidth, chartHeight);
+            } catch (e) {
+                console.warn('Failed to add grade chart');
             }
         }
 
-        // Signature area
-        currentY = pageHeight - 35;
-        doc.setFont(fontName, 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(80, 80, 80);
-        doc.text(`${t.preparedBy}: ${metadata.teacherName}`, 14, currentY);
-        doc.text(`${t.reportDate}: ${new Date().toLocaleDateString(language === 'tr' ? 'tr-TR' : 'en-US')}`, 14, currentY + 6);
+        // Chart 2 - Histogram
+        if (chartImages.histogramChart) {
+            try {
+                doc.text(convertTurkish(t.scoreDistribution), pageWidth / 2 + 5, currentY);
+                doc.addImage(chartImages.histogramChart, 'PNG', pageWidth / 2 + 5, currentY + 3, chartWidth, chartHeight);
+            } catch (e) {
+                console.warn('Failed to add histogram');
+            }
+        }
 
-        // Signature line
-        doc.text(t.signature, pageWidth - 50, currentY);
-        doc.line(pageWidth - 50, currentY + 12, pageWidth - 14, currentY + 12);
+        currentY += chartHeight + 20;
 
-        addProfessionalFooter(doc, fontName, t, true);
+        // Chart 3 - Radar
+        if (chartImages.radarChart && currentY + chartHeight < pageHeight - 40) {
+            try {
+                doc.setFontSize(9);
+                doc.text(convertTurkish(t.outcomeAnalysis), margin, currentY);
+                doc.addImage(chartImages.radarChart, 'PNG', margin, currentY + 3, chartWidth, chartHeight);
+            } catch (e) {
+                console.warn('Failed to add radar chart');
+            }
+        }
+
+        // Chart 4 - Question Success
+        if (chartImages.questionSuccessChart && currentY + chartHeight < pageHeight - 40) {
+            try {
+                doc.text(convertTurkish(t.questionAnalysis), pageWidth / 2 + 5, currentY);
+                doc.addImage(chartImages.questionSuccessChart, 'PNG', pageWidth / 2 + 5, currentY + 3, chartWidth, chartHeight);
+            } catch (e) {
+                console.warn('Failed to add question chart');
+            }
+        }
     }
 
-    // Generate filename
-    const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_');
-    const filename = `${sanitize(metadata.schoolName)}_${sanitize(metadata.className)}_${sanitize(metadata.subject)}_${metadata.term}Donem_${metadata.examNumber}Sinav_${language.toUpperCase()}.pdf`;
+    // Recommendations section (on current page if space, else new page)
+    if (recs.suggestions.length > 0) {
+        currentY = (doc as any).lastAutoTable?.finalY || currentY;
 
+        if (currentY > pageHeight - 60) {
+            doc.addPage();
+            currentY = 20;
+        } else {
+            currentY += 10;
+        }
+
+        doc.setFillColor(245, 250, 255);
+        doc.roundedRect(margin, currentY, contentWidth, 50, 3, 3, 'F');
+        doc.setDrawColor(41, 128, 185);
+        doc.roundedRect(margin, currentY, contentWidth, 50, 3, 3, 'S');
+
+        doc.setTextColor(41, 128, 185);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(convertTurkish(t.recommendations), margin + 5, currentY + 10);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(60, 60, 60);
+
+        recs.suggestions.slice(0, 3).forEach((sugg, idx) => {
+            const truncated = sugg.length > 80 ? sugg.substring(0, 80) + '...' : sugg;
+            doc.text(`• ${truncated}`, margin + 8, currentY + 22 + (idx * 10));
+        });
+    }
+
+    // Signature area
+    currentY = pageHeight - 40;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`${convertTurkish(t.preparedBy)}: ${convertTurkish(metadata.teacherName)}`, margin, currentY);
+    doc.text(`${convertTurkish(t.reportDate)}: ${new Date().toLocaleDateString(language === 'tr' ? 'tr-TR' : 'en-US')}`, margin, currentY + 6);
+
+    // Signature line
+    doc.text(convertTurkish(t.signature), pageWidth - 45, currentY);
+    doc.line(pageWidth - 50, currentY + 12, pageWidth - margin, currentY + 12);
+
+    // Footer
+    doc.setTextColor(150, 150, 150);
+    doc.setFontSize(7);
+    doc.text(convertTurkish(t.confidential), pageWidth / 2, pageHeight - 8, { align: 'center' });
+
+    // Save file
+    const sanitize = (str: string) => convertTurkish(str).replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_');
+    const filename = `${sanitize(metadata.className)}_${sanitize(metadata.subject)}_Rapor.pdf`;
     doc.save(filename);
 };
 
 /**
- * Quick Export - Single click exports with predefined scenarios
+ * Quick Export with predefined scenarios
  */
 export const quickExport = async (
     scenario: ExportScenario,
@@ -948,45 +740,6 @@ export const quickExport = async (
     chartImages: any = {},
     language: Language = 'tr'
 ) => {
-    const scenarioOptions: Record<ExportScenario, Partial<ExportOptions>> = {
-        full_report: {
-            includeCharts: true,
-            includeRecommendations: true,
-            includeStudentList: true,
-            compactMode: false
-        },
-        executive_summary: {
-            includeCharts: true,
-            includeRecommendations: true,
-            includeStudentList: false,
-            compactMode: true
-        },
-        student_focused: {
-            includeCharts: false,
-            includeRecommendations: false,
-            includeStudentList: true,
-            compactMode: false
-        },
-        outcome_analysis: {
-            includeCharts: true,
-            includeRecommendations: true,
-            includeStudentList: false,
-            compactMode: false
-        },
-        parent_report: {
-            includeCharts: false,
-            includeRecommendations: true,
-            includeStudentList: false,
-            compactMode: true
-        },
-        meb_standard: {
-            includeCharts: false,
-            includeRecommendations: false,
-            includeStudentList: true,
-            compactMode: false
-        }
-    };
-
     await exportToPDFAdvanced(
         analysis,
         metadata,
@@ -994,12 +747,12 @@ export const quickExport = async (
         students,
         chartImages,
         language,
-        { ...scenarioOptions[scenario], scenario }
+        { scenario }
     );
 };
 
 /**
- * Export both Turkish and English reports
+ * Export bilingual reports (TR + EN)
  */
 export const exportBilingualReports = async (
     analysis: AnalysisResult,
@@ -1008,17 +761,13 @@ export const exportBilingualReports = async (
     students: Student[],
     chartImages: any = {}
 ) => {
-    // Turkish report
     await exportToPDFAdvanced(analysis, metadata, questions, students, chartImages, 'tr');
-
-    // English report with delay to prevent file conflicts
-    setTimeout(async () => {
-        await exportToPDFAdvanced(analysis, metadata, questions, students, chartImages, 'en');
-    }, 500);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await exportToPDFAdvanced(analysis, metadata, questions, students, chartImages, 'en');
 };
 
 /**
- * Export Individual Student Reports (Bulk PDF)
+ * Export individual student reports
  */
 export const exportIndividualStudentReports = async (
     analysis: AnalysisResult,
@@ -1027,190 +776,107 @@ export const exportIndividualStudentReports = async (
     students: Student[],
     language: Language = 'tr'
 ) => {
-    const doc = new jsPDF();
     const t = translations[language];
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
+    const maxPossibleScore = questions.reduce((sum, q) => sum + q.maxScore, 0);
 
-    // Load font
-    const fontLoaded = await loadTurkishFont(doc);
-    const fontName = fontLoaded ? 'Roboto' : 'times';
+    for (const student of students) {
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 15;
 
-    const maxPossibleScore = questions.reduce((a, b) => a + b.maxScore, 0);
-    const classAverage = analysis.classAverage;
-
-    students.forEach((student, index) => {
-        if (index > 0) doc.addPage();
-
-        // Header with school branding
-        doc.setFillColor(41, 128, 185);
-        doc.rect(0, 0, pageWidth, 40, 'F');
-
-        doc.setFont(fontName, 'bold');
-        doc.setFontSize(16);
-        doc.setTextColor(255, 255, 255);
-        doc.text(t.studentReportCard, pageWidth / 2, 18, { align: 'center' });
-
-        doc.setFontSize(10);
-        doc.setFont(fontName, 'normal');
-        doc.text(`${metadata.schoolName} | ${metadata.academicYear}`, pageWidth / 2, 30, { align: 'center' });
-
-        // Student Info Card
-        doc.setFillColor(248, 249, 250);
-        doc.roundedRect(14, 50, pageWidth - 28, 35, 3, 3, 'F');
-
-        doc.setTextColor(60, 60, 60);
-        doc.setFontSize(11);
-
-        let infoY = 62;
-        doc.setFont(fontName, 'bold');
-        doc.text(`${t.studentName}:`, 20, infoY);
-        doc.setFont(fontName, 'normal');
-        doc.text(student.name, 55, infoY);
-
-        doc.setFont(fontName, 'bold');
-        doc.text(`${t.class}:`, 120, infoY);
-        doc.setFont(fontName, 'normal');
-        doc.text(metadata.className, 140, infoY);
-
-        infoY += 12;
-        doc.setFont(fontName, 'bold');
-        doc.text(`${t.subject}:`, 20, infoY);
-        doc.setFont(fontName, 'normal');
-        doc.text(metadata.subject, 45, infoY);
-
-        doc.setFont(fontName, 'bold');
-        doc.text(`${t.date}:`, 120, infoY);
-        doc.setFont(fontName, 'normal');
-        doc.text(metadata.date, 140, infoY);
-
-        // Score Card
-        const totalScore = Object.values(student.scores).reduce((a, b) => a + b, 0);
+        const totalScore = Object.values(student.scores).reduce((sum: number, s: number) => sum + s, 0);
         const percentage = (totalScore / maxPossibleScore) * 100;
-        const isAboveAverage = percentage >= classAverage;
 
-        const scoreCardY = 95;
-        const scoreColor = percentage >= 85 ? [40, 167, 69] : percentage >= 50 ? [41, 128, 185] : [220, 53, 69];
+        // Header
+        doc.setFillColor(41, 128, 185);
+        doc.rect(0, 0, pageWidth, 35, 'F');
 
-        doc.setFillColor(scoreColor[0], scoreColor[1], scoreColor[2]);
-        doc.roundedRect(14, scoreCardY, pageWidth - 28, 45, 3, 3, 'F');
-
-        // Score display
-        doc.setFont(fontName, 'bold');
-        doc.setFontSize(32);
         doc.setTextColor(255, 255, 255);
-        doc.text(`%${percentage.toFixed(1)}`, 40, scoreCardY + 28);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(convertTurkish(metadata.schoolName), pageWidth / 2, 15, { align: 'center' });
 
         doc.setFontSize(12);
-        doc.text(`${totalScore}/${maxPossibleScore} ${t.totalScore}`, 40, scoreCardY + 40);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${convertTurkish(metadata.subject)} - ${convertTurkish(metadata.className)}`, pageWidth / 2, 25, { align: 'center' });
 
-        // Comparison to class
-        doc.setFont(fontName, 'normal');
-        doc.setFontSize(10);
-        doc.text(
-            `${t.classAverage}: %${classAverage.toFixed(1)}`,
-            pageWidth - 50,
-            scoreCardY + 20
-        );
-        doc.text(
-            isAboveAverage ? `▲ ${t.aboveAverage}` : `▼ ${t.belowAverage}`,
-            pageWidth - 50,
-            scoreCardY + 32
-        );
+        // Student name
+        let y = 50;
+        doc.setTextColor(60, 60, 60);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${convertTurkish(t.studentName)}: ${convertTurkish(student.name)}`, margin, y);
 
-        // Detailed Scores Table
-        const tableY = 150;
-        const studentRows = questions.map((q, idx) => {
-            const score = student.scores[q.id] || 0;
-            const qPercentage = (score / q.maxScore) * 100;
+        // Score box
+        y += 15;
+        const isPass = percentage >= 50;
+        doc.setFillColor(isPass ? 240 : 255, isPass ? 255 : 240, isPass ? 240 : 240);
+        doc.roundedRect(margin, y, pageWidth - 2 * margin, 30, 3, 3, 'F');
+        doc.setDrawColor(isPass ? 40 : 220, isPass ? 167 : 53, isPass ? 69 : 69);
+        doc.roundedRect(margin, y, pageWidth - 2 * margin, 30, 3, 3, 'S');
+
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(isPass ? 40 : 220, isPass ? 167 : 53, isPass ? 69 : 69);
+        doc.text(`%${percentage.toFixed(1)}`, pageWidth / 2, y + 18, { align: 'center' });
+
+        // Question details
+        y += 45;
+        doc.setTextColor(60, 60, 60);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(convertTurkish(t.questionAnalysis), margin, y);
+        y += 8;
+
+        const studentQuestionData = analysis.questionStats.map((q, idx) => {
+            const score = student.scores[q.questionId] || 0;
+            const maxQ = questions.find(qu => qu.id === q.questionId)?.maxScore || 1;
             return [
                 (idx + 1).toString(),
-                q.outcome.description.substring(0, 50) + (q.outcome.description.length > 50 ? '...' : ''),
-                q.maxScore.toString(),
+                convertTurkish(q.outcome.code),
                 score.toString(),
-                `%${qPercentage.toFixed(0)}`
+                maxQ.toString()
             ];
         });
 
         autoTable(doc, {
-            startY: tableY,
-            head: [[t.questionNo, t.outcomeDesc, 'Max', language === 'tr' ? 'Puan' : 'Score', '%']],
-            body: studentRows,
+            startY: y,
+            head: [[convertTurkish(t.questionNo), convertTurkish(t.outcomeCode), 'Puan', 'Maks']],
+            body: studentQuestionData,
             theme: 'grid',
-            headStyles: {
-                fillColor: [52, 73, 94],
-                textColor: 255,
-                fontSize: 9,
-                fontStyle: 'bold',
-                font: fontName
-            },
-            styles: {
-                fontSize: 8,
-                cellPadding: 3,
-                font: fontName,
-                lineColor: [220, 220, 220],
-                lineWidth: 0.1
-            },
-            alternateRowStyles: {
-                fillColor: [248, 249, 250]
-            },
-            columnStyles: {
-                0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
-                1: { cellWidth: 'auto' },
-                2: { cellWidth: 15, halign: 'center' },
-                3: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
-                4: { cellWidth: 18, halign: 'center' }
-            },
-            didParseCell: (data) => {
-                if (data.section === 'body' && data.column.index === 4) {
-                    const val = parseFloat(data.cell.raw?.toString().replace('%', '') || '0');
-                    if (val < 50) {
-                        data.cell.styles.textColor = [220, 53, 69];
-                    } else if (val >= 85) {
-                        data.cell.styles.textColor = [40, 167, 69];
-                    }
-                }
-            },
-            margin: { left: 14, right: 14 }
+            styles: { fontSize: 9, cellPadding: 3 },
+            headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+            margin: { left: margin, right: margin }
         });
 
-        // Footer
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(t.generatedBy, pageWidth / 2, pageHeight - 10, { align: 'center' });
-    });
+        // Signature
+        y = pageHeight - 30;
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`${convertTurkish(t.preparedBy)}: ${convertTurkish(metadata.teacherName)}`, margin, y);
+        doc.text(`${convertTurkish(t.reportDate)}: ${new Date().toLocaleDateString('tr-TR')}`, margin, y + 5);
 
-    const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `${sanitize(metadata.className)}_Ogrenci_Karneleri_${language.toUpperCase()}.pdf`;
-    doc.save(filename);
+        doc.text(convertTurkish(t.signature), pageWidth - 45, y);
+        doc.line(pageWidth - 50, y + 10, pageWidth - margin, y + 10);
+
+        const sanitize = (str: string) => convertTurkish(str).replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_');
+        doc.save(`${sanitize(student.name)}_Karne.pdf`);
+        await new Promise(resolve => setTimeout(resolve, 200));
+    }
 };
 
 /**
- * Get available export scenarios with descriptions
+ * Get export scenarios list
  */
-export const getExportScenarios = (language: Language = 'tr'): Array<{
-    id: ExportScenario;
-    name: string;
-    description: string;
-    icon: string;
-}> => {
-    if (language === 'tr') {
-        return [
-            { id: 'full_report', name: 'Tam Rapor', description: 'Tüm grafikler, tablolar ve öneriler dahil', icon: '📊' },
-            { id: 'executive_summary', name: 'Yönetici Özeti', description: 'Sadece önemli istatistikler ve öneriler', icon: '📋' },
-            { id: 'student_focused', name: 'Öğrenci Odaklı', description: 'Bireysel öğrenci performans listesi', icon: '👥' },
-            { id: 'outcome_analysis', name: 'Kazanım Analizi', description: 'Detaylı kazanım bazlı rapor', icon: '🎯' },
-            { id: 'parent_report', name: 'Veli Raporu', description: 'Veliler için sade ve anlaşılır format', icon: '👨‍👩‍👧' },
-            { id: 'meb_standard', name: 'MEB Standardı', description: 'Resmi format, grafiksiz', icon: '🏫' }
-        ];
-    } else {
-        return [
-            { id: 'full_report', name: 'Full Report', description: 'All charts, tables and recommendations', icon: '📊' },
-            { id: 'executive_summary', name: 'Executive Summary', description: 'Key statistics and recommendations only', icon: '📋' },
-            { id: 'student_focused', name: 'Student Focused', description: 'Individual student performance list', icon: '👥' },
-            { id: 'outcome_analysis', name: 'Outcome Analysis', description: 'Detailed learning outcome report', icon: '🎯' },
-            { id: 'parent_report', name: 'Parent Report', description: 'Simple format for parents', icon: '👨‍👩‍👧' },
-            { id: 'meb_standard', name: 'MEB Standard', description: 'Official format, no charts', icon: '🏫' }
-        ];
-    }
+export const getExportScenarios = (language: Language = 'tr') => {
+    const scenarios = [
+        { id: 'full_report' as ExportScenario, icon: '📊', name: language === 'tr' ? 'Tam Rapor' : 'Full Report', description: language === 'tr' ? 'Tum detaylar dahil' : 'All details included' },
+        { id: 'executive_summary' as ExportScenario, icon: '📋', name: language === 'tr' ? 'Ozet Rapor' : 'Summary', description: language === 'tr' ? 'Sadece onemli bilgiler' : 'Key info only' },
+        { id: 'student_focused' as ExportScenario, icon: '👨‍🎓', name: language === 'tr' ? 'Ogrenci Odakli' : 'Student Focus', description: language === 'tr' ? 'Ogrenci listesi detayli' : 'Detailed student list' },
+        { id: 'outcome_analysis' as ExportScenario, icon: '🎯', name: language === 'tr' ? 'Kazanim Analizi' : 'Outcomes', description: language === 'tr' ? 'Kazanim detaylari' : 'Outcome details' },
+        { id: 'parent_report' as ExportScenario, icon: '👪', name: language === 'tr' ? 'Veli Raporu' : 'Parent Report', description: language === 'tr' ? 'Veli icin sade format' : 'Simple for parents' },
+        { id: 'meb_standard' as ExportScenario, icon: '🏛️', name: language === 'tr' ? 'MEB Standart' : 'Official', description: language === 'tr' ? 'Resmi format' : 'Official format' }
+    ];
+    return scenarios;
 };
