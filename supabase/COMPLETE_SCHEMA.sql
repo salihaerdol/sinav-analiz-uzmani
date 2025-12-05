@@ -1,15 +1,23 @@
 -- =====================================================
--- SINAV ANALİZ UZMANI - COMPLETE DATABASE SCHEMA
--- Tüm tabloları tek dosyada içerir
+-- SINAV ANALİZ UZMANI - COMPLETE DATABASE SCHEMA (RESET & CREATE)
+-- DİKKAT: Bu script mevcut tabloları siler ve yeniden oluşturur.
 -- Supabase Dashboard > SQL Editor'da çalıştırın
 -- =====================================================
+
+-- 1. Önce mevcut tabloları temizle (Cascade ile bağımlılıkları da siler)
+DROP TABLE IF EXISTS analysis_history CASCADE;
+DROP TABLE IF EXISTS student_progress CASCADE;
+DROP TABLE IF EXISTS class_progress CASCADE;
+DROP TABLE IF EXISTS user_api_keys CASCADE;
+DROP TABLE IF EXISTS user_profiles CASCADE;
+DROP TABLE IF EXISTS class_lists CASCADE;
 
 -- =====================================================
 -- BÖLÜM 1: KULLANICI VE PROFİL TABLOLARI
 -- =====================================================
 
 -- User Profiles (Kullanıcı Profilleri)
-CREATE TABLE IF NOT EXISTS user_profiles (
+CREATE TABLE user_profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT,
     full_name TEXT,
@@ -22,7 +30,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 );
 
 -- User API Keys (Kullanıcı API Anahtarları)
-CREATE TABLE IF NOT EXISTS user_api_keys (
+CREATE TABLE user_api_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
     
@@ -47,7 +55,7 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 -- =====================================================
 
 -- Analysis History (Analiz Geçmişi)
-CREATE TABLE IF NOT EXISTS analysis_history (
+CREATE TABLE analysis_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     
@@ -92,7 +100,7 @@ CREATE TABLE IF NOT EXISTS analysis_history (
 -- =====================================================
 
 -- Student Progress (Öğrenci Gelişim Takibi)
-CREATE TABLE IF NOT EXISTS student_progress (
+CREATE TABLE student_progress (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     
@@ -115,7 +123,7 @@ CREATE TABLE IF NOT EXISTS student_progress (
 );
 
 -- Class Progress (Sınıf Gelişim Takibi)
-CREATE TABLE IF NOT EXISTS class_progress (
+CREATE TABLE class_progress (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     
@@ -143,7 +151,7 @@ CREATE TABLE IF NOT EXISTS class_progress (
 -- =====================================================
 
 -- Class Lists (Sınıf Listeleri)
-CREATE TABLE IF NOT EXISTS class_lists (
+CREATE TABLE class_lists (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     
@@ -166,62 +174,51 @@ CREATE TABLE IF NOT EXISTS class_lists (
 -- Analysis History RLS
 ALTER TABLE analysis_history ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users can view own analyses" ON analysis_history;
 CREATE POLICY "Users can view own analyses" ON analysis_history
     FOR SELECT USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Users can insert own analyses" ON analysis_history;
 CREATE POLICY "Users can insert own analyses" ON analysis_history
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Users can update own analyses" ON analysis_history;
 CREATE POLICY "Users can update own analyses" ON analysis_history
     FOR UPDATE USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Users can delete own analyses" ON analysis_history;
 CREATE POLICY "Users can delete own analyses" ON analysis_history
     FOR DELETE USING (auth.uid() = user_id);
 
 -- Student Progress RLS
 ALTER TABLE student_progress ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users can manage own student progress" ON student_progress;
 CREATE POLICY "Users can manage own student progress" ON student_progress
     FOR ALL USING (auth.uid() = user_id);
 
 -- Class Progress RLS
 ALTER TABLE class_progress ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users can manage own class progress" ON class_progress;
 CREATE POLICY "Users can manage own class progress" ON class_progress
     FOR ALL USING (auth.uid() = user_id);
 
 -- User API Keys RLS
 ALTER TABLE user_api_keys ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users can manage own API keys" ON user_api_keys;
 CREATE POLICY "Users can manage own API keys" ON user_api_keys
     FOR ALL USING (auth.uid() = user_id);
 
 -- User Profiles RLS
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users can view own profile" ON user_profiles;
 CREATE POLICY "Users can view own profile" ON user_profiles
     FOR SELECT USING (auth.uid() = id);
 
-DROP POLICY IF EXISTS "Users can update own profile" ON user_profiles;
 CREATE POLICY "Users can update own profile" ON user_profiles
     FOR UPDATE USING (auth.uid() = id);
 
-DROP POLICY IF EXISTS "Users can insert own profile" ON user_profiles;
 CREATE POLICY "Users can insert own profile" ON user_profiles
     FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- Class Lists RLS
 ALTER TABLE class_lists ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users can manage own class lists" ON class_lists;
 CREATE POLICY "Users can manage own class lists" ON class_lists
     FOR ALL USING (auth.uid() = user_id);
 
@@ -229,13 +226,13 @@ CREATE POLICY "Users can manage own class lists" ON class_lists
 -- BÖLÜM 6: İNDEKSLER
 -- =====================================================
 
-CREATE INDEX IF NOT EXISTS idx_analysis_history_user_id ON analysis_history(user_id);
-CREATE INDEX IF NOT EXISTS idx_analysis_history_class ON analysis_history(class_name, subject);
-CREATE INDEX IF NOT EXISTS idx_analysis_history_date ON analysis_history(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_student_progress_user ON student_progress(user_id, student_name);
-CREATE INDEX IF NOT EXISTS idx_class_progress_user ON class_progress(user_id, class_name);
-CREATE INDEX IF NOT EXISTS idx_class_lists_user ON class_lists(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_api_keys_user ON user_api_keys(user_id);
+CREATE INDEX idx_analysis_history_user_id ON analysis_history(user_id);
+CREATE INDEX idx_analysis_history_class ON analysis_history(class_name, subject);
+CREATE INDEX idx_analysis_history_date ON analysis_history(created_at DESC);
+CREATE INDEX idx_student_progress_user ON student_progress(user_id, student_name);
+CREATE INDEX idx_class_progress_user ON class_progress(user_id, class_name);
+CREATE INDEX idx_class_lists_user ON class_lists(user_id);
+CREATE INDEX idx_user_api_keys_user ON user_api_keys(user_id);
 
 -- =====================================================
 -- BÖLÜM 7: TRİGGER FONKSİYONLARI
