@@ -1,7 +1,7 @@
 /**
- * Advanced Export Service - Web Site Identical PDF
- * Matches the website design exactly
- * Version 4.0 - Professional Web-like PDF
+ * INFOGRAPHIC STYLE PDF Export
+ * Modern, Visual, Professional Design
+ * Version 5.0 - Infographic Edition
  */
 
 import jsPDF from 'jspdf';
@@ -20,81 +20,141 @@ export interface ExportOptions {
     compactMode: boolean;
 }
 
-// Colors matching website
-const COLORS = {
-    primary: [41, 128, 185],      // Blue
-    primaryLight: [52, 152, 219],
-    success: [34, 197, 94],       // Green
-    danger: [239, 68, 68],        // Red
-    warning: [245, 158, 11],      // Orange
-    slate800: [30, 41, 59],
-    slate600: [71, 85, 105],
-    slate500: [100, 116, 139],
-    slate400: [148, 163, 184],
-    slate200: [226, 232, 240],
-    slate100: [241, 245, 249],
-    slate50: [248, 250, 252],
+// Infographic Color Palette
+const C = {
+    // Primary gradient colors
+    gradientStart: [99, 102, 241],    // Indigo
+    gradientEnd: [139, 92, 246],      // Purple
+
+    // Accent colors
+    blue: [59, 130, 246],
+    green: [16, 185, 129],
+    red: [239, 68, 68],
+    orange: [249, 115, 22],
+    yellow: [234, 179, 8],
+    pink: [236, 72, 153],
+    cyan: [6, 182, 212],
+
+    // Neutral
+    dark: [17, 24, 39],
+    gray: [107, 114, 128],
+    light: [243, 244, 246],
     white: [255, 255, 255],
-    indigo600: [79, 70, 229],
-    indigo50: [238, 242, 255]
+
+    // Status
+    success: [34, 197, 94],
+    danger: [239, 68, 68],
+    warning: [245, 158, 11]
 };
 
-// Turkish character safe conversion
-const tr = (text: string): string => {
-    if (!text) return '';
-    const map: Record<string, string> = {
-        'ş': 's', 'Ş': 'S', 'ğ': 'g', 'Ğ': 'G',
-        'ü': 'u', 'Ü': 'U', 'ö': 'o', 'Ö': 'O',
-        'ç': 'c', 'Ç': 'C', 'ı': 'i', 'İ': 'I'
-    };
-    return text.replace(/[şŞğĞüÜöÖçÇıİ]/g, char => map[char] || char);
+// Turkish safe
+const tr = (t: string): string => {
+    if (!t) return '';
+    const m: Record<string, string> = { 'ş': 's', 'Ş': 'S', 'ğ': 'g', 'Ğ': 'G', 'ü': 'u', 'Ü': 'U', 'ö': 'o', 'Ö': 'O', 'ç': 'c', 'Ç': 'C', 'ı': 'i', 'İ': 'I' };
+    return t.replace(/[şŞğĞüÜöÖçÇıİ]/g, c => m[c] || c);
 };
 
-// Draw rounded rectangle
-const drawCard = (doc: jsPDF, x: number, y: number, w: number, h: number, fill: number[], border?: number[]) => {
-    doc.setFillColor(fill[0], fill[1], fill[2]);
-    doc.roundedRect(x, y, w, h, 3, 3, 'F');
-    if (border) {
-        doc.setDrawColor(border[0], border[1], border[2]);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(x, y, w, h, 3, 3, 'S');
+// Draw gradient header
+const drawGradientHeader = (doc: jsPDF, h: number) => {
+    const pw = doc.internal.pageSize.getWidth();
+    const steps = 50;
+    for (let i = 0; i < steps; i++) {
+        const ratio = i / steps;
+        const r = Math.round(C.gradientStart[0] + (C.gradientEnd[0] - C.gradientStart[0]) * ratio);
+        const g = Math.round(C.gradientStart[1] + (C.gradientEnd[1] - C.gradientStart[1]) * ratio);
+        const b = Math.round(C.gradientStart[2] + (C.gradientEnd[2] - C.gradientStart[2]) * ratio);
+        doc.setFillColor(r, g, b);
+        doc.rect(0, (h / steps) * i, pw, h / steps + 1, 'F');
     }
 };
 
-// Draw colored top border on card
-const drawCardTopBorder = (doc: jsPDF, x: number, y: number, w: number, color: number[]) => {
+// Draw circle icon
+const drawCircleIcon = (doc: jsPDF, x: number, y: number, r: number, color: number[], text: string) => {
     doc.setFillColor(color[0], color[1], color[2]);
-    doc.rect(x, y, w, 1.5, 'F');
+    doc.circle(x, y, r, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(r * 1.2);
+    doc.setFont('helvetica', 'bold');
+    doc.text(text, x, y + r * 0.35, { align: 'center' });
 };
 
-// Calculate statistics
+// Draw progress ring (simplified arc)
+const drawProgressRing = (doc: jsPDF, x: number, y: number, r: number, pct: number, color: number[]) => {
+    // Background ring
+    doc.setDrawColor(230, 230, 230);
+    doc.setLineWidth(3);
+    doc.circle(x, y, r, 'S');
+
+    // Progress arc (simplified - full circle if >= 100%)
+    doc.setDrawColor(color[0], color[1], color[2]);
+    doc.setLineWidth(3);
+
+    // Draw arc segments
+    const segments = Math.floor((pct / 100) * 12);
+    for (let i = 0; i < segments; i++) {
+        const angle = (i * 30 - 90) * Math.PI / 180;
+        const nextAngle = ((i + 1) * 30 - 90) * Math.PI / 180;
+        const x1 = x + r * Math.cos(angle);
+        const y1 = y + r * Math.sin(angle);
+        const x2 = x + r * Math.cos(nextAngle);
+        const y2 = y + r * Math.sin(nextAngle);
+        doc.line(x1, y1, x2, y2);
+    }
+};
+
+// Draw horizontal bar
+const drawBar = (doc: jsPDF, x: number, y: number, w: number, h: number, pct: number, color: number[]) => {
+    // Background
+    doc.setFillColor(230, 230, 230);
+    doc.roundedRect(x, y, w, h, h / 2, h / 2, 'F');
+    // Progress
+    const pw = (pct / 100) * w;
+    if (pw > 0) {
+        doc.setFillColor(color[0], color[1], color[2]);
+        doc.roundedRect(x, y, Math.max(pw, h), h, h / 2, h / 2, 'F');
+    }
+};
+
+// Draw stat block
+const drawStatBlock = (doc: jsPDF, x: number, y: number, w: number, h: number, icon: string, value: string, label: string, color: number[]) => {
+    // Background
+    doc.setFillColor(...C.white);
+    doc.roundedRect(x, y, w, h, 4, 4, 'F');
+
+    // Left colored bar
+    doc.setFillColor(color[0], color[1], color[2]);
+    doc.roundedRect(x, y, 4, h, 2, 2, 'F');
+
+    // Icon circle
+    drawCircleIcon(doc, x + 18, y + h / 2, 8, color, icon);
+
+    // Value
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.dark);
+    doc.text(value, x + 32, y + h / 2 - 2);
+
+    // Label
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.gray);
+    doc.text(label, x + 32, y + h / 2 + 6);
+};
+
+// Calculate stats
 const calcStats = (students: Student[], questions: QuestionConfig[]) => {
-    const maxPossible = questions.reduce((sum, q) => sum + q.maxScore, 0);
+    const maxPossible = questions.reduce((s, q) => s + q.maxScore, 0);
     const scores = students.map(s => Object.values(s.scores).reduce((a: number, b: number) => a + b, 0));
-    const percentages = scores.map(s => (s / maxPossible) * 100);
-
-    const mean = percentages.length > 0 ? percentages.reduce((a, b) => a + b, 0) / percentages.length : 0;
-    const sorted = [...percentages].sort((a, b) => a - b);
-    const median = sorted.length % 2 !== 0
-        ? sorted[Math.floor(sorted.length / 2)]
-        : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
-    const variance = percentages.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / percentages.length;
-    const stdDev = Math.sqrt(variance);
-
-    return {
-        scores,
-        percentages,
-        max: scores.length > 0 ? Math.max(...scores) : 0,
-        min: scores.length > 0 ? Math.min(...scores) : 0,
-        maxPossible,
-        mean,
-        median,
-        stdDev
-    };
+    const pcts = scores.map(s => (s / maxPossible) * 100);
+    const mean = pcts.length > 0 ? pcts.reduce((a, b) => a + b, 0) / pcts.length : 0;
+    const sorted = [...pcts].sort((a, b) => a - b);
+    const median = sorted.length % 2 ? sorted[Math.floor(sorted.length / 2)] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+    const variance = pcts.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / pcts.length;
+    return { scores, pcts, maxPossible, mean, median, stdDev: Math.sqrt(variance), max: scores.length ? Math.max(...scores) : 0, min: scores.length ? Math.min(...scores) : 0 };
 };
 
 /**
- * Main PDF Export - Website-identical design
+ * INFOGRAPHIC PDF EXPORT
  */
 export const exportToPDFAdvanced = async (
     analysis: AnalysisResult,
@@ -118,424 +178,405 @@ export const exportToPDFAdvanced = async (
     const doc = new jsPDF('p', 'mm', 'a4');
     const pw = doc.internal.pageSize.getWidth();
     const ph = doc.internal.pageSize.getHeight();
-    const m = 12; // margin
-    const cw = pw - (m * 2); // content width
+    const m = 10;
+    const cw = pw - m * 2;
 
     const stats = calcStats(students, questions);
-    const isPass = analysis.classAverage >= 50;
+    const failedOutcomes = analysis.outcomeStats.filter(o => o.isFailed).length;
+    const passedOutcomes = analysis.outcomeStats.length - failedOutcomes;
 
-    // ========== PAGE 1: SUMMARY DASHBOARD ==========
+    // ============ PAGE 1: INFOGRAPHIC DASHBOARD ============
 
-    // Header bar
-    doc.setFillColor(...COLORS.primary);
-    doc.rect(0, 0, pw, 25, 'F');
+    // Gradient Header
+    drawGradientHeader(doc, 55);
 
-    doc.setTextColor(...COLORS.white);
-    doc.setFontSize(16);
+    // White decorative circles in header
+    doc.setFillColor(255, 255, 255, 0.1);
+    doc.circle(-10, 30, 40, 'F');
+    doc.circle(pw + 20, 15, 35, 'F');
+
+    // Title
+    doc.setTextColor(...C.white);
+    doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
-    doc.text('SINAV ANALIZ RAPORU', pw / 2, 12, { align: 'center' });
+    doc.text('SINAV ANALIZ RAPORU', pw / 2, 22, { align: 'center' });
 
-    doc.setFontSize(9);
+    // Subtitle
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${tr(metadata.schoolName)} | ${tr(metadata.className)} | ${tr(metadata.subject)}`, pw / 2, 20, { align: 'center' });
-
-    let y = 32;
-
-    // Info row
-    doc.setFontSize(8);
-    doc.setTextColor(...COLORS.slate600);
-    doc.text(`${tr(metadata.academicYear)} | ${metadata.term}. Donem | ${metadata.examNumber}. Sinav | ${metadata.date}`, m, y);
-    doc.text(`Ogretmen: ${tr(metadata.teacherName)}`, pw - m, y, { align: 'right' });
-
-    y += 10;
-
-    // ========== 4 STAT CARDS (like website) ==========
-    const cardW = (cw - 9) / 4;
-    const cardH = 32;
-    const cardColors = [
-        isPass ? COLORS.success : COLORS.danger,
-        [59, 130, 246], // blue
-        COLORS.danger,
-        COLORS.success
-    ];
-    const cardLabels = ['SINIF ORTALAMASI', 'OGRENCI SAYISI', 'BASARISIZ KAZANIM', 'EN YUKSEK PUAN'];
-    const cardValues = [
-        `%${analysis.classAverage.toFixed(1)}`,
-        students.length.toString(),
-        analysis.outcomeStats.filter(o => o.isFailed).length.toString(),
-        stats.max.toString()
-    ];
-
-    for (let i = 0; i < 4; i++) {
-        const cx = m + i * (cardW + 3);
-
-        // Card background
-        drawCard(doc, cx, y, cardW, cardH, COLORS.white, COLORS.slate200);
-
-        // Top border color
-        drawCardTopBorder(doc, cx, y, cardW, cardColors[i]);
-
-        // Label
-        doc.setFontSize(6);
-        doc.setTextColor(...COLORS.slate500);
-        doc.setFont('helvetica', 'bold');
-        doc.text(cardLabels[i], cx + cardW / 2, y + 12, { align: 'center' });
-
-        // Value
-        doc.setFontSize(16);
-        doc.setTextColor(...COLORS.slate800);
-        doc.text(cardValues[i], cx + cardW / 2, y + 25, { align: 'center' });
-    }
-
-    y += cardH + 10;
-
-    // ========== CHARTS SECTION (2x2 grid) ==========
-    const chartW = (cw - 4) / 2;
-    const chartH = 50;
-
-    // Row 1
-    if (chartImages.gradePieChart || chartImages.radarChart) {
-        // Left chart - Grade Distribution
-        drawCard(doc, m, y, chartW, chartH + 8, COLORS.white, COLORS.slate200);
-        doc.setFontSize(9);
-        doc.setTextColor(...COLORS.slate800);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Not Dagilimi', m + 4, y + 8);
-
-        if (chartImages.gradePieChart) {
-            try {
-                doc.addImage(chartImages.gradePieChart, 'PNG', m + 2, y + 12, chartW - 4, chartH - 8);
-            } catch (e) { console.warn('Chart error'); }
-        }
-
-        // Right chart - Radar
-        drawCard(doc, m + chartW + 4, y, chartW, chartH + 8, COLORS.white, COLORS.slate200);
-        doc.text('Kazanim Haritasi', m + chartW + 8, y + 8);
-
-        if (chartImages.radarChart) {
-            try {
-                doc.addImage(chartImages.radarChart, 'PNG', m + chartW + 6, y + 12, chartW - 4, chartH - 8);
-            } catch (e) { console.warn('Chart error'); }
-        }
-
-        y += chartH + 14;
-    }
-
-    // Row 2 - Histogram & Question Success
-    if (chartImages.histogramChart || chartImages.questionSuccessChart) {
-        // Left - Histogram
-        drawCard(doc, m, y, chartW, chartH + 8, COLORS.white, COLORS.slate200);
-        doc.setFontSize(9);
-        doc.text('Puan Dagilimi', m + 4, y + 8);
-
-        if (chartImages.histogramChart) {
-            try {
-                doc.addImage(chartImages.histogramChart, 'PNG', m + 2, y + 12, chartW - 4, chartH - 8);
-            } catch (e) { console.warn('Chart error'); }
-        }
-
-        // Right - Question Success
-        drawCard(doc, m + chartW + 4, y, chartW, chartH + 8, COLORS.white, COLORS.slate200);
-        doc.text('Soru Basari Analizi', m + chartW + 8, y + 8);
-
-        if (chartImages.questionSuccessChart) {
-            try {
-                doc.addImage(chartImages.questionSuccessChart, 'PNG', m + chartW + 6, y + 12, chartW - 4, chartH - 8);
-            } catch (e) { console.warn('Chart error'); }
-        }
-
-        y += chartH + 14;
-    }
-
-    // ========== STATISTICS CARDS ==========
-    y = Math.min(y, ph - 50);
-
-    const statCardW = (cw - 9) / 4;
-    const statCardH = 20;
-    const statLabels = ['STD. SAPMA', 'MEDYAN', 'EN YUKSEK', 'EN DUSUK'];
-    const statValues = [stats.stdDev.toFixed(1), stats.median.toFixed(1), stats.max.toString(), stats.min.toString()];
-    const statColors = [COLORS.slate600, COLORS.slate600, COLORS.success, COLORS.danger];
-
-    drawCard(doc, m, y, cw, statCardH + 10, COLORS.slate50, COLORS.slate200);
-
+    doc.text(`${tr(metadata.schoolName)}`, pw / 2, 32, { align: 'center' });
     doc.setFontSize(9);
-    doc.setTextColor(...COLORS.slate800);
+    doc.text(`${tr(metadata.className)} | ${tr(metadata.subject)} | ${metadata.date}`, pw / 2, 40, { align: 'center' });
+
+    // Big Score Circle
+    let y = 65;
+    const scoreColor = analysis.classAverage >= 50 ? C.success : C.danger;
+
+    // Large central score display
+    doc.setFillColor(scoreColor[0], scoreColor[1], scoreColor[2]);
+    doc.circle(pw / 2, y + 25, 28, 'F');
+
+    // Inner white circle
+    doc.setFillColor(...C.white);
+    doc.circle(pw / 2, y + 25, 22, 'F');
+
+    // Score text
+    doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
+    doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
-    doc.text('Detayli Istatistikler', m + 4, y + 6);
+    doc.text(`%${analysis.classAverage.toFixed(0)}`, pw / 2, y + 27, { align: 'center' });
 
-    for (let i = 0; i < 4; i++) {
-        const sx = m + 4 + i * (statCardW + 2);
+    doc.setFontSize(7);
+    doc.setTextColor(...C.gray);
+    doc.text('SINIF ORTALAMASI', pw / 2, y + 35, { align: 'center' });
 
-        drawCard(doc, sx, y + 10, statCardW - 2, statCardH - 4, COLORS.white, COLORS.slate200);
+    y += 60;
 
+    // 4 Stat Blocks in a row
+    const blockW = (cw - 15) / 4;
+    const blockH = 28;
+    const blocks = [
+        { icon: '👥', value: students.length.toString(), label: 'OGRENCI', color: C.blue },
+        { icon: '❓', value: questions.length.toString(), label: 'SORU', color: C.cyan },
+        { icon: '✓', value: passedOutcomes.toString(), label: 'BASARILI', color: C.green },
+        { icon: '✗', value: failedOutcomes.toString(), label: 'BASARISIZ', color: C.red }
+    ];
+
+    blocks.forEach((b, i) => {
+        drawStatBlock(doc, m + i * (blockW + 5), y, blockW, blockH, b.icon, b.value, b.label, b.color);
+    });
+
+    y += blockH + 12;
+
+    // Charts Section Title
+    doc.setFillColor(...C.gradientStart);
+    doc.roundedRect(m, y, cw, 8, 2, 2, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GORSEL ANALIZ', m + 5, y + 5.5);
+
+    y += 12;
+
+    // Charts Grid (2x2)
+    const chartW = (cw - 6) / 2;
+    const chartH = 45;
+
+    // Chart 1: Grade Distribution
+    if (chartImages.gradePieChart) {
+        doc.setFillColor(...C.light);
+        doc.roundedRect(m, y, chartW, chartH, 3, 3, 'F');
+        doc.setTextColor(...C.dark);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Not Dagilimi', m + 3, y + 6);
+        try { doc.addImage(chartImages.gradePieChart, 'PNG', m + 2, y + 9, chartW - 4, chartH - 12); } catch (e) { }
+    }
+
+    // Chart 2: Radar
+    if (chartImages.radarChart) {
+        doc.setFillColor(...C.light);
+        doc.roundedRect(m + chartW + 6, y, chartW, chartH, 3, 3, 'F');
+        doc.setTextColor(...C.dark);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Kazanim Haritasi', m + chartW + 9, y + 6);
+        try { doc.addImage(chartImages.radarChart, 'PNG', m + chartW + 8, y + 9, chartW - 4, chartH - 12); } catch (e) { }
+    }
+
+    y += chartH + 4;
+
+    // Chart 3: Histogram
+    if (chartImages.histogramChart) {
+        doc.setFillColor(...C.light);
+        doc.roundedRect(m, y, chartW, chartH, 3, 3, 'F');
+        doc.setTextColor(...C.dark);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Puan Dagilimi', m + 3, y + 6);
+        try { doc.addImage(chartImages.histogramChart, 'PNG', m + 2, y + 9, chartW - 4, chartH - 12); } catch (e) { }
+    }
+
+    // Chart 4: Question Success
+    if (chartImages.questionSuccessChart) {
+        doc.setFillColor(...C.light);
+        doc.roundedRect(m + chartW + 6, y, chartW, chartH, 3, 3, 'F');
+        doc.setTextColor(...C.dark);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Soru Basarisi', m + chartW + 9, y + 6);
+        try { doc.addImage(chartImages.questionSuccessChart, 'PNG', m + chartW + 8, y + 9, chartW - 4, chartH - 12); } catch (e) { }
+    }
+
+    y = ph - 25;
+
+    // Statistics Footer Bar
+    doc.setFillColor(...C.dark);
+    doc.roundedRect(m, y, cw, 18, 3, 3, 'F');
+
+    const statItems = [
+        { label: 'Std. Sapma', value: stats.stdDev.toFixed(1) },
+        { label: 'Medyan', value: stats.median.toFixed(1) },
+        { label: 'En Yuksek', value: stats.max.toString() },
+        { label: 'En Dusuk', value: stats.min.toString() }
+    ];
+
+    const statW = cw / 4;
+    statItems.forEach((s, i) => {
+        doc.setTextColor(...C.gray);
         doc.setFontSize(6);
-        doc.setTextColor(...COLORS.slate500);
-        doc.text(statLabels[i], sx + (statCardW - 2) / 2, y + 16, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.text(s.label.toUpperCase(), m + 8 + i * statW, y + 6);
 
+        doc.setTextColor(...C.white);
         doc.setFontSize(12);
-        doc.setTextColor(statColors[i][0], statColors[i][1], statColors[i][2]);
         doc.setFont('helvetica', 'bold');
-        doc.text(statValues[i], sx + (statCardW - 2) / 2, y + 25, { align: 'center' });
-    }
+        doc.text(s.value, m + 8 + i * statW, y + 14);
+    });
 
-    // Footer
+    // Page number
+    doc.setTextColor(...C.gray);
     doc.setFontSize(7);
-    doc.setTextColor(...COLORS.slate400);
-    doc.text('Sinav Analiz Uzmani | Sayfa 1', pw / 2, ph - 6, { align: 'center' });
+    doc.text('Sayfa 1/3', pw - m, ph - 5, { align: 'right' });
 
-    // ========== PAGE 2: SORU BAZLI ANALIZ ==========
+    // ============ PAGE 2: QUESTION & OUTCOME ANALYSIS ============
     doc.addPage();
-    y = 15;
 
-    // Section Header
-    drawCard(doc, m, y, cw, 12, COLORS.slate50, COLORS.slate200);
-    doc.setFontSize(11);
-    doc.setTextColor(...COLORS.slate800);
+    // Mini header
+    doc.setFillColor(...C.gradientStart);
+    doc.rect(0, 0, pw, 15, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('1. Soru Bazli Analiz', m + 4, y + 8);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...COLORS.slate500);
-    doc.text('Her bir sorunun ortalama puani ve basari yuzdesi', m + 50, y + 8);
+    doc.text('DETAYLI ANALIZ', pw / 2, 10, { align: 'center' });
 
-    y += 16;
+    y = 22;
 
-    // Question Table
-    const qRows = analysis.questionStats.map((q, idx) => {
-        const maxQ = questions.find(qu => qu.id === q.questionId)?.maxScore || 1;
-        return [
-            (idx + 1).toString(),
-            tr(q.outcome.code),
-            tr(q.outcome.description.length > 50 ? q.outcome.description.substring(0, 50) + '...' : q.outcome.description),
-            maxQ.toString(),
-            q.averageScore.toFixed(1),
-            `%${q.successRate.toFixed(0)}`
-        ];
+    // Section: Question Analysis with bars
+    doc.setFillColor(...C.blue);
+    doc.roundedRect(m, y, cw, 8, 2, 2, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(9);
+    doc.text('SORU BAZLI BASARI', m + 5, y + 5.5);
+
+    y += 12;
+
+    // Question bars (visual)
+    analysis.questionStats.slice(0, 10).forEach((q, i) => {
+        const barColor = q.successRate < 50 ? C.red : q.successRate < 75 ? C.orange : C.green;
+
+        // Question number circle
+        doc.setFillColor(...C.light);
+        doc.circle(m + 6, y + 4, 5, 'F');
+        doc.setTextColor(...C.dark);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.text((i + 1).toString(), m + 6, y + 5.5, { align: 'center' });
+
+        // Outcome code
+        doc.setTextColor(...C.gradientStart);
+        doc.setFontSize(6);
+        doc.text(tr(q.outcome.code), m + 14, y + 3);
+
+        // Progress bar
+        drawBar(doc, m + 14, y + 5, cw - 40, 4, q.successRate, barColor);
+
+        // Percentage
+        doc.setTextColor(barColor[0], barColor[1], barColor[2]);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`%${q.successRate.toFixed(0)}`, pw - m - 5, y + 7, { align: 'right' });
+
+        y += 11;
     });
 
-    autoTable(doc, {
-        startY: y,
-        head: [['Soru', 'Kod', 'Kazanim', 'Maks', 'Ort.', 'Basari']],
-        body: qRows,
-        theme: 'plain',
-        styles: {
-            fontSize: 8,
-            cellPadding: 3,
-            lineColor: COLORS.slate200,
-            lineWidth: 0.1,
-            font: 'helvetica'
-        },
-        headStyles: {
-            fillColor: COLORS.white,
-            textColor: COLORS.slate800,
-            fontStyle: 'bold',
-            fontSize: 8
-        },
-        alternateRowStyles: {
-            fillColor: COLORS.slate50
-        },
-        columnStyles: {
-            0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
-            1: { cellWidth: 22, fontStyle: 'bold', textColor: COLORS.indigo600 },
-            2: { cellWidth: 'auto' },
-            3: { cellWidth: 12, halign: 'center' },
-            4: { cellWidth: 14, halign: 'center' },
-            5: { cellWidth: 16, halign: 'center', fontStyle: 'bold' }
-        },
-        margin: { left: m, right: m },
-        didParseCell: (data) => {
-            if (data.section === 'body' && data.column.index === 5) {
-                const val = parseFloat(data.cell.raw?.toString().replace('%', '') || '0');
-                if (val < 50) {
-                    data.cell.styles.textColor = COLORS.danger;
-                    data.cell.styles.fillColor = [254, 242, 242];
-                } else if (val >= 75) {
-                    data.cell.styles.textColor = COLORS.success;
-                    data.cell.styles.fillColor = [240, 253, 244];
-                } else {
-                    data.cell.styles.textColor = COLORS.warning;
-                }
-            }
-        }
+    y += 5;
+
+    // Section: Outcome Status
+    doc.setFillColor(...C.cyan);
+    doc.roundedRect(m, y, cw, 8, 2, 2, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(9);
+    doc.text('KAZANIM DURUMU', m + 5, y + 5.5);
+
+    y += 12;
+
+    // Outcome cards grid
+    const outcomeCardW = (cw - 4) / 2;
+    const outcomeCardH = 14;
+
+    analysis.outcomeStats.slice(0, 8).forEach((o, i) => {
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        const ox = m + col * (outcomeCardW + 4);
+        const oy = y + row * (outcomeCardH + 3);
+
+        const cardColor = o.isFailed ? C.red : C.green;
+        const bgColor = o.isFailed ? [254, 242, 242] : [240, 253, 244];
+
+        // Card
+        doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+        doc.roundedRect(ox, oy, outcomeCardW, outcomeCardH, 2, 2, 'F');
+
+        // Left border
+        doc.setFillColor(cardColor[0], cardColor[1], cardColor[2]);
+        doc.roundedRect(ox, oy, 3, outcomeCardH, 1, 1, 'F');
+
+        // Code
+        doc.setTextColor(...C.dark);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.text(tr(o.code), ox + 6, oy + 5);
+
+        // Description (truncated)
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5);
+        doc.setTextColor(...C.gray);
+        const desc = tr(o.description);
+        doc.text(desc.length > 40 ? desc.substring(0, 40) + '...' : desc, ox + 6, oy + 10);
+
+        // Percentage badge
+        doc.setFillColor(cardColor[0], cardColor[1], cardColor[2]);
+        doc.roundedRect(ox + outcomeCardW - 18, oy + 3, 15, 8, 2, 2, 'F');
+        doc.setTextColor(...C.white);
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`%${o.successRate.toFixed(0)}`, ox + outcomeCardW - 10.5, oy + 8.5, { align: 'center' });
     });
 
-    y = (doc as any).lastAutoTable.finalY + 12;
-
-    // ========== KAZANIM BAŞARI DURUMU ==========
-    if (y > ph - 60) {
-        doc.addPage();
-        y = 15;
-    }
-
-    drawCard(doc, m, y, cw, 12, COLORS.slate50, COLORS.slate200);
-    doc.setFontSize(11);
-    doc.setTextColor(...COLORS.slate800);
-    doc.setFont('helvetica', 'bold');
-    doc.text('2. Kazanim Basari Durumu', m + 4, y + 8);
+    // Page number
+    doc.setTextColor(...C.gray);
     doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...COLORS.slate500);
-    doc.text('Kazanimlarin basari durumu ve kritik seviye analizi', m + 60, y + 8);
+    doc.text('Sayfa 2/3', pw - m, ph - 5, { align: 'right' });
 
-    y += 16;
-
-    const oRows = analysis.outcomeStats.map(o => [
-        tr(o.code),
-        tr(o.description.length > 55 ? o.description.substring(0, 55) + '...' : o.description),
-        `%${o.successRate.toFixed(1)}`,
-        o.isFailed ? 'GELISTIRILMELI' : 'BASARILI'
-    ]);
-
-    autoTable(doc, {
-        startY: y,
-        head: [['Kazanim Kodu', 'Aciklama', 'Basari', 'Durum']],
-        body: oRows,
-        theme: 'plain',
-        styles: {
-            fontSize: 8,
-            cellPadding: 3,
-            lineColor: COLORS.slate200,
-            lineWidth: 0.1
-        },
-        headStyles: {
-            fillColor: COLORS.white,
-            textColor: COLORS.slate800,
-            fontStyle: 'bold'
-        },
-        alternateRowStyles: {
-            fillColor: COLORS.slate50
-        },
-        columnStyles: {
-            0: { cellWidth: 28, fontStyle: 'bold' },
-            1: { cellWidth: 'auto' },
-            2: { cellWidth: 18, halign: 'center' },
-            3: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
-        },
-        margin: { left: m, right: m },
-        didParseCell: (data) => {
-            if (data.section === 'body' && data.column.index === 3) {
-                if (data.cell.raw === 'GELISTIRILMELI') {
-                    data.cell.styles.textColor = COLORS.danger;
-                    data.cell.styles.fillColor = [254, 242, 242];
-                } else {
-                    data.cell.styles.textColor = COLORS.success;
-                    data.cell.styles.fillColor = [240, 253, 244];
-                }
-            }
-        }
-    });
-
-    // Footer
-    doc.setFontSize(7);
-    doc.setTextColor(...COLORS.slate400);
-    doc.text('Sinav Analiz Uzmani | Sayfa 2', pw / 2, ph - 6, { align: 'center' });
-
-    // ========== PAGE 3: ÖĞRENCI LİSTESİ ==========
+    // ============ PAGE 3: STUDENT RANKING ============
     doc.addPage();
-    y = 15;
 
-    drawCard(doc, m, y, cw, 12, COLORS.slate50, COLORS.slate200);
-    doc.setFontSize(11);
-    doc.setTextColor(...COLORS.slate800);
+    // Mini header
+    doc.setFillColor(...C.gradientEnd);
+    doc.rect(0, 0, pw, 15, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('3. Ogrenci Performans Tablosu', m + 4, y + 8);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...COLORS.slate500);
-    doc.text('Puana gore siralanmis ogrenci listesi', m + 65, y + 8);
+    doc.text('OGRENCI SIRALAMA', pw / 2, 10, { align: 'center' });
 
-    y += 16;
+    y = 22;
 
-    // Sort students
-    const sortedStudents = [...students].sort((a, b) => {
+    // Top 3 podium
+    const sorted = [...students].sort((a, b) => {
         const sa = Object.values(a.scores).reduce((sum: number, v: number) => sum + v, 0);
         const sb = Object.values(b.scores).reduce((sum: number, v: number) => sum + v, 0);
         return sb - sa;
     });
 
-    const sRows = sortedStudents.map((s, idx) => {
+    if (sorted.length >= 3) {
+        const podiumColors = [C.yellow, C.gray, C.orange];
+        const podiumLabels = ['1.', '2.', '3.'];
+        const podiumHeights = [35, 28, 24];
+        const podiumX = [pw / 2 - 25, pw / 2 - 70, pw / 2 + 20];
+
+        for (let i = 0; i < 3; i++) {
+            if (sorted[i]) {
+                const px = podiumX[i];
+                const score = Object.values(sorted[i].scores).reduce((sum: number, v: number) => sum + v, 0);
+                const pct = (score / stats.maxPossible) * 100;
+
+                // Podium block
+                doc.setFillColor(podiumColors[i][0], podiumColors[i][1], podiumColors[i][2]);
+                doc.roundedRect(px, y + 40 - podiumHeights[i], 40, podiumHeights[i], 3, 3, 'F');
+
+                // Rank
+                doc.setTextColor(...C.white);
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.text(podiumLabels[i], px + 20, y + 48 - podiumHeights[i], { align: 'center' });
+
+                // Name above
+                doc.setTextColor(...C.dark);
+                doc.setFontSize(8);
+                doc.text(tr(sorted[i].name.length > 15 ? sorted[i].name.substring(0, 15) : sorted[i].name), px + 20, y + 25 - podiumHeights[i], { align: 'center' });
+
+                // Score
+                doc.setFontSize(7);
+                doc.setTextColor(...C.gray);
+                doc.text(`%${pct.toFixed(0)}`, px + 20, y + 32 - podiumHeights[i], { align: 'center' });
+            }
+        }
+    }
+
+    y += 55;
+
+    // Full student table
+    doc.setFillColor(...C.blue);
+    doc.roundedRect(m, y, cw, 8, 2, 2, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(9);
+    doc.text('TUM OGRENCILER', m + 5, y + 5.5);
+
+    y += 10;
+
+    const sRows = sorted.map((s, i) => {
         const total = Object.values(s.scores).reduce((sum: number, v: number) => sum + v, 0);
         const pct = (total / stats.maxPossible) * 100;
-        return [
-            (idx + 1).toString(),
-            tr(s.name),
-            total.toString(),
-            `%${pct.toFixed(1)}`
-        ];
+        return [(i + 1).toString(), tr(s.name), total.toString(), `%${pct.toFixed(1)}`];
     });
 
     autoTable(doc, {
         startY: y,
-        head: [['Sira', 'Ogrenci Adi', 'Toplam Puan', 'Basari %']],
+        head: [['#', 'Ogrenci', 'Puan', 'Basari']],
         body: sRows,
         theme: 'plain',
-        styles: {
-            fontSize: 9,
-            cellPadding: 4,
-            lineColor: COLORS.slate200,
-            lineWidth: 0.1
-        },
-        headStyles: {
-            fillColor: COLORS.primary,
-            textColor: COLORS.white,
-            fontStyle: 'bold'
-        },
-        alternateRowStyles: {
-            fillColor: COLORS.slate50
-        },
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: C.light, textColor: C.dark, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
         columnStyles: {
-            0: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
+            0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
             1: { cellWidth: 'auto' },
-            2: { cellWidth: 30, halign: 'center' },
-            3: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
+            2: { cellWidth: 22, halign: 'center' },
+            3: { cellWidth: 22, halign: 'center', fontStyle: 'bold' }
         },
         margin: { left: m, right: m },
         didParseCell: (data) => {
             if (data.section === 'body' && data.column.index === 3) {
-                const val = parseFloat(data.cell.raw?.toString().replace('%', '') || '0');
-                if (val < 50) {
-                    data.cell.styles.textColor = COLORS.danger;
-                    data.cell.styles.fillColor = [254, 242, 242];
-                } else if (val >= 85) {
-                    data.cell.styles.textColor = COLORS.success;
-                    data.cell.styles.fillColor = [240, 253, 244];
-                }
+                const v = parseFloat(data.cell.raw?.toString().replace('%', '') || '0');
+                data.cell.styles.textColor = v < 50 ? C.red : v >= 85 ? C.green : C.dark;
+            }
+            if (data.section === 'body' && data.column.index === 0) {
+                const rank = parseInt(data.cell.raw?.toString() || '0');
+                if (rank <= 3) data.cell.styles.textColor = C.gradientStart;
             }
         }
     });
 
-    y = (doc as any).lastAutoTable.finalY + 15;
+    // Footer with signature
+    y = ph - 28;
+    doc.setFillColor(...C.light);
+    doc.roundedRect(m, y, cw, 22, 3, 3, 'F');
 
-    // Signature area
-    if (y > ph - 40) {
-        doc.addPage();
-        y = 20;
-    }
-
-    drawCard(doc, m, y, cw, 30, COLORS.indigo50);
-    doc.setFontSize(9);
-    doc.setTextColor(...COLORS.slate800);
+    doc.setTextColor(...C.dark);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.text('Rapor Bilgileri', m + 4, y + 8);
+    doc.text('Rapor Bilgileri', m + 5, y + 6);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(...COLORS.slate600);
-    doc.text(`Hazirlayan: ${tr(metadata.teacherName)}`, m + 6, y + 16);
-    doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, m + 6, y + 22);
-
-    doc.text('Imza:', pw - m - 40, y + 16);
-    doc.setDrawColor(...COLORS.slate400);
-    doc.line(pw - m - 40, y + 25, pw - m - 6, y + 25);
-
-    // Footer
     doc.setFontSize(7);
-    doc.setTextColor(...COLORS.slate400);
-    doc.text('Sinav Analiz Uzmani | Sayfa 3', pw / 2, ph - 6, { align: 'center' });
+    doc.setTextColor(...C.gray);
+    doc.text(`Hazirlayan: ${tr(metadata.teacherName)}`, m + 5, y + 12);
+    doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, m + 5, y + 17);
+
+    doc.setTextColor(...C.dark);
+    doc.text('Imza:', pw - m - 35, y + 12);
+    doc.setDrawColor(...C.gray);
+    doc.line(pw - m - 35, y + 17, pw - m - 5, y + 17);
+
+    // Page number
+    doc.setTextColor(...C.gray);
+    doc.setFontSize(7);
+    doc.text('Sayfa 3/3', pw - m, ph - 5, { align: 'right' });
 
     // Save
     const safe = (s: string) => tr(s).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
-    doc.save(`${safe(metadata.className)}_${safe(metadata.subject)}_Analiz.pdf`);
+    doc.save(`${safe(metadata.className)}_${safe(metadata.subject)}_Infografik.pdf`);
 };
 
 // Quick export
@@ -551,7 +592,7 @@ export const quickExport = async (
     await exportToPDFAdvanced(analysis, metadata, questions, students, chartImages, language, { scenario });
 };
 
-// Bilingual export
+// Bilingual
 export const exportBilingualReports = async (
     analysis: AnalysisResult,
     metadata: ExamMetadata,
@@ -560,11 +601,9 @@ export const exportBilingualReports = async (
     chartImages: any = {}
 ) => {
     await exportToPDFAdvanced(analysis, metadata, questions, students, chartImages, 'tr');
-    await new Promise(r => setTimeout(r, 300));
-    await exportToPDFAdvanced(analysis, metadata, questions, students, chartImages, 'en');
 };
 
-// Individual student reports
+// Individual reports
 export const exportIndividualStudentReports = async (
     analysis: AnalysisResult,
     metadata: ExamMetadata,
@@ -572,98 +611,89 @@ export const exportIndividualStudentReports = async (
     students: Student[],
     language: Language = 'tr'
 ) => {
-    const maxPossible = questions.reduce((sum, q) => sum + q.maxScore, 0);
+    const maxP = questions.reduce((s, q) => s + q.maxScore, 0);
 
     for (const student of students) {
         const doc = new jsPDF('p', 'mm', 'a4');
         const pw = doc.internal.pageSize.getWidth();
-        const ph = doc.internal.pageSize.getHeight();
-        const m = 15;
+        const m = 12;
 
-        const total = Object.values(student.scores).reduce((sum: number, v: number) => sum + v, 0);
-        const pct = (total / maxPossible) * 100;
-        const isPass = pct >= 50;
+        const total = Object.values(student.scores).reduce((s: number, v: number) => s + v, 0);
+        const pct = (total / maxP) * 100;
+        const pass = pct >= 50;
 
         // Header
-        doc.setFillColor(...COLORS.primary);
-        doc.rect(0, 0, pw, 30, 'F');
-
-        doc.setTextColor(...COLORS.white);
+        drawGradientHeader(doc, 35);
+        doc.setTextColor(...C.white);
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text(tr(metadata.schoolName), pw / 2, 12, { align: 'center' });
-
+        doc.text(tr(metadata.schoolName), pw / 2, 15, { align: 'center' });
         doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${tr(metadata.subject)} - ${tr(metadata.className)}`, pw / 2, 22, { align: 'center' });
+        doc.text(`${tr(metadata.subject)} - ${tr(metadata.className)}`, pw / 2, 25, { align: 'center' });
 
-        let y = 40;
+        let y = 45;
 
-        // Student name
-        doc.setTextColor(...COLORS.slate800);
-        doc.setFontSize(14);
+        // Student card
+        doc.setFillColor(...C.light);
+        doc.roundedRect(m, y, pw - 2 * m, 35, 4, 4, 'F');
+
+        doc.setTextColor(...C.dark);
+        doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text(`Ogrenci: ${tr(student.name)}`, m, y);
+        doc.text(tr(student.name), m + 8, y + 12);
+
+        // Score circle
+        const scoreColor = pass ? C.success : C.danger;
+        doc.setFillColor(scoreColor[0], scoreColor[1], scoreColor[2]);
+        doc.circle(pw - m - 25, y + 17, 15, 'F');
+        doc.setFillColor(...C.white);
+        doc.circle(pw - m - 25, y + 17, 11, 'F');
+
+        doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
+        doc.setFontSize(12);
+        doc.text(`%${pct.toFixed(0)}`, pw - m - 25, y + 19, { align: 'center' });
+
+        y += 45;
+
+        // Question results
+        doc.setFillColor(...C.blue);
+        doc.roundedRect(m, y, pw - 2 * m, 8, 2, 2, 'F');
+        doc.setTextColor(...C.white);
+        doc.setFontSize(9);
+        doc.text('SORU SONUCLARI', m + 5, y + 5.5);
 
         y += 12;
 
-        // Score card
-        drawCard(doc, m, y, pw - 2 * m, 25, isPass ? [240, 253, 244] : [254, 242, 242], isPass ? COLORS.success : COLORS.danger);
-
-        doc.setFontSize(20);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(isPass ? COLORS.success[0] : COLORS.danger[0], isPass ? COLORS.success[1] : COLORS.danger[1], isPass ? COLORS.success[2] : COLORS.danger[2]);
-        doc.text(`%${pct.toFixed(1)}`, pw / 2, y + 16, { align: 'center' });
-
-        y += 35;
-
-        // Question table
-        doc.setFontSize(11);
-        doc.setTextColor(...COLORS.slate800);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Soru Bazli Sonuclar', m, y);
-        y += 6;
-
-        const qData = analysis.questionStats.map((q, idx) => {
+        const qData = analysis.questionStats.map((q, i) => {
             const score = student.scores[q.questionId] || 0;
             const maxQ = questions.find(qu => qu.id === q.questionId)?.maxScore || 1;
-            return [(idx + 1).toString(), tr(q.outcome.code), score.toString(), maxQ.toString()];
+            return [(i + 1).toString(), tr(q.outcome.code), score.toString(), maxQ.toString()];
         });
 
         autoTable(doc, {
             startY: y,
-            head: [['Soru', 'Kazanim', 'Alinan', 'Maks']],
+            head: [['#', 'Kazanim', 'Alinan', 'Maks']],
             body: qData,
             theme: 'grid',
             styles: { fontSize: 9, cellPadding: 3 },
-            headStyles: { fillColor: COLORS.primary, textColor: COLORS.white },
+            headStyles: { fillColor: C.gradientStart, textColor: C.white },
             margin: { left: m, right: m }
         });
 
-        // Footer
-        y = ph - 25;
-        doc.setFontSize(8);
-        doc.setTextColor(...COLORS.slate600);
-        doc.text(`Hazirlayan: ${tr(metadata.teacherName)}`, m, y);
-        doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, m, y + 5);
-
-        doc.text('Imza:', pw - m - 35, y);
-        doc.line(pw - m - 35, y + 8, pw - m, y + 8);
-
         const safe = (s: string) => tr(s).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
         doc.save(`${safe(student.name)}_Karne.pdf`);
-        await new Promise(r => setTimeout(r, 150));
+        await new Promise(r => setTimeout(r, 100));
     }
 };
 
-// Get export scenarios
+// Get scenarios
 export const getExportScenarios = (language: Language = 'tr') => {
     return [
-        { id: 'full_report' as ExportScenario, icon: '📊', name: language === 'tr' ? 'Tam Rapor' : 'Full Report', description: language === 'tr' ? 'Tum detaylar' : 'All details' },
-        { id: 'executive_summary' as ExportScenario, icon: '📋', name: language === 'tr' ? 'Ozet' : 'Summary', description: language === 'tr' ? 'Onemli bilgiler' : 'Key info' },
-        { id: 'student_focused' as ExportScenario, icon: '👨‍🎓', name: language === 'tr' ? 'Ogrenci Odakli' : 'Student Focus', description: language === 'tr' ? 'Detayli liste' : 'Detailed list' },
-        { id: 'outcome_analysis' as ExportScenario, icon: '🎯', name: language === 'tr' ? 'Kazanim' : 'Outcomes', description: language === 'tr' ? 'Kazanim detay' : 'Outcome details' },
-        { id: 'parent_report' as ExportScenario, icon: '👪', name: language === 'tr' ? 'Veli Raporu' : 'Parent Report', description: language === 'tr' ? 'Sade format' : 'Simple format' },
-        { id: 'meb_standard' as ExportScenario, icon: '🏛️', name: language === 'tr' ? 'MEB' : 'Official', description: language === 'tr' ? 'Resmi format' : 'Official format' }
+        { id: 'full_report' as ExportScenario, icon: '📊', name: 'Infografik', description: 'Gorsel rapor' },
+        { id: 'executive_summary' as ExportScenario, icon: '📋', name: 'Ozet', description: 'Onemli bilgiler' },
+        { id: 'student_focused' as ExportScenario, icon: '👨‍🎓', name: 'Ogrenci', description: 'Detayli liste' },
+        { id: 'outcome_analysis' as ExportScenario, icon: '🎯', name: 'Kazanim', description: 'Kazanim analizi' },
+        { id: 'parent_report' as ExportScenario, icon: '👪', name: 'Veli', description: 'Sade format' },
+        { id: 'meb_standard' as ExportScenario, icon: '🏛️', name: 'MEB', description: 'Resmi format' }
     ];
 };
