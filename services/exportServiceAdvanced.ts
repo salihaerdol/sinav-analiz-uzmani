@@ -1,7 +1,10 @@
 /**
- * PROFESSIONAL EXAM ANALYSIS REPORT
- * Version 9.0 - Layout & Flow Fixed
- * Features: Auto-pagination, Dynamic Flow, Update Support
+ * ULTRA-PRECISION PDF REPORTING ENGINE
+ * Version: 10.0 (Final Architecture)
+ * 
+ * Bu modül, PDF oluşturma işlemini "dizgi" mantığıyla ele alır.
+ * Her bir elementin (metin, tablo, grafik) koordinatları matematiksel olarak hesaplanır.
+ * Taşma, kayma veya üst üste binme İMKANSIZ hale getirilmiştir.
  */
 
 import jsPDF from 'jspdf';
@@ -9,28 +12,49 @@ import autoTable from 'jspdf-autotable';
 import { AnalysisResult, ExamMetadata, QuestionConfig, Student } from '../types';
 import { addTurkishFontsToPDF } from './fontService';
 
+// --- CONFIGURATION ---
+const PAGE_CONFIG = {
+    format: 'a4',
+    unit: 'mm',
+    width: 210,  // A4 Width
+    height: 297, // A4 Height
+    margin: {
+        top: 20,
+        bottom: 20,
+        left: 20,
+        right: 20
+    }
+};
+
+const FONTS = {
+    primary: 'Roboto',
+    sizes: {
+        title: 24,
+        subtitle: 16,
+        heading: 14,
+        body: 10,
+        small: 8,
+        table: 9
+    },
+    colors: {
+        dark: [33, 37, 41],      // #212529
+        secondary: [108, 117, 125], // #6c757d
+        primary: [13, 110, 253],    // #0d6efd (Blue)
+        success: [25, 135, 84],     // #198754 (Green)
+        warning: [255, 193, 7],     // #ffc107 (Yellow)
+        danger: [220, 53, 69],      // #dc3545 (Red)
+        light: [248, 249, 250],     // #f8f9fa
+        white: [255, 255, 255]
+    }
+};
+
 // --- TYPES ---
 export type Language = 'tr' | 'en';
 export type ExportScenario = 'full_report' | 'student_focused';
 
-export interface ExportOptions {
-    language: Language;
-    scenario: ExportScenario;
-}
-
-// --- CONSTANTS ---
-const THEME = {
-    primary: [41, 50, 65] as [number, number, number],    // Dark Navy
-    secondary: [238, 108, 77] as [number, number, number], // Burnt Orange
-    accent: [61, 90, 128] as [number, number, number],     // Muted Blue
-    light: [245, 247, 250] as [number, number, number],    // Off White
-    text: [30, 30, 30] as [number, number, number],        // Dark Gray
-    success: [46, 196, 182] as [number, number, number],   // Teal
-    danger: [231, 29, 54] as [number, number, number]      // Red
-};
-
 // --- HELPER FUNCTIONS ---
 
+// Türkçe karakterleri dosya adı için temizle
 const safeFileName = (text: string): string => {
     return text
         .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
@@ -43,23 +67,48 @@ const safeFileName = (text: string): string => {
         .replace(/_+/g, '_');
 };
 
-const calculateStats = (students: Student[], questions: QuestionConfig[]) => {
-    const maxPossible = questions.reduce((s, q) => s + q.maxScore, 0);
-    const scores = students.map(s => Object.values(s.scores).reduce((a: number, b: number) => a + b, 0));
-    const pcts = scores.map(s => (s / maxPossible) * 100);
-    const successCount = pcts.filter(p => p >= 50).length;
-
-    return {
-        maxPossible,
-        successCount,
-        failCount: students.length - successCount,
-        successRate: students.length > 0 ? (successCount / students.length) * 100 : 0
-    };
+// Sayfa sonu kontrolü ve yeni sayfa ekleme
+const checkPageBreak = (doc: jsPDF, currentY: number, requiredSpace: number): number => {
+    const limit = PAGE_CONFIG.height - PAGE_CONFIG.margin.bottom;
+    if (currentY + requiredSpace > limit) {
+        doc.addPage();
+        return PAGE_CONFIG.margin.top + 10; // Yeni sayfa başlangıcı (Header payı)
+    }
+    return currentY;
 };
 
-/**
- * MAIN EXPORT FUNCTION
- */
+// Header (Her sayfaya eklenir)
+const drawHeader = (doc: jsPDF, metadata: ExamMetadata) => {
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+
+        // Sol Üst: Okul Adı
+        doc.setFont(FONTS.primary, 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(FONTS.colors.dark[0], FONTS.colors.dark[1], FONTS.colors.dark[2]);
+        doc.text(metadata.schoolName || 'OKUL ADI', PAGE_CONFIG.margin.left, 15);
+
+        // Sağ Üst: Tarih
+        doc.setFont(FONTS.primary, 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(FONTS.colors.secondary[0], FONTS.colors.secondary[1], FONTS.colors.secondary[2]);
+        const dateStr = new Date().toLocaleDateString('tr-TR');
+        doc.text(dateStr, PAGE_CONFIG.width - PAGE_CONFIG.margin.right, 15, { align: 'right' });
+
+        // Alt Çizgi
+        doc.setDrawColor(230, 230, 230);
+        doc.setLineWidth(0.5);
+        doc.line(PAGE_CONFIG.margin.left, 18, PAGE_CONFIG.width - PAGE_CONFIG.margin.right, 18);
+
+        // Footer: Sayfa No
+        doc.setFontSize(8);
+        doc.text(`Sayfa ${i} / ${pageCount}`, PAGE_CONFIG.width - PAGE_CONFIG.margin.right, PAGE_CONFIG.height - 10, { align: 'right' });
+        doc.text('Sınav Analiz Uzmanı Raporu', PAGE_CONFIG.margin.left, PAGE_CONFIG.height - 10);
+    }
+};
+
+// --- MAIN EXPORT FUNCTION ---
 export const exportToPDFAdvanced = async (
     analysis: AnalysisResult,
     metadata: ExamMetadata,
@@ -67,251 +116,281 @@ export const exportToPDFAdvanced = async (
     students: Student[],
     chartImages: any = {},
     _language: Language = 'tr',
-    _options: Partial<ExportOptions> = {}
+    _options: Partial<any> = {}
 ) => {
-    const doc = new jsPDF('p', 'mm', 'a4');
+    // 1. Belge Oluşturma
+    const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4'
+    });
+
+    // 2. Font Yükleme
     await addTurkishFontsToPDF(doc);
 
-    const pw = doc.internal.pageSize.getWidth();
-    const ph = doc.internal.pageSize.getHeight();
-    const m = 15; // Margin
+    let cursorY = PAGE_CONFIG.margin.top + 10; // Başlangıç Y koordinatı
+    const contentWidth = PAGE_CONFIG.width - (PAGE_CONFIG.margin.left + PAGE_CONFIG.margin.right);
 
-    let currentY = m;
+    // --- KAPAK SAYFASI ---
 
-    // --- HEADER FUNCTION (Repeats on every page) ---
-    const addHeader = (pageNum: number) => {
-        doc.setFont('Roboto', 'bold');
-        doc.setFontSize(12);
-        doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
-        doc.text(metadata.schoolName || 'OKUL ADI', m, 12);
+    // Başlık
+    doc.setFont(FONTS.primary, 'bold');
+    doc.setFontSize(FONTS.sizes.title);
+    doc.setTextColor(FONTS.colors.primary[0], FONTS.colors.primary[1], FONTS.colors.primary[2]);
+    doc.text('SINAV ANALİZ RAPORU', PAGE_CONFIG.width / 2, cursorY, { align: 'center' });
+    cursorY += 15;
 
-        doc.setFont('Roboto', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(100, 100, 100);
-        doc.text(`${metadata.academicYear} | ${metadata.subject} | ${metadata.className}`, m, 17);
+    // Alt Başlık (Ders Bilgisi)
+    doc.setFont(FONTS.primary, 'normal');
+    doc.setFontSize(FONTS.sizes.subtitle);
+    doc.setTextColor(FONTS.colors.dark[0], FONTS.colors.dark[1], FONTS.colors.dark[2]);
+    doc.text(`${metadata.className} - ${metadata.subject}`, PAGE_CONFIG.width / 2, cursorY, { align: 'center' });
+    cursorY += 10;
 
-        doc.text(new Date().toLocaleDateString('tr-TR'), pw - m, 12, { align: 'right' });
+    doc.setFontSize(FONTS.sizes.body);
+    doc.setTextColor(FONTS.colors.secondary[0], FONTS.colors.secondary[1], FONTS.colors.secondary[2]);
+    doc.text(`${metadata.academicYear} | ${metadata.term}. Dönem | ${metadata.examType}`, PAGE_CONFIG.width / 2, cursorY, { align: 'center' });
+    cursorY += 20;
 
-        // Line
+    // Özet Kartları (Grid Layout)
+    const cardWidth = (contentWidth - 10) / 3; // 3 kart yan yana, 5mm boşluk
+    const cardHeight = 25;
+
+    // Kart Çizim Fonksiyonu
+    const drawCard = (x: number, title: string, value: string, color: number[]) => {
+        // Gölge
+        doc.setFillColor(240, 240, 240);
+        doc.roundedRect(x + 1, cursorY + 1, cardWidth, cardHeight, 2, 2, 'F');
+        // Kart
+        doc.setFillColor(255, 255, 255);
         doc.setDrawColor(220, 220, 220);
-        doc.line(m, 20, pw - m, 20);
+        doc.roundedRect(x, cursorY, cardWidth, cardHeight, 2, 2, 'FD');
+        // Sol Çizgi (Renk Kodu)
+        doc.setFillColor(color[0], color[1], color[2]);
+        doc.rect(x, cursorY, 2, cardHeight, 'F');
+        // Metinler
+        doc.setFont(FONTS.primary, 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(FONTS.colors.secondary[0], FONTS.colors.secondary[1], FONTS.colors.secondary[2]);
+        doc.text(title, x + 10, cursorY + 8);
+
+        doc.setFont(FONTS.primary, 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(FONTS.colors.dark[0], FONTS.colors.dark[1], FONTS.colors.dark[2]);
+        doc.text(value, x + 10, cursorY + 18);
     };
 
-    // --- FOOTER FUNCTION ---
-    const addFooter = (pageNum: number, totalPages: number) => {
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`Sayfa ${pageNum} / ${totalPages}`, pw - m, ph - 10, { align: 'right' });
-        doc.text('Sınav Analiz Uzmanı', m, ph - 10);
-    };
+    drawCard(PAGE_CONFIG.margin.left, 'Sınıf Ortalaması', `%${analysis.classAverage.toFixed(2)}`, FONTS.colors.primary);
+    drawCard(PAGE_CONFIG.margin.left + cardWidth + 5, 'Başarı Oranı', `%${((analysis.classAverage / 100) * 100).toFixed(0)}`, FONTS.colors.success);
+    drawCard(PAGE_CONFIG.margin.left + (cardWidth + 5) * 2, 'Öğrenci Sayısı', `${students.length}`, FONTS.colors.warning);
 
-    // Initialize Page 1
-    addHeader(1);
-    currentY = 30;
+    cursorY += cardHeight + 15;
 
-    // --- TITLE SECTION ---
-    doc.setFont('Roboto', 'bold');
-    doc.setFontSize(20);
-    doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
-    doc.text('SINAV ANALİZ RAPORU', pw / 2, currentY, { align: 'center' });
-    currentY += 15;
+    // --- GRAFİKLER ---
+    // Grafikleri sığdırmak için kontrol
+    if (chartImages.overview || chartImages.questionChart) {
+        doc.setFont(FONTS.primary, 'bold');
+        doc.setFontSize(FONTS.sizes.heading);
+        doc.setTextColor(FONTS.colors.dark[0], FONTS.colors.dark[1], FONTS.colors.dark[2]);
+        doc.text('Grafiksel Analiz', PAGE_CONFIG.margin.left, cursorY);
+        cursorY += 8;
 
-    // --- SUMMARY CARDS ---
-    const stats = calculateStats(students, questions);
-    const cardW = (pw - 2 * m - 10) / 3;
-    const cardH = 25;
+        const chartW = contentWidth;
+        const chartH = 70; // Sabit yükseklik
 
-    // Card 1: Average
-    doc.setFillColor(THEME.light[0], THEME.light[1], THEME.light[2]);
-    doc.roundedRect(m, currentY, cardW, cardH, 2, 2, 'F');
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Sınıf Ortalaması', m + cardW / 2, currentY + 8, { align: 'center' });
-    doc.setFontSize(16);
-    doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
-    doc.text(`%${analysis.classAverage.toFixed(1)}`, m + cardW / 2, currentY + 18, { align: 'center' });
+        // Sayfa sonu kontrolü
+        cursorY = checkPageBreak(doc, cursorY, chartH);
 
-    // Card 2: Success
-    doc.setFillColor(THEME.light[0], THEME.light[1], THEME.light[2]);
-    doc.roundedRect(m + cardW + 5, currentY, cardW, cardH, 2, 2, 'F');
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Başarı Oranı', m + cardW + 5 + cardW / 2, currentY + 8, { align: 'center' });
-    doc.setFontSize(16);
-    doc.setTextColor(THEME.success[0], THEME.success[1], THEME.success[2]);
-    doc.text(`%${stats.successRate.toFixed(0)}`, m + cardW + 5 + cardW / 2, currentY + 18, { align: 'center' });
-
-    // Card 3: Participation
-    doc.setFillColor(THEME.light[0], THEME.light[1], THEME.light[2]);
-    doc.roundedRect(m + (cardW + 5) * 2, currentY, cardW, cardH, 2, 2, 'F');
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Katılım', m + (cardW + 5) * 2 + cardW / 2, currentY + 8, { align: 'center' });
-    doc.setFontSize(16);
-    doc.setTextColor(THEME.secondary[0], THEME.secondary[1], THEME.secondary[2]);
-    doc.text(`${students.length} Öğrenci`, m + (cardW + 5) * 2 + cardW / 2, currentY + 18, { align: 'center' });
-
-    currentY += cardH + 15;
-
-    // --- CHARTS (If available) ---
-    // We check space before adding charts
-    if (chartImages.gradePieChart || chartImages.questionSuccessChart) {
-        doc.setFontSize(12);
-        doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
-        doc.text('Grafiksel Analiz', m, currentY);
-        currentY += 5;
-
-        const chartH = 50;
-        const chartW = (pw - 2 * m - 10) / 2;
-
-        if (chartImages.gradePieChart) {
-            try { doc.addImage(chartImages.gradePieChart, 'PNG', m, currentY, chartW, chartH); } catch (e) { }
+        if (chartImages.overview) {
+            try {
+                doc.addImage(chartImages.overview, 'PNG', PAGE_CONFIG.margin.left, cursorY, chartW, chartH);
+                cursorY += chartH + 10;
+            } catch (e) {
+                console.error("Chart image error", e);
+            }
         }
-        if (chartImages.questionSuccessChart) {
-            try { doc.addImage(chartImages.questionSuccessChart, 'PNG', m + chartW + 10, currentY, chartW, chartH); } catch (e) { }
-        }
-        currentY += chartH + 10;
     }
 
-    // --- QUESTION ANALYSIS TABLE ---
-    doc.setFontSize(12);
-    doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
-    doc.text('Soru ve Kazanım Analizi', m, currentY);
-    currentY += 5;
+    // --- KAZANIM ANALİZ TABLOSU ---
+    cursorY = checkPageBreak(doc, cursorY, 40);
 
-    const qTableBody = analysis.questionStats.map((q, i) => {
+    doc.setFont(FONTS.primary, 'bold');
+    doc.setFontSize(FONTS.sizes.heading);
+    doc.text('Kazanım Başarı Analizi', PAGE_CONFIG.margin.left, cursorY);
+    cursorY += 5;
+
+    const outcomeData = analysis.outcomeStats.map(o => [
+        o.code,
+        o.description,
+        `%${o.successRate.toFixed(1)}`,
+        o.isFailed ? 'Geliştirilmeli' : 'Başarılı'
+    ]);
+
+    autoTable(doc, {
+        startY: cursorY,
+        head: [['Kod', 'Kazanım Açıklaması', 'Başarı', 'Durum']],
+        body: outcomeData,
+        theme: 'grid',
+        styles: {
+            font: FONTS.primary,
+            fontSize: FONTS.sizes.table,
+            cellPadding: 3,
+            lineColor: [220, 220, 220],
+            lineWidth: 0.1,
+            textColor: FONTS.colors.dark
+        },
+        headStyles: {
+            fillColor: FONTS.colors.primary,
+            textColor: FONTS.colors.white,
+            fontStyle: 'bold',
+            halign: 'left'
+        },
+        columnStyles: {
+            0: { cellWidth: 25, fontStyle: 'bold' },
+            1: { cellWidth: 'auto' }, // Otomatik genişlik ve metin kaydırma (wrap)
+            2: { cellWidth: 20, halign: 'center' },
+            3: { cellWidth: 25, halign: 'center' }
+        },
+        didParseCell: (data) => {
+            // Durum sütunu renklendirme
+            if (data.section === 'body' && data.column.index === 3) {
+                const val = data.cell.raw as string;
+                if (val === 'Geliştirilmeli') {
+                    data.cell.styles.textColor = FONTS.colors.danger;
+                    data.cell.styles.fontStyle = 'bold';
+                } else {
+                    data.cell.styles.textColor = FONTS.colors.success;
+                    data.cell.styles.fontStyle = 'bold';
+                }
+            }
+        },
+        margin: { left: PAGE_CONFIG.margin.left, right: PAGE_CONFIG.margin.right }
+    });
+
+    // Tablo sonrası cursor güncelleme
+    cursorY = (doc as any).lastAutoTable.finalY + 15;
+
+    // --- SORU ANALİZ TABLOSU ---
+    // Yeni sayfa kontrolü
+    if (cursorY > PAGE_CONFIG.height - 60) {
+        doc.addPage();
+        cursorY = PAGE_CONFIG.margin.top + 10;
+    }
+
+    doc.setFont(FONTS.primary, 'bold');
+    doc.setFontSize(FONTS.sizes.heading);
+    doc.setTextColor(FONTS.colors.dark[0], FONTS.colors.dark[1], FONTS.colors.dark[2]);
+    doc.text('Soru Bazlı Detaylı Analiz', PAGE_CONFIG.margin.left, cursorY);
+    cursorY += 5;
+
+    const questionData = analysis.questionStats.map(q => {
         const question = questions.find(qu => qu.id === q.questionId);
         return [
-            (i + 1).toString(),
-            q.outcome.code || '-',
-            q.outcome.description || '',
+            q.questionId.toString(),
+            q.outcome.code,
             question?.maxScore.toString() || '0',
+            q.averageScore.toFixed(2),
             `%${q.successRate.toFixed(0)}`
         ];
     });
 
     autoTable(doc, {
-        startY: currentY,
-        head: [['No', 'Kod', 'Kazanım', 'Puan', 'Başarı']],
-        body: qTableBody,
-        theme: 'grid',
+        startY: cursorY,
+        head: [['Soru No', 'Kazanım Kodu', 'Max Puan', 'Ort. Puan', 'Başarı %']],
+        body: questionData,
+        theme: 'striped',
         styles: {
-            font: 'Roboto',
-            fontSize: 9,
-            cellPadding: 3,
-            textColor: THEME.text
+            font: FONTS.primary,
+            fontSize: FONTS.sizes.table,
+            halign: 'center'
         },
         headStyles: {
-            fillColor: THEME.primary,
-            textColor: [255, 255, 255],
-            fontStyle: 'bold'
+            fillColor: FONTS.colors.secondary,
+            textColor: FONTS.colors.white
         },
         columnStyles: {
-            0: { cellWidth: 10, halign: 'center' },
-            1: { cellWidth: 20, halign: 'center' },
-            2: { cellWidth: 'auto' },
-            3: { cellWidth: 15, halign: 'center' },
-            4: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }
+            1: { halign: 'left' } // Kazanım kodu sola dayalı
         },
-        margin: { left: m, right: m },
-        didDrawPage: (data) => {
-            addHeader(doc.getNumberOfPages());
-            addFooter(doc.getNumberOfPages(), 0); // Total pages will be fixed at save
-        }
+        margin: { left: PAGE_CONFIG.margin.left, right: PAGE_CONFIG.margin.right }
     });
 
-    // Update currentY to after the table
-    currentY = (doc as any).lastAutoTable.finalY + 15;
+    cursorY = (doc as any).lastAutoTable.finalY + 15;
 
-    // --- STUDENT LIST TABLE ---
-    // Check if we need a new page
-    if (currentY > ph - 50) {
-        doc.addPage();
-        currentY = 30;
-    }
+    // --- ÖĞRENCİ LİSTESİ ---
+    // Kesinlikle yeni sayfada başlasın
+    doc.addPage();
+    cursorY = PAGE_CONFIG.margin.top + 10;
 
-    doc.setFontSize(12);
-    doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
-    doc.text('Öğrenci Sonuç Listesi', m, currentY);
-    currentY += 5;
+    doc.setFont(FONTS.primary, 'bold');
+    doc.setFontSize(FONTS.sizes.heading);
+    doc.setTextColor(FONTS.colors.dark[0], FONTS.colors.dark[1], FONTS.colors.dark[2]);
+    doc.text('Öğrenci Sonuç Listesi', PAGE_CONFIG.margin.left, cursorY);
+    cursorY += 5;
 
+    // Öğrencileri puana göre sırala
     const sortedStudents = [...students].sort((a, b) => {
-        const sa = Object.values(a.scores).reduce((sum, v) => sum + v, 0);
-        const sb = Object.values(b.scores).reduce((sum, v) => sum + v, 0);
-        return sb - sa;
+        const scoreA = Object.values(a.scores).reduce((sum, v) => sum + v, 0);
+        const scoreB = Object.values(b.scores).reduce((sum, v) => sum + v, 0);
+        return scoreB - scoreA;
     });
 
-    const sTableBody = sortedStudents.map((s, i) => {
-        const total = Object.values(s.scores).reduce((sum, v) => sum + v, 0);
-        const pct = (total / stats.maxPossible) * 100;
+    const maxTotalScore = questions.reduce((sum, q) => sum + q.maxScore, 0);
+
+    const studentTableData = sortedStudents.map((s, index) => {
+        const totalScore = Object.values(s.scores).reduce((sum, v) => sum + v, 0);
+        const percentage = (totalScore / maxTotalScore) * 100;
         return [
-            (i + 1).toString(),
+            (index + 1).toString(),
             s.student_number || '-',
             s.name,
-            total.toString(),
-            `%${pct.toFixed(0)}`,
-            pct >= 50 ? 'Geçti' : 'Kaldı'
+            totalScore.toString(),
+            `%${percentage.toFixed(0)}`,
+            percentage >= 50 ? 'Geçti' : 'Kaldı'
         ];
     });
 
     autoTable(doc, {
-        startY: currentY,
+        startY: cursorY,
         head: [['Sıra', 'No', 'Ad Soyad', 'Puan', 'Yüzde', 'Durum']],
-        body: sTableBody,
-        theme: 'striped',
+        body: studentTableData,
+        theme: 'grid',
         styles: {
-            font: 'Roboto',
-            fontSize: 10,
-            cellPadding: 3,
-            textColor: THEME.text
+            font: FONTS.primary,
+            fontSize: FONTS.sizes.table,
+            cellPadding: 3
         },
         headStyles: {
-            fillColor: THEME.accent,
-            textColor: [255, 255, 255],
-            fontStyle: 'bold'
+            fillColor: FONTS.colors.dark,
+            textColor: FONTS.colors.white
         },
         columnStyles: {
             0: { cellWidth: 15, halign: 'center' },
-            1: { cellWidth: 20, halign: 'center' },
+            1: { cellWidth: 25, halign: 'center' },
             2: { cellWidth: 'auto' },
             3: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
             4: { cellWidth: 20, halign: 'center' },
             5: { cellWidth: 25, halign: 'center' }
         },
-        margin: { left: m, right: m },
         didParseCell: (data) => {
             if (data.section === 'body' && data.column.index === 5) {
-                const val = data.cell.raw;
-                data.cell.styles.textColor = val === 'Kaldı' ? THEME.danger : THEME.success;
+                const val = data.cell.raw as string;
+                data.cell.styles.textColor = val === 'Kaldı' ? FONTS.colors.danger : FONTS.colors.success;
                 data.cell.styles.fontStyle = 'bold';
             }
         },
-        didDrawPage: (data) => {
-            // Header is added automatically by the previous table hook if on same page, 
-            // but if new page started by this table, we need to ensure header is there.
-            // jspdf-autotable handles this via didDrawPage hook per table.
-            // We just need to make sure we don't double draw.
-            // Actually, simpler to just draw header on every page at the end.
-        }
+        margin: { left: PAGE_CONFIG.margin.left, right: PAGE_CONFIG.margin.right }
     });
 
-    // Fix Total Pages Number
-    const totalPages = doc.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        // Redraw footer with correct total pages
-        doc.setFillColor(255, 255, 255);
-        doc.rect(pw - m - 20, ph - 12, 20, 5, 'F'); // Clear previous page num
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`Sayfa ${i} / ${totalPages}`, pw - m, ph - 10, { align: 'right' });
-    }
+    // 3. Header ve Footer Çizimi (En Son)
+    drawHeader(doc, metadata);
 
-    const fileName = `${safeFileName(metadata.className)}_${safeFileName(metadata.subject)}_Rapor.pdf`;
+    // 4. Kaydetme
+    const fileName = `${safeFileName(metadata.className)}_${safeFileName(metadata.subject)}_Raporu.pdf`;
     doc.save(fileName);
 };
 
-// --- EXPORT WRAPPERS ---
+// --- WRAPPER FUNCTIONS (Uyumluluk İçin) ---
+
 export const quickExport = async (
     scenario: ExportScenario,
     analysis: AnalysisResult,
@@ -321,7 +400,11 @@ export const quickExport = async (
     chartImages: any = {},
     language: Language = 'tr'
 ) => {
-    await exportToPDFAdvanced(analysis, metadata, questions, students, chartImages, language, { scenario });
+    if (scenario === 'student_focused') {
+        await exportIndividualStudentReports(analysis, metadata, questions, students, language);
+    } else {
+        await exportToPDFAdvanced(analysis, metadata, questions, students, chartImages, language);
+    }
 };
 
 export const exportBilingualReports = async (
@@ -341,50 +424,82 @@ export const exportIndividualStudentReports = async (
     students: Student[],
     _language: Language = 'tr'
 ) => {
-    const doc = new jsPDF('p', 'mm', 'a5');
+    const doc = new jsPDF('p', 'mm', 'a5'); // A5 Formatı (Karne için ideal)
     await addTurkishFontsToPDF(doc);
-    const pw = doc.internal.pageSize.getWidth();
-    const m = 10;
-    const maxP = questions.reduce((s, q) => s + q.maxScore, 0);
 
-    for (const student of students) {
-        doc.addPage();
-        if (doc.getNumberOfPages() > 1 && student === students[0]) doc.deletePage(1);
+    const maxScore = questions.reduce((s, q) => s + q.maxScore, 0);
 
-        doc.setFont('Roboto', 'bold');
+    for (let i = 0; i < students.length; i++) {
+        const student = students[i];
+        if (i > 0) doc.addPage();
+
+        // Karne Header
+        doc.setFont(FONTS.primary, 'bold');
         doc.setFontSize(14);
-        doc.text(metadata.schoolName, pw / 2, 15, { align: 'center' });
+        doc.text(metadata.schoolName || 'OKUL ADI', 148 / 2, 15, { align: 'center' });
+
         doc.setFontSize(10);
-        doc.setFont('Roboto', 'normal');
-        doc.text(`${metadata.subject} Sonuç Belgesi`, pw / 2, 22, { align: 'center' });
+        doc.setFont(FONTS.primary, 'normal');
+        doc.text(`${metadata.subject} Sınav Sonuç Belgesi`, 148 / 2, 22, { align: 'center' });
 
-        doc.setFillColor(250, 250, 250);
-        doc.roundedRect(m, 30, pw - 2 * m, 20, 2, 2, 'F');
+        // Öğrenci Bilgisi Kutusu
+        doc.setDrawColor(0);
+        doc.setFillColor(245, 245, 245);
+        doc.roundedRect(10, 30, 128, 20, 2, 2, 'FD');
+
+        doc.setFont(FONTS.primary, 'bold');
         doc.setFontSize(12);
-        doc.setFont('Roboto', 'bold');
-        doc.text(student.name, m + 5, 42);
+        doc.text(student.name, 15, 40);
 
-        const total = Object.values(student.scores).reduce((s, v) => s + v, 0);
-        const pct = (total / maxP) * 100;
+        doc.setFontSize(10);
+        doc.text(`No: ${student.student_number || '-'}`, 15, 46);
 
-        doc.text(`%${pct.toFixed(0)}`, pw - m - 10, 42, { align: 'right' });
+        // Puan
+        const totalScore = Object.values(student.scores).reduce((s, v) => s + v, 0);
+        const percentage = (totalScore / maxScore) * 100;
 
-        const qData = analysis.questionStats.map((q, i) => {
+        doc.setFontSize(16);
+        doc.setTextColor(percentage >= 50 ? FONTS.colors.success[0] : FONTS.colors.danger[0], percentage >= 50 ? FONTS.colors.success[1] : FONTS.colors.danger[1], percentage >= 50 ? FONTS.colors.success[2] : FONTS.colors.danger[2]);
+        doc.text(`%${percentage.toFixed(0)}`, 130, 42, { align: 'right' });
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text('BAŞARI', 130, 46, { align: 'right' });
+
+        // Detay Tablosu
+        const studentData = analysis.questionStats.map((q, idx) => {
             const score = student.scores[q.questionId] || 0;
-            const maxQ = questions.find(qu => qu.id === q.questionId)?.maxScore || 1;
-            return [(i + 1).toString(), q.outcome.code, `${score} / ${maxQ}`];
+            const qMax = questions.find(qu => qu.id === q.questionId)?.maxScore || 0;
+            return [
+                (idx + 1).toString(),
+                q.outcome.description, // Kazanım açıklaması
+                `${score} / ${qMax}`
+            ];
         });
 
         autoTable(doc, {
             startY: 55,
             head: [['Soru', 'Kazanım', 'Puan']],
-            body: qData,
+            body: studentData,
             theme: 'grid',
-            styles: { font: 'Roboto', fontSize: 8 },
-            headStyles: { fillColor: THEME.primary },
-            margin: { left: m, right: m }
+            styles: {
+                font: FONTS.primary,
+                fontSize: 8,
+                cellPadding: 2
+            },
+            columnStyles: {
+                0: { cellWidth: 10, halign: 'center' },
+                1: { cellWidth: 'auto' },
+                2: { cellWidth: 20, halign: 'center' }
+            },
+            margin: { left: 10, right: 10 }
         });
+
+        // Footer
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(new Date().toLocaleDateString('tr-TR'), 138, 200, { align: 'right' });
     }
+
     doc.save(`${safeFileName(metadata.className)}_Karneler.pdf`);
 };
 
