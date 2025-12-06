@@ -1,13 +1,15 @@
 /**
- * INFOGRAPHIC STYLE PDF Export
- * Modern, Visual, Professional Design
- * Version 7.0 - Complete Turkish Character Fix
+ * PROFESSIONAL EXAM ANALYSIS REPORT
+ * Version 8.0 - Enterprise Grade
+ * Features: True Turkish Font Support, Professional Layout, MEB Standards
  */
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { AnalysisResult, ExamMetadata, QuestionConfig, Student } from '../types';
+import { addTurkishFontsToPDF } from './fontService';
 
+// --- TYPES ---
 export type Language = 'tr' | 'en';
 export type ExportScenario = 'full_report' | 'executive_summary' | 'student_focused' | 'outcome_analysis' | 'parent_report' | 'meb_standard';
 
@@ -20,573 +22,378 @@ export interface ExportOptions {
     compactMode: boolean;
 }
 
-// Infographic Color Palette
-const C = {
-    gradientStart: [99, 102, 241] as [number, number, number],
-    gradientEnd: [139, 92, 246] as [number, number, number],
-    blue: [59, 130, 246] as [number, number, number],
-    green: [16, 185, 129] as [number, number, number],
-    red: [239, 68, 68] as [number, number, number],
-    orange: [249, 115, 22] as [number, number, number],
-    yellow: [234, 179, 8] as [number, number, number],
-    pink: [236, 72, 153] as [number, number, number],
-    cyan: [6, 182, 212] as [number, number, number],
-    dark: [17, 24, 39] as [number, number, number],
-    gray: [107, 114, 128] as [number, number, number],
-    light: [243, 244, 246] as [number, number, number],
-    white: [255, 255, 255] as [number, number, number],
-    success: [34, 197, 94] as [number, number, number],
-    danger: [239, 68, 68] as [number, number, number],
-    warning: [245, 158, 11] as [number, number, number]
+// --- CONSTANTS & THEME ---
+const THEME = {
+    primary: [41, 50, 65] as [number, number, number],    // Dark Navy
+    secondary: [238, 108, 77] as [number, number, number], // Burnt Orange
+    accent: [61, 90, 128] as [number, number, number],     // Muted Blue
+    light: [224, 251, 252] as [number, number, number],    // Pale Cyan
+    gray: [152, 193, 217] as [number, number, number],     // Light Blue Gray
+    text: [30, 30, 30] as [number, number, number],        // Almost Black
+    success: [46, 196, 182] as [number, number, number],   // Teal
+    warning: [255, 159, 28] as [number, number, number],   // Orange
+    danger: [231, 29, 54] as [number, number, number],     // Red
+    white: [255, 255, 255] as [number, number, number]
 };
 
-/**
- * TURKCE KARAKTER DONUSTURUCU
- * Tum Turkce ozel karakterleri ASCII karsiliklarına cevirir
- * Bu fonksiyon HER ZAMAN kullanilmali
- */
-const tr = (text: string | undefined | null): string => {
-    if (!text) return '';
-
-    // String'e donustur
-    const str = String(text);
-
-    // Karakter esleme tablosu
-    const charMap: { [key: string]: string } = {
-        'ş': 's', 'Ş': 'S',
-        'ğ': 'g', 'Ğ': 'G',
-        'ü': 'u', 'Ü': 'U',
-        'ö': 'o', 'Ö': 'O',
-        'ç': 'c', 'Ç': 'C',
-        'ı': 'i', 'İ': 'I',
-        'é': 'e', 'É': 'E',
-        'â': 'a', 'Â': 'A',
-        'î': 'i', 'Î': 'I',
-        'û': 'u', 'Û': 'U'
-    };
-
-    // Her karakteri kontrol et ve donustur
-    let result = '';
-    for (let i = 0; i < str.length; i++) {
-        const char = str[i];
-        result += charMap[char] || char;
-    }
-
-    return result;
-};
+// --- HELPER FUNCTIONS ---
 
 /**
- * Dosya adi icin guvenli string olustur
+ * Dosya adını güvenli hale getirir
  */
 const safeFileName = (text: string): string => {
-    return tr(text)
+    return text
+        .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+        .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+        .replace(/ş/g, 's').replace(/Ş/g, 'S')
+        .replace(/ı/g, 'i').replace(/İ/g, 'I')
+        .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+        .replace(/ç/g, 'c').replace(/Ç/g, 'C')
         .replace(/[^a-zA-Z0-9]/g, '_')
-        .replace(/_+/g, '_')
-        .replace(/^_|_$/g, '');
+        .replace(/_+/g, '_');
 };
 
-// Gradient header ciz
-const drawGradientHeader = (doc: jsPDF, h: number) => {
+/**
+ * Sayfa başlığı ve altbilgisi ekler
+ */
+const addPageHeaderFooter = (doc: jsPDF, metadata: ExamMetadata, pageNum: number, totalPages: number) => {
     const pw = doc.internal.pageSize.getWidth();
-    const steps = 50;
-    for (let i = 0; i < steps; i++) {
-        const ratio = i / steps;
-        const r = Math.round(C.gradientStart[0] + (C.gradientEnd[0] - C.gradientStart[0]) * ratio);
-        const g = Math.round(C.gradientStart[1] + (C.gradientEnd[1] - C.gradientStart[1]) * ratio);
-        const b = Math.round(C.gradientStart[2] + (C.gradientEnd[2] - C.gradientStart[2]) * ratio);
-        doc.setFillColor(r, g, b);
-        doc.rect(0, (h / steps) * i, pw, h / steps + 1, 'F');
-    }
+    const ph = doc.internal.pageSize.getHeight();
+    const m = 15;
+
+    // --- HEADER ---
+    // Sol: MEB / Okul Bilgisi
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
+    doc.text(metadata.schoolName || 'OKUL ADI GİRİLMEMİŞ', m, 15);
+
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`${metadata.academicYear} Eğitim Öğretim Yılı | ${metadata.term}. Dönem ${metadata.examNumber}. ${metadata.subject} Sınavı`, m, 21);
+
+    // Sağ: Tarih ve Sınıf
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
+    doc.text(metadata.className || 'SINIF', pw - m, 15, { align: 'right' });
+
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(metadata.date, pw - m, 21, { align: 'right' });
+
+    // Çizgi
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.5);
+    doc.line(m, 25, pw - m, 25);
+
+    // --- FOOTER ---
+    doc.setDrawColor(200, 200, 200);
+    doc.line(m, ph - 15, pw - m, ph - 15);
+
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Sınav Analiz Uzmanı - Otomatik Raporlama Sistemi', m, ph - 10);
+
+    doc.text(`Sayfa ${pageNum} / ${totalPages}`, pw - m, ph - 10, { align: 'right' });
 };
 
-// Yatay bar ciz
-const drawBar = (doc: jsPDF, x: number, y: number, w: number, h: number, pct: number, color: [number, number, number]) => {
-    doc.setFillColor(230, 230, 230);
-    doc.roundedRect(x, y, w, h, h / 2, h / 2, 'F');
-    const pw = (pct / 100) * w;
-    if (pw > 0) {
-        doc.setFillColor(color[0], color[1], color[2]);
-        doc.roundedRect(x, y, Math.max(pw, h), h, h / 2, h / 2, 'F');
-    }
-};
-
-// Istatistik hesapla
-const calcStats = (students: Student[], questions: QuestionConfig[]) => {
+/**
+ * İstatistik Hesaplama
+ */
+const calculateStats = (students: Student[], questions: QuestionConfig[]) => {
     const maxPossible = questions.reduce((s, q) => s + q.maxScore, 0);
     const scores = students.map(s => Object.values(s.scores).reduce((a: number, b: number) => a + b, 0));
     const pcts = scores.map(s => (s / maxPossible) * 100);
+
     const mean = pcts.length > 0 ? pcts.reduce((a, b) => a + b, 0) / pcts.length : 0;
     const sorted = [...pcts].sort((a, b) => a - b);
     const median = sorted.length % 2 ? sorted[Math.floor(sorted.length / 2)] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
     const variance = pcts.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / pcts.length;
+
     return {
-        scores,
-        pcts,
         maxPossible,
         mean,
         median: median || 0,
         stdDev: Math.sqrt(variance) || 0,
         max: scores.length ? Math.max(...scores) : 0,
-        min: scores.length ? Math.min(...scores) : 0
+        min: scores.length ? Math.min(...scores) : 0,
+        successCount: pcts.filter(p => p >= 50).length,
+        failCount: pcts.filter(p => p < 50).length
     };
 };
 
 /**
- * ANA PDF EXPORT FONKSIYONU
+ * MAIN EXPORT FUNCTION
  */
 export const exportToPDFAdvanced = async (
     analysis: AnalysisResult,
     metadata: ExamMetadata,
     questions: QuestionConfig[],
     students: Student[],
-    chartImages: {
-        overview?: string;
-        questionChart?: string;
-        outcomeChart?: string;
-        histogramChart?: string;
-        radarChart?: string;
-        gradePieChart?: string;
-        questionSuccessChart?: string;
-        cognitiveChart?: string;
-        difficultyChart?: string;
-    } = {},
-    language: Language = 'tr',
+    chartImages: any = {},
+    _language: Language = 'tr',
     _options: Partial<ExportOptions> = {}
 ) => {
+    // 1. Initialize Document
     const doc = new jsPDF('p', 'mm', 'a4');
+
+    // 2. Load Fonts (CRITICAL STEP)
+    await addTurkishFontsToPDF(doc);
+
     const pw = doc.internal.pageSize.getWidth();
-    const ph = doc.internal.pageSize.getHeight();
-    const m = 10; // margin
-    const cw = pw - m * 2; // content width
+    const m = 15; // Margin
+    const cw = pw - m * 2; // Content Width
 
-    const stats = calcStats(students, questions);
-    const failedOutcomes = analysis.outcomeStats.filter(o => o.isFailed).length;
-    const passedOutcomes = analysis.outcomeStats.length - failedOutcomes;
+    const stats = calculateStats(students, questions);
 
-    // ============ SAYFA 1: DASHBOARD ============
+    // ==========================================
+    // PAGE 1: EXECUTIVE SUMMARY & VISUALS
+    // ==========================================
 
-    // Gradient Header
-    drawGradientHeader(doc, 50);
+    addPageHeaderFooter(doc, metadata, 1, 3);
 
-    // Baslik
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
-    doc.setFont('helvetica', 'bold');
-    doc.text('SINAV ANALIZ RAPORU', pw / 2, 20, { align: 'center' });
+    let y = 35;
 
-    // Alt baslik - TURKCE KARAKTERLER DONUSTURULDU
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text(tr(metadata.schoolName), pw / 2, 30, { align: 'center' });
+    // --- TITLE ---
+    doc.setFontSize(24);
+    doc.setFont('Roboto', 'bold');
+    doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
+    doc.text('SINAV SONUÇ ANALİZİ', pw / 2, y, { align: 'center' });
 
-    doc.setFontSize(9);
-    const subTitle = `${tr(metadata.className)} - ${tr(metadata.subject)} - ${metadata.date}`;
-    doc.text(subTitle, pw / 2, 38, { align: 'center' });
+    y += 15;
 
-    // Buyuk Skor Dairesi
-    let y = 60;
-    const scoreColor = analysis.classAverage >= 50 ? C.success : C.danger;
+    // --- SCORE CARD (CENTER) ---
+    const scoreColor = analysis.classAverage >= 50 ? THEME.success : THEME.danger;
 
-    // Dis daire
-    doc.setFillColor(scoreColor[0], scoreColor[1], scoreColor[2]);
-    doc.circle(pw / 2, y + 22, 26, 'F');
+    // Box
+    doc.setFillColor(245, 247, 250);
+    doc.roundedRect(pw / 2 - 40, y, 80, 35, 3, 3, 'F');
 
-    // Ic beyaz daire
-    doc.setFillColor(255, 255, 255);
-    doc.circle(pw / 2, y + 22, 20, 'F');
+    // Label
+    doc.setFontSize(10);
+    doc.setFont('Roboto', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text('SINIF ORTALAMASI', pw / 2, y + 10, { align: 'center' });
 
-    // Skor yazisi
+    // Score
+    doc.setFontSize(32);
+    doc.setFont('Roboto', 'bold');
     doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('%' + analysis.classAverage.toFixed(0), pw / 2, y + 25, { align: 'center' });
+    doc.text(`%${analysis.classAverage.toFixed(1)}`, pw / 2, y + 25, { align: 'center' });
 
-    doc.setFontSize(7);
-    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
-    doc.text('SINIF ORTALAMASI', pw / 2, y + 33, { align: 'center' });
+    y += 45;
 
-    y += 55;
+    // --- KEY METRICS GRID ---
+    const gridY = y;
+    const boxW = (cw - 10) / 3;
+    const boxH = 25;
 
-    // 4 Istatistik Kutusu
-    const boxW = (cw - 12) / 4;
-    const boxH = 24;
-    const boxData = [
-        { label: 'OGRENCI', value: String(students.length), color: C.blue },
-        { label: 'SORU', value: String(questions.length), color: C.cyan },
-        { label: 'BASARILI', value: String(passedOutcomes), color: C.green },
-        { label: 'BASARISIZ', value: String(failedOutcomes), color: C.red }
-    ];
+    // Box 1: Students
+    doc.setFillColor(THEME.light[0], THEME.light[1], THEME.light[2]);
+    doc.roundedRect(m, gridY, boxW, boxH, 2, 2, 'F');
+    doc.setFontSize(16);
+    doc.setTextColor(THEME.accent[0], THEME.accent[1], THEME.accent[2]);
+    doc.setFont('Roboto', 'bold');
+    doc.text(students.length.toString(), m + 10, gridY + 12);
+    doc.setFontSize(9);
+    doc.setFont('Roboto', 'normal');
+    doc.text('Öğrenci Sayısı', m + 10, gridY + 19);
 
-    boxData.forEach((box, i) => {
-        const bx = m + i * (boxW + 4);
+    // Box 2: Success Rate
+    doc.setFillColor(THEME.light[0], THEME.light[1], THEME.light[2]);
+    doc.roundedRect(m + boxW + 5, gridY, boxW, boxH, 2, 2, 'F');
+    doc.setFontSize(16);
+    doc.setTextColor(THEME.success[0], THEME.success[1], THEME.success[2]);
+    doc.setFont('Roboto', 'bold');
+    doc.text(stats.successCount.toString(), m + boxW + 15, gridY + 12);
+    doc.setFontSize(9);
+    doc.setFont('Roboto', 'normal');
+    doc.text('Başarılı Öğrenci', m + boxW + 15, gridY + 19);
 
-        // Kutu arkaplan
-        doc.setFillColor(255, 255, 255);
-        doc.roundedRect(bx, y, boxW, boxH, 3, 3, 'F');
+    // Box 3: Questions
+    doc.setFillColor(THEME.light[0], THEME.light[1], THEME.light[2]);
+    doc.roundedRect(m + (boxW + 5) * 2, gridY, boxW, boxH, 2, 2, 'F');
+    doc.setFontSize(16);
+    doc.setTextColor(THEME.secondary[0], THEME.secondary[1], THEME.secondary[2]);
+    doc.setFont('Roboto', 'bold');
+    doc.text(questions.length.toString(), m + (boxW + 5) * 2 + 10, gridY + 12);
+    doc.setFontSize(9);
+    doc.setFont('Roboto', 'normal');
+    doc.text('Soru Sayısı', m + (boxW + 5) * 2 + 10, gridY + 19);
 
-        // Sol renkli serit
-        doc.setFillColor(box.color[0], box.color[1], box.color[2]);
-        doc.roundedRect(bx, y, 3, boxH, 1.5, 1.5, 'F');
+    y += 35;
 
-        // Deger
-        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text(box.value, bx + 12, y + 10);
+    // --- CHARTS SECTION ---
+    doc.setFontSize(12);
+    doc.setFont('Roboto', 'bold');
+    doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
+    doc.text('Görsel Analizler', m, y);
 
-        // Etiket
-        doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
-        doc.setFontSize(6);
-        doc.setFont('helvetica', 'normal');
-        doc.text(box.label, bx + 12, y + 18);
-    });
+    y += 5;
 
-    y += boxH + 10;
+    // Charts Layout (2x2 Grid)
+    const chartW = (cw - 10) / 2;
+    const chartH = 50;
 
-    // Grafik Bolumu Basligi
-    doc.setFillColor(C.gradientStart[0], C.gradientStart[1], C.gradientStart[2]);
-    doc.roundedRect(m, y, cw, 7, 2, 2, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.text('GORSEL ANALIZ', m + 4, y + 5);
-
-    y += 10;
-
-    // Grafik Grid (2x2)
-    const chartW = (cw - 6) / 2;
-    const chartH = 42;
-
-    // Grafik 1: Not Dagilimi
     if (chartImages.gradePieChart) {
-        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
-        doc.roundedRect(m, y, chartW, chartH, 3, 3, 'F');
-        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Not Dagilimi', m + 3, y + 5);
-        try { doc.addImage(chartImages.gradePieChart, 'PNG', m + 2, y + 8, chartW - 4, chartH - 11); } catch (e) { }
+        try { doc.addImage(chartImages.gradePieChart, 'PNG', m, y, chartW, chartH); } catch (e) { }
     }
-
-    // Grafik 2: Radar
-    if (chartImages.radarChart) {
-        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
-        doc.roundedRect(m + chartW + 6, y, chartW, chartH, 3, 3, 'F');
-        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Kazanim Haritasi', m + chartW + 9, y + 5);
-        try { doc.addImage(chartImages.radarChart, 'PNG', m + chartW + 8, y + 8, chartW - 4, chartH - 11); } catch (e) { }
-    }
-
-    y += chartH + 3;
-
-    // Grafik 3: Histogram
-    if (chartImages.histogramChart) {
-        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
-        doc.roundedRect(m, y, chartW, chartH, 3, 3, 'F');
-        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Puan Dagilimi', m + 3, y + 5);
-        try { doc.addImage(chartImages.histogramChart, 'PNG', m + 2, y + 8, chartW - 4, chartH - 11); } catch (e) { }
-    }
-
-    // Grafik 4: Soru Basarisi
     if (chartImages.questionSuccessChart) {
-        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
-        doc.roundedRect(m + chartW + 6, y, chartW, chartH, 3, 3, 'F');
-        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Soru Basarisi', m + chartW + 9, y + 5);
-        try { doc.addImage(chartImages.questionSuccessChart, 'PNG', m + chartW + 8, y + 8, chartW - 4, chartH - 11); } catch (e) { }
+        try { doc.addImage(chartImages.questionSuccessChart, 'PNG', m + chartW + 10, y, chartW, chartH); } catch (e) { }
     }
 
-    // Alt Istatistik Cubugu
-    y = ph - 22;
-    doc.setFillColor(C.dark[0], C.dark[1], C.dark[2]);
-    doc.roundedRect(m, y, cw, 16, 3, 3, 'F');
+    y += chartH + 5;
 
-    const footerStats = [
-        { label: 'STD. SAPMA', value: stats.stdDev.toFixed(1) },
-        { label: 'MEDYAN', value: stats.median.toFixed(1) },
-        { label: 'EN YUKSEK', value: String(stats.max) },
-        { label: 'EN DUSUK', value: String(stats.min) }
-    ];
+    if (chartImages.histogramChart) {
+        try { doc.addImage(chartImages.histogramChart, 'PNG', m, y, chartW, chartH); } catch (e) { }
+    }
+    if (chartImages.radarChart) {
+        try { doc.addImage(chartImages.radarChart, 'PNG', m + chartW + 10, y, chartW, chartH); } catch (e) { }
+    }
 
-    const fsW = cw / 4;
-    footerStats.forEach((fs, i) => {
-        doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
-        doc.setFontSize(5);
-        doc.setFont('helvetica', 'normal');
-        doc.text(fs.label, m + 6 + i * fsW, y + 5);
-
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text(fs.value, m + 6 + i * fsW, y + 12);
-    });
-
-    // Sayfa numarasi
-    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
-    doc.setFontSize(6);
-    doc.text('Sayfa 1/3', pw - m, ph - 4, { align: 'right' });
-
-    // ============ SAYFA 2: SORU VE KAZANIM ANALIZI ============
+    // ==========================================
+    // PAGE 2: DETAILED ANALYSIS (TABLES)
+    // ==========================================
     doc.addPage();
+    addPageHeaderFooter(doc, metadata, 2, 3);
+    y = 35;
 
-    // Mini header
-    doc.setFillColor(C.gradientStart[0], C.gradientStart[1], C.gradientStart[2]);
-    doc.rect(0, 0, pw, 14, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('DETAYLI ANALIZ', pw / 2, 9, { align: 'center' });
+    // --- QUESTION ANALYSIS TABLE ---
+    doc.setFontSize(14);
+    doc.setFont('Roboto', 'bold');
+    doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
+    doc.text('Soru ve Kazanım Analizi', m, y);
+    y += 5;
 
-    y = 20;
-
-    // Soru Analizi Bolumu
-    doc.setFillColor(C.blue[0], C.blue[1], C.blue[2]);
-    doc.roundedRect(m, y, cw, 7, 2, 2, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    doc.text('SORU BAZLI BASARI', m + 4, y + 5);
-
-    y += 10;
-
-    // Soru cubuk grafikleri
-    analysis.questionStats.slice(0, 10).forEach((q, i) => {
-        const barColor = q.successRate < 50 ? C.red : q.successRate < 75 ? C.orange : C.green;
-
-        // Soru numarasi dairesi
-        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
-        doc.circle(m + 5, y + 3, 4, 'F');
-        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-        doc.setFontSize(6);
-        doc.setFont('helvetica', 'bold');
-        doc.text(String(i + 1), m + 5, y + 4.5, { align: 'center' });
-
-        // Kazanim kodu - TURKCE DONUSTURULDU
-        doc.setTextColor(C.gradientStart[0], C.gradientStart[1], C.gradientStart[2]);
-        doc.setFontSize(5);
-        doc.text(tr(q.outcome.code), m + 12, y + 2);
-
-        // Ilerleme cubugu
-        drawBar(doc, m + 12, y + 4, cw - 38, 3, q.successRate, barColor);
-
-        // Yuzde
-        doc.setTextColor(barColor[0], barColor[1], barColor[2]);
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'bold');
-        doc.text('%' + q.successRate.toFixed(0), pw - m - 4, y + 5, { align: 'right' });
-
-        y += 10;
+    const qTableBody = analysis.questionStats.map((q, i) => {
+        const question = questions.find(qu => qu.id === q.questionId);
+        return [
+            (i + 1).toString(),
+            q.outcome.code || '-',
+            q.outcome.description || 'Kazanım açıklaması yok',
+            question?.maxScore.toString() || '0',
+            q.averageScore.toFixed(1),
+            `%${q.successRate.toFixed(0)}`
+        ];
     });
 
-    y += 3;
-
-    // Kazanim Durumu Bolumu
-    doc.setFillColor(C.cyan[0], C.cyan[1], C.cyan[2]);
-    doc.roundedRect(m, y, cw, 7, 2, 2, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    doc.text('KAZANIM DURUMU', m + 4, y + 5);
-
-    y += 10;
-
-    // Kazanim kartlari
-    const cardW = (cw - 4) / 2;
-    const cardH = 12;
-
-    analysis.outcomeStats.slice(0, 8).forEach((o, i) => {
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        const cx = m + col * (cardW + 4);
-        const cy = y + row * (cardH + 2);
-
-        const cardColor = o.isFailed ? C.red : C.green;
-        const bgColor: [number, number, number] = o.isFailed ? [254, 242, 242] : [240, 253, 244];
-
-        // Kart arkaplan
-        doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
-        doc.roundedRect(cx, cy, cardW, cardH, 2, 2, 'F');
-
-        // Sol kenar
-        doc.setFillColor(cardColor[0], cardColor[1], cardColor[2]);
-        doc.roundedRect(cx, cy, 2.5, cardH, 1, 1, 'F');
-
-        // Kod - TURKCE DONUSTURULDU
-        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-        doc.setFontSize(6);
-        doc.setFont('helvetica', 'bold');
-        doc.text(tr(o.code), cx + 5, cy + 4);
-
-        // Aciklama - TURKCE DONUSTURULDU
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(4);
-        doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
-        const desc = tr(o.description);
-        doc.text(desc.length > 45 ? desc.substring(0, 45) + '...' : desc, cx + 5, cy + 8.5);
-
-        // Yuzde rozeti
-        doc.setFillColor(cardColor[0], cardColor[1], cardColor[2]);
-        doc.roundedRect(cx + cardW - 15, cy + 2, 13, 7, 2, 2, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(5);
-        doc.setFont('helvetica', 'bold');
-        doc.text('%' + o.successRate.toFixed(0), cx + cardW - 8.5, cy + 6.5, { align: 'center' });
+    autoTable(doc, {
+        startY: y,
+        head: [['No', 'Kod', 'Kazanım', 'Maks', 'Ort', 'Başarı']],
+        body: qTableBody,
+        theme: 'grid',
+        styles: {
+            font: 'Roboto',
+            fontSize: 9,
+            cellPadding: 3,
+            textColor: [50, 50, 50],
+            lineColor: [220, 220, 220],
+            lineWidth: 0.1
+        },
+        headStyles: {
+            fillColor: THEME.primary,
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            halign: 'center'
+        },
+        columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 20, halign: 'center' },
+            2: { cellWidth: 'auto' },
+            3: { cellWidth: 15, halign: 'center' },
+            4: { cellWidth: 15, halign: 'center' },
+            5: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }
+        },
+        didParseCell: (data) => {
+            // Colorize success rate
+            if (data.section === 'body' && data.column.index === 5) {
+                const val = parseFloat(data.cell.raw?.toString().replace('%', '') || '0');
+                if (val < 50) data.cell.styles.textColor = THEME.danger;
+                else if (val >= 80) data.cell.styles.textColor = THEME.success;
+            }
+        }
     });
 
-    // Sayfa numarasi
-    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
-    doc.setFontSize(6);
-    doc.text('Sayfa 2/3', pw - m, ph - 4, { align: 'right' });
-
-    // ============ SAYFA 3: OGRENCI SIRALAMASI ============
+    // ==========================================
+    // PAGE 3: STUDENT LIST
+    // ==========================================
     doc.addPage();
+    addPageHeaderFooter(doc, metadata, 3, 3);
+    y = 35;
 
-    // Mini header
-    doc.setFillColor(C.gradientEnd[0], C.gradientEnd[1], C.gradientEnd[2]);
-    doc.rect(0, 0, pw, 14, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('OGRENCI SIRALAMA', pw / 2, 9, { align: 'center' });
+    doc.setFontSize(14);
+    doc.setFont('Roboto', 'bold');
+    doc.setTextColor(THEME.primary[0], THEME.primary[1], THEME.primary[2]);
+    doc.text('Öğrenci Sonuç Listesi', m, y);
+    y += 5;
 
-    y = 20;
-
-    // Ogrencileri sirala
+    // Sort students by score
     const sortedStudents = [...students].sort((a, b) => {
         const sa = Object.values(a.scores).reduce((sum: number, v: number) => sum + v, 0);
         const sb = Object.values(b.scores).reduce((sum: number, v: number) => sum + v, 0);
         return sb - sa;
     });
 
-    // Podyum (ilk 3)
-    if (sortedStudents.length >= 3) {
-        const podiumColors = [C.yellow, C.gray, C.orange];
-        const podiumLabels = ['1.', '2.', '3.'];
-        const podiumHeights = [32, 26, 22];
-        const podiumX = [pw / 2 - 22, pw / 2 - 62, pw / 2 + 18];
-
-        for (let i = 0; i < 3; i++) {
-            if (sortedStudents[i]) {
-                const px = podiumX[i];
-                const ph_i = podiumHeights[i];
-                const score = Object.values(sortedStudents[i].scores).reduce((sum: number, v: number) => sum + v, 0);
-                const pct = (score / stats.maxPossible) * 100;
-
-                // Podyum blogu
-                doc.setFillColor(podiumColors[i][0], podiumColors[i][1], podiumColors[i][2]);
-                doc.roundedRect(px, y + 38 - ph_i, 38, ph_i, 3, 3, 'F');
-
-                // Siralama
-                doc.setTextColor(255, 255, 255);
-                doc.setFontSize(12);
-                doc.setFont('helvetica', 'bold');
-                doc.text(podiumLabels[i], px + 19, y + 46 - ph_i, { align: 'center' });
-
-                // Isim - TURKCE DONUSTURULDU
-                doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-                doc.setFontSize(7);
-                const name = tr(sortedStudents[i].name);
-                const displayName = name.length > 14 ? name.substring(0, 14) + '..' : name;
-                doc.text(displayName, px + 19, y + 22 - ph_i, { align: 'center' });
-
-                // Puan
-                doc.setFontSize(6);
-                doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
-                doc.text('%' + pct.toFixed(0), px + 19, y + 28 - ph_i, { align: 'center' });
-            }
-        }
-    }
-
-    y += 52;
-
-    // Ogrenci Tablosu Basligi
-    doc.setFillColor(C.blue[0], C.blue[1], C.blue[2]);
-    doc.roundedRect(m, y, cw, 7, 2, 2, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    doc.text('TUM OGRENCILER', m + 4, y + 5);
-
-    y += 9;
-
-    // Ogrenci tablosu verileri - TURKCE DONUSTURULDU
-    const tableRows = sortedStudents.map((s, i) => {
+    const sTableBody = sortedStudents.map((s, i) => {
         const total = Object.values(s.scores).reduce((sum: number, v: number) => sum + v, 0);
         const pct = (total / stats.maxPossible) * 100;
-        return [String(i + 1), tr(s.name), String(total), '%' + pct.toFixed(1)];
+        return [
+            (i + 1).toString(),
+            s.student_number || '-',
+            s.name,
+            total.toString(),
+            `%${pct.toFixed(0)}`,
+            pct >= 50 ? 'Geçti' : 'Kaldı'
+        ];
     });
 
     autoTable(doc, {
         startY: y,
-        head: [['#', 'Ogrenci', 'Puan', 'Basari']],
-        body: tableRows,
-        theme: 'plain',
+        head: [['Sıra', 'No', 'Ad Soyad', 'Puan', 'Yüzde', 'Durum']],
+        body: sTableBody,
+        theme: 'striped',
         styles: {
-            fontSize: 7,
-            cellPadding: 2,
-            font: 'helvetica'
+            font: 'Roboto',
+            fontSize: 10,
+            cellPadding: 4,
+            textColor: [40, 40, 40]
         },
         headStyles: {
-            fillColor: C.light as [number, number, number],
-            textColor: C.dark as [number, number, number],
+            fillColor: THEME.accent,
+            textColor: [255, 255, 255],
             fontStyle: 'bold'
         },
-        alternateRowStyles: { fillColor: [250, 250, 250] },
         columnStyles: {
-            0: { cellWidth: 10, halign: 'center', fontStyle: 'bold' },
-            1: { cellWidth: 'auto' },
-            2: { cellWidth: 18, halign: 'center' },
-            3: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
+            0: { cellWidth: 15, halign: 'center' },
+            1: { cellWidth: 20, halign: 'center' },
+            2: { cellWidth: 'auto' },
+            3: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+            4: { cellWidth: 20, halign: 'center' },
+            5: { cellWidth: 25, halign: 'center' }
         },
-        margin: { left: m, right: m },
         didParseCell: (data) => {
-            if (data.section === 'body' && data.column.index === 3) {
-                const v = parseFloat(data.cell.raw?.toString().replace('%', '') || '0');
-                data.cell.styles.textColor = v < 50 ? C.red : v >= 85 ? C.green : C.dark;
-            }
-            if (data.section === 'body' && data.column.index === 0) {
-                const rank = parseInt(data.cell.raw?.toString() || '0');
-                if (rank <= 3) data.cell.styles.textColor = C.gradientStart;
+            if (data.section === 'body' && data.column.index === 5) {
+                const val = data.cell.raw?.toString();
+                if (val === 'Kaldı') {
+                    data.cell.styles.textColor = THEME.danger;
+                    data.cell.styles.fontStyle = 'bold';
+                } else {
+                    data.cell.styles.textColor = THEME.success;
+                }
             }
         }
     });
 
-    // Altbilgi
-    const footerY = ph - 24;
-    doc.setFillColor(C.light[0], C.light[1], C.light[2]);
-    doc.roundedRect(m, footerY, cw, 18, 3, 3, 'F');
-
-    doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Rapor Bilgileri', m + 4, footerY + 5);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
-    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
-    doc.text('Hazirlayan: ' + tr(metadata.teacherName), m + 4, footerY + 10);
-    doc.text('Tarih: ' + new Date().toLocaleDateString('tr-TR'), m + 4, footerY + 14);
-
-    doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-    doc.text('Imza:', pw - m - 30, footerY + 10);
-    doc.setDrawColor(C.gray[0], C.gray[1], C.gray[2]);
-    doc.line(pw - m - 30, footerY + 14, pw - m - 4, footerY + 14);
-
-    // Sayfa numarasi
-    doc.setTextColor(C.gray[0], C.gray[1], C.gray[2]);
-    doc.setFontSize(6);
-    doc.text('Sayfa 3/3', pw - m, ph - 4, { align: 'right' });
-
-    // DOSYA KAYDET - GUVENLI DOSYA ADI
-    const fileName = `${safeFileName(metadata.className)}_${safeFileName(metadata.subject)}_Rapor.pdf`;
+    // Save
+    const fileName = `${safeFileName(metadata.className)}_${safeFileName(metadata.subject)}_Analiz_Raporu.pdf`;
     doc.save(fileName);
 };
 
-// Hizli export
+// --- EXPORT WRAPPERS ---
+
 export const quickExport = async (
     scenario: ExportScenario,
     analysis: AnalysisResult,
@@ -599,7 +406,6 @@ export const quickExport = async (
     await exportToPDFAdvanced(analysis, metadata, questions, students, chartImages, language, { scenario });
 };
 
-// Iki dilli export
 export const exportBilingualReports = async (
     analysis: AnalysisResult,
     metadata: ExamMetadata,
@@ -610,7 +416,6 @@ export const exportBilingualReports = async (
     await exportToPDFAdvanced(analysis, metadata, questions, students, chartImages, 'tr');
 };
 
-// Bireysel ogrenci raporlari
 export const exportIndividualStudentReports = async (
     analysis: AnalysisResult,
     metadata: ExamMetadata,
@@ -618,94 +423,75 @@ export const exportIndividualStudentReports = async (
     students: Student[],
     _language: Language = 'tr'
 ) => {
+    const doc = new jsPDF('p', 'mm', 'a5'); // A5 for individual reports
+    await addTurkishFontsToPDF(doc);
+
+    const pw = doc.internal.pageSize.getWidth();
+    const m = 10;
     const maxP = questions.reduce((s, q) => s + q.maxScore, 0);
 
     for (const student of students) {
-        const doc = new jsPDF('p', 'mm', 'a4');
-        const pw = doc.internal.pageSize.getWidth();
-        const m = 12;
+        doc.addPage();
+        // Delete first empty page if any (jsPDF quirk)
+        if (doc.getNumberOfPages() > 1 && student === students[0]) doc.deletePage(1);
+
+        // Header
+        doc.setFontSize(14);
+        doc.setFont('Roboto', 'bold');
+        doc.text(metadata.schoolName, pw / 2, 15, { align: 'center' });
+
+        doc.setFontSize(10);
+        doc.setFont('Roboto', 'normal');
+        doc.text(`${metadata.subject} Sınav Sonuç Belgesi`, pw / 2, 22, { align: 'center' });
+
+        // Student Info Box
+        doc.setDrawColor(0);
+        doc.setFillColor(250, 250, 250);
+        doc.roundedRect(m, 30, pw - 2 * m, 25, 2, 2, 'FD');
+
+        doc.setFontSize(12);
+        doc.setFont('Roboto', 'bold');
+        doc.text(student.name, m + 5, 40);
 
         const total = Object.values(student.scores).reduce((s: number, v: number) => s + v, 0);
         const pct = (total / maxP) * 100;
-        const pass = pct >= 50;
 
-        // Header
-        drawGradientHeader(doc, 35);
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text(tr(metadata.schoolName), pw / 2, 15, { align: 'center' });
-        doc.setFontSize(10);
-        doc.text(tr(metadata.subject) + ' - ' + tr(metadata.className), pw / 2, 25, { align: 'center' });
-
-        let y = 45;
-
-        // Ogrenci karti
-        doc.setFillColor(C.light[0], C.light[1], C.light[2]);
-        doc.roundedRect(m, y, pw - 2 * m, 32, 4, 4, 'F');
-
-        doc.setTextColor(C.dark[0], C.dark[1], C.dark[2]);
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text(tr(student.name), m + 8, y + 12);
-
-        // Skor dairesi
-        const scoreColor = pass ? C.success : C.danger;
-        doc.setFillColor(scoreColor[0], scoreColor[1], scoreColor[2]);
-        doc.circle(pw - m - 22, y + 16, 14, 'F');
-        doc.setFillColor(255, 255, 255);
-        doc.circle(pw - m - 22, y + 16, 10, 'F');
-
-        doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
-        doc.setFontSize(11);
-        doc.text('%' + pct.toFixed(0), pw - m - 22, y + 18, { align: 'center' });
-
-        y += 42;
-
-        // Soru sonuclari
-        doc.setFillColor(C.blue[0], C.blue[1], C.blue[2]);
-        doc.roundedRect(m, y, pw - 2 * m, 7, 2, 2, 'F');
-        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(16);
+        doc.setTextColor(pct >= 50 ? THEME.success[0] : THEME.danger[0], 0, 0);
+        doc.text(`%${pct.toFixed(0)}`, pw - m - 10, 42, { align: 'right' });
         doc.setFontSize(8);
-        doc.text('SORU SONUCLARI', m + 4, y + 5);
+        doc.setTextColor(100, 100, 100);
+        doc.text(pct >= 50 ? 'BAŞARILI' : 'GELİŞTİRİLMELİ', pw - m - 10, 48, { align: 'right' });
 
-        y += 10;
-
-        // Tablo verileri - TURKCE DONUSTURULDU
+        // Table
         const qData = analysis.questionStats.map((q, i) => {
             const score = student.scores[q.questionId] || 0;
             const maxQ = questions.find(qu => qu.id === q.questionId)?.maxScore || 1;
-            return [String(i + 1), tr(q.outcome.code), String(score), String(maxQ)];
+            return [(i + 1).toString(), q.outcome.code, `${score} / ${maxQ}`];
         });
 
         autoTable(doc, {
-            startY: y,
-            head: [['#', 'Kazanim', 'Alinan', 'Maks']],
+            startY: 60,
+            head: [['Soru', 'Kazanım', 'Puan']],
             body: qData,
             theme: 'grid',
-            styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica' },
-            headStyles: {
-                fillColor: C.gradientStart as [number, number, number],
-                textColor: C.white as [number, number, number]
-            },
+            styles: { font: 'Roboto', fontSize: 8 },
+            headStyles: { fillColor: THEME.primary },
             margin: { left: m, right: m }
         });
 
-        // Kaydet - GUVENLI DOSYA ADI
-        const studentFileName = `${safeFileName(student.name)}_Karne.pdf`;
-        doc.save(studentFileName);
-        await new Promise(r => setTimeout(r, 100));
+        // Footer
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text('Bu belge otomatik oluşturulmuştur.', pw / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
     }
+
+    doc.save(`${safeFileName(metadata.className)}_Ogrenci_Karneleri.pdf`);
 };
 
-// Export senaryolari listesi
 export const getExportScenarios = (_language: Language = 'tr') => {
     return [
-        { id: 'full_report' as ExportScenario, icon: '📊', name: 'Infografik', description: 'Gorsel rapor' },
-        { id: 'executive_summary' as ExportScenario, icon: '📋', name: 'Ozet', description: 'Onemli bilgiler' },
-        { id: 'student_focused' as ExportScenario, icon: '👨‍🎓', name: 'Ogrenci', description: 'Detayli liste' },
-        { id: 'outcome_analysis' as ExportScenario, icon: '🎯', name: 'Kazanim', description: 'Kazanim analizi' },
-        { id: 'parent_report' as ExportScenario, icon: '👪', name: 'Veli', description: 'Sade format' },
-        { id: 'meb_standard' as ExportScenario, icon: '🏛️', name: 'MEB', description: 'Resmi format' }
+        { id: 'full_report' as ExportScenario, icon: '📊', name: 'Kurumsal Rapor', description: 'Resmi format' },
+        { id: 'student_focused' as ExportScenario, icon: '👨‍🎓', name: 'Öğrenci Karneleri', description: 'Bireysel sonuçlar' }
     ];
 };

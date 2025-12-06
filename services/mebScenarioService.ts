@@ -237,4 +237,5 @@ export function getAllScenarioCodes(): string[] {
     return MEB_SCENARIOS_2025_2026_TERM_1.map(s => s.code);
 }
 
-export { MEB_SCENARIOS_2025_2026_TERM_1, MEBScenario };
+export { MEB_SCENARIOS_2025_2026_TERM_1 };
+export type { MEBScenario };

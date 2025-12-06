@@ -14,6 +14,7 @@ export interface QuestionConfig {
 
 export interface Student {
   id: string;
+  student_number?: string;
   name: string;
   scores: Record<number, number>; // questionId -> score
 }

@@ -1,62 +1,85 @@
-import React from 'react';
-import { FileText, CheckCircle, Download, Eye } from 'lucide-react';
-import { MEBScenarioAdvanced, downloadMEBPDFAdvanced } from '../services/mebScraperAdvanced';
+import React, { useEffect, useState } from 'react';
+import { FileText, CheckCircle, Eye, Download } from 'lucide-react';
+import { getScenarioByGradeAndSubject, MEBScenario } from '../data/mebScenarios';
+import { openMEBPDF } from '../services/mebScenarioService';
 
 interface ScenarioVisualSelectorProps {
     grade: string;
     subject: string;
     selectedScenario: string;
     onSelect: (scenarioNumber: string) => void;
-    scenarios: MEBScenarioAdvanced[];
+    // scenarios prop removed as we fetch internally
+    scenarios?: any[];
 }
 
 export function ScenarioVisualSelector({
     grade,
     subject,
     selectedScenario,
-    onSelect,
-    scenarios
+    onSelect
 }: ScenarioVisualSelectorProps) {
 
-    // Mock data for scenarios if not found in scraper (since we have limited data there)
-    // In a real app, this would come from the database or scraper
-    const displayScenarios = [
-        {
-            id: '1',
-            name: '1. Senaryo',
-            description: 'Genel değerlendirme ve temel kazanımlar ağırlıklı.',
-            questionCount: 10,
-            difficulty: 'Orta',
-            distribution: '2 Çoktan Seçmeli, 8 Açık Uçlu'
-        },
-        {
-            id: '2',
-            name: '2. Senaryo',
-            description: 'Eleştirel düşünme ve analiz odaklı sorular.',
-            questionCount: 8,
-            difficulty: 'Zor',
-            distribution: '4 Çoktan Seçmeli, 4 Açık Uçlu'
-        },
-        {
-            id: '3',
-            name: '3. Senaryo',
-            description: 'Uygulama ve pratik becerileri ölçen senaryo.',
-            questionCount: 12,
-            difficulty: 'Kolay',
-            distribution: '6 Çoktan Seçmeli, 6 Açık Uçlu'
-        }
-    ];
+    const [availableScenarios, setAvailableScenarios] = useState<MEBScenario[]>([]);
 
-    const handlePreview = async (e: React.MouseEvent, scenario: MEBScenarioAdvanced) => {
-        e.stopPropagation();
-        try {
-            const blob = await downloadMEBPDFAdvanced(scenario);
-            const url = URL.createObjectURL(blob);
-            window.open(url, '_blank');
-        } catch (error) {
-            alert('PDF önizlemesi şu an kullanılamıyor. Lütfen MEB sitesini kontrol edin.');
+    useEffect(() => {
+        // Fetch scenarios from our new database
+        const gradeNum = parseInt(grade);
+        if (!isNaN(gradeNum) && subject) {
+            const found = getScenarioByGradeAndSubject(gradeNum, subject);
+            setAvailableScenarios(found);
+        } else {
+            setAvailableScenarios([]);
         }
+    }, [grade, subject]);
+
+    const handlePreview = (e: React.MouseEvent, code: string) => {
+        e.stopPropagation();
+        openMEBPDF(code);
     };
+
+    // If we have real MEB scenarios, show them. Otherwise show generic placeholders.
+    const hasRealScenarios = availableScenarios.length > 0;
+
+    const displayScenarios = hasRealScenarios
+        ? availableScenarios.map((s, index) => ({
+            id: s.code, // Use the code (e.g., turk5) as ID
+            name: `${index + 1}. Senaryo`, // Display name
+            description: `${s.subject} ${s.grade}. Sınıf MEB Senaryosu`,
+            questionCount: '?', // We don't parse PDF content yet to get exact count
+            difficulty: 'Standart',
+            distribution: 'MEB Dağılımı',
+            isReal: true,
+            pdfUrl: s.pdfUrl
+        }))
+        : [
+            {
+                id: '1',
+                name: '1. Senaryo',
+                description: 'Genel değerlendirme ve temel kazanımlar ağırlıklı.',
+                questionCount: 10,
+                difficulty: 'Orta',
+                distribution: '2 Çoktan Seçmeli, 8 Açık Uçlu',
+                isReal: false
+            },
+            {
+                id: '2',
+                name: '2. Senaryo',
+                description: 'Eleştirel düşünme ve analiz odaklı sorular.',
+                questionCount: 8,
+                difficulty: 'Zor',
+                distribution: '4 Çoktan Seçmeli, 4 Açık Uçlu',
+                isReal: false
+            },
+            {
+                id: '3',
+                name: '3. Senaryo',
+                description: 'Uygulama ve pratik becerileri ölçen senaryo.',
+                questionCount: 12,
+                difficulty: 'Kolay',
+                distribution: '6 Çoktan Seçmeli, 6 Açık Uçlu',
+                isReal: false
+            }
+        ];
 
     return (
         <div className="space-y-4">
@@ -70,11 +93,16 @@ export function ScenarioVisualSelector({
                 </span>
             </div>
 
+            {hasRealScenarios && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm mb-4 flex items-center">
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    MEB tarafından yayınlanan güncel senaryolar bulundu.
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {displayScenarios.map((scenario) => {
                     const isSelected = selectedScenario === scenario.id;
-                    // Find actual PDF data if available
-                    const mebData = scenarios.find(s => s.grade === grade && s.subject === subject);
 
                     return (
                         <div
@@ -96,13 +124,15 @@ export function ScenarioVisualSelector({
 
                             <div className="flex justify-between items-start mb-3">
                                 <div className={`p-2 rounded-lg ${isSelected ? 'bg-indigo-200' : 'bg-slate-100 group-hover:bg-indigo-100'} transition-colors`}>
-                                    <span className="text-2xl font-bold text-slate-700">{scenario.id}</span>
+                                    <span className="text-xl font-bold text-slate-700">
+                                        {scenario.isReal ? scenario.id.toUpperCase() : scenario.id}
+                                    </span>
                                 </div>
-                                {mebData && (
+                                {scenario.isReal && (
                                     <button
-                                        onClick={(e) => handlePreview(e, mebData)}
-                                        className="text-slate-400 hover:text-indigo-600 transition-colors p-1"
-                                        title="PDF Önizle"
+                                        onClick={(e) => handlePreview(e, scenario.id)}
+                                        className="text-slate-400 hover:text-indigo-600 transition-colors p-1 bg-white rounded-full shadow-sm border border-slate-100"
+                                        title="PDF Görüntüle"
                                     >
                                         <Eye className="w-5 h-5" />
                                     </button>
@@ -110,7 +140,7 @@ export function ScenarioVisualSelector({
                             </div>
 
                             <h4 className="font-bold text-slate-800 mb-1">{scenario.name}</h4>
-                            <p className="text-xs text-slate-500 mb-3 h-8">{scenario.description}</p>
+                            <p className="text-xs text-slate-500 mb-3 h-8 line-clamp-2">{scenario.description}</p>
 
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between text-xs">
@@ -122,7 +152,8 @@ export function ScenarioVisualSelector({
                                     <span className={`font-semibold px-2 py-0.5 rounded text-[10px]
                     ${scenario.difficulty === 'Kolay' ? 'bg-green-100 text-green-700' :
                                             scenario.difficulty === 'Orta' ? 'bg-yellow-100 text-yellow-700' :
-                                                'bg-red-100 text-red-700'
+                                                scenario.difficulty === 'Zor' ? 'bg-red-100 text-red-700' :
+                                                    'bg-slate-100 text-slate-700'
                                         }
                   `}>
                                         {scenario.difficulty}

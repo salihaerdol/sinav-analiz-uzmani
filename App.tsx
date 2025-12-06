@@ -318,7 +318,7 @@ function MainApp() {
       return {
         studentId: s.id,
         totalScore,
-        percentage: totalMaxScore > 0 ? (totalScore / totalMaxScore) * 100 : 0
+        percentage: Number(totalMaxScore) > 0 ? (Number(totalScore) / Number(totalMaxScore)) * 100 : 0
       };
     });
 
@@ -436,7 +436,7 @@ function MainApp() {
             subject={metadata.subject}
             selectedScenario={metadata.scenario}
             onSelect={(id) => handleMetadataChange('scenario', id)}
-            scenarios={MEB_SCENARIOS_ADVANCED}
+            scenarios={[]} // Bu prop artık içeriden yönetilecek veya yeni servisten beslenecek
           />
         </div>
         <div>
