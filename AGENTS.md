@@ -8,6 +8,7 @@ This file defines the project structure, technology stack, and coding convention
 - **Build Tool:** Vite 6.2.0
 - **Styling:** Tailwind CSS 3.4
 - **Architecture:** Client-side Single Page Application (SPA)
+- **Production URL:** `https://sinav-analiz-uzmani.vercel.app`
 - **Project Structure:**
   - `/src`: Source code
     - `/components`: UI components (Functional, Modular)
@@ -36,9 +37,9 @@ Key libraries and their purposes:
 Configuration is managed via environment variables and config files.
 
 - **Environment Variables (.env):**
-  - `VITE_SUPABASE_URL`: Supabase project URL
+  - `VITE_SUPABASE_URL`: Supabase project URL (Production: `https://[PROJECT_ID].supabase.co`)
   - `VITE_SUPABASE_ANON_KEY`: Supabase public anonymous key
-  - `VITE_GEMINI_API_KEY`: Google Gemini API key (User provided or env)
+  - `VITE_GEMINI_API_KEY`: Google Gemini API key (User provided or env fallback)
 
 - **Config Files:**
   - `vite.config.ts`: Build configuration
@@ -55,7 +56,8 @@ External services required for full functionality:
 
 ### AI Service
 - **Provider:** Google Gemini (via `@google/genai`)
-- **Model:** gemini-1.5-flash (Optimized for speed/cost)
+- **Model:** `gemini-2.0-flash` (Latest experimental model, optimized for speed/cost)
+- **Note:** Ensure API key has access to the latest models.
 
 ## V. Build & Run
 Standard Vite workflow:
