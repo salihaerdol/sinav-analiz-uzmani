@@ -11,7 +11,7 @@ import { classListService, ClassList } from './services/supabase';
 import { DataImport } from './components/DataImport';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { SettingsModal } from './components/SettingsModal';
-import { saveAnalysis, getAllAnalyses } from './services/historyService';
+import { saveAnalysis, getAllAnalyses, updateAnalysis, getDashboardSummary, clearAllData } from './services/historyService';
 import { analysisHistoryService } from './services/supabaseHistoryService';
 
 // Steps Enum
@@ -61,6 +61,7 @@ function MainApp() {
   const [showProgressDashboard, setShowProgressDashboard] = useState(false);
   const [analysisCount, setAnalysisCount] = useState(0);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
 
   // --- PERSISTENCE LOGIC ---
 
@@ -74,6 +75,7 @@ function MainApp() {
         if (parsed.questions) setQuestions(parsed.questions);
         if (parsed.students) setStudents(parsed.students);
         if (parsed.step) setStep(parsed.step);
+        if (parsed.currentAnalysisId) setCurrentAnalysisId(parsed.currentAnalysisId);
       } catch (e) {
         console.error("Failed to load saved data", e);
       }
@@ -89,10 +91,11 @@ function MainApp() {
       metadata,
       questions,
       students,
-      step
+      step,
+      currentAnalysisId
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-  }, [metadata, questions, students, step, isLoaded]);
+  }, [metadata, questions, students, step, currentAnalysisId, isLoaded]);
 
   // --- NEW FEATURES HANDLERS ---
 
@@ -106,15 +109,30 @@ function MainApp() {
       alert('Kaydedilecek analiz verisi bulunamadı.');
       return;
     }
-    saveAnalysis(metadata, analysis, questions, students);
-    setAnalysisCount(getAllAnalyses().length);
-    alert('Analiz başarıyla kaydedildi!');
+
+    if (currentAnalysisId) {
+      // Update existing
+      updateAnalysis(currentAnalysisId, {
+        metadata,
+        analysis,
+        questions,
+        students
+      });
+      alert('Analiz başarıyla GÜNCELLENDİ!');
+    } else {
+      // Create new
+      const saved = saveAnalysis(metadata, analysis, questions, students);
+      setCurrentAnalysisId(saved.id);
+      setAnalysisCount(getAllAnalyses().length);
+      alert('Yeni analiz başarıyla KAYDEDİLDİ!');
+    }
   };
 
   const handleLoadAnalysis = (savedAnalysis: SavedAnalysis) => {
     setMetadata(savedAnalysis.metadata);
     setQuestions(savedAnalysis.questions);
     setStudents(savedAnalysis.students);
+    setCurrentAnalysisId(savedAnalysis.id);
     setStep(Step.ANALYSIS);
     setShowProgressDashboard(false);
   };
@@ -124,6 +142,7 @@ function MainApp() {
       setMetadata(INITIAL_METADATA);
       setQuestions([]);
       setStudents([]);
+      setCurrentAnalysisId(null);
       setStep(Step.METADATA);
       localStorage.removeItem(STORAGE_KEY);
     }
