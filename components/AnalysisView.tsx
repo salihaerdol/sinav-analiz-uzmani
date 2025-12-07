@@ -33,10 +33,7 @@ interface Props {
 // Export scenario icons mapping
 const scenarioIcons: Record<ExportScenario, React.ReactNode> = {
   full_report: <FileText className="w-4 h-4" />,
-  executive_summary: <ClipboardList className="w-4 h-4" />,
-  student_focused: <GraduationCap className="w-4 h-4" />,
-  outcome_analysis: <Target className="w-4 h-4" />,
-  parent_report: <Users className="w-4 h-4" />
+  student_cards: <GraduationCap className="w-4 h-4" />
 };
 
 // Helper functions for statistics
