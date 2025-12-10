@@ -575,6 +575,11 @@ export const analysisHistoryService = {
             worstAverage: db.worst_average,
             trend: db.trend
         };
+    },
+
+    async exportAllData(): Promise<string> {
+        const analyses = await this.getAllAnalyses();
+        return JSON.stringify(analyses, null, 2);
     }
 };
 

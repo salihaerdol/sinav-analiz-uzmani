@@ -11,21 +11,7 @@ import {
 import {
     SavedAnalysis, StudentProgress, ClassProgress, DashboardSummary
 } from '../types';
-import {
-    getAllAnalyses,
-    getAnalysisById,
-    deleteAnalysis,
-    getFilteredAnalyses,
-    getStudentProgress,
-    getAllStudentProgress,
-    getClassProgress,
-    getAllClassProgress,
-    getDashboardSummary,
-    getUniqueClasses,
-    getUniqueSubjects,
-    getUniqueStudents,
-    exportAllData
-} from '../services/historyService';
+import analysisHistoryService from '../services/supabaseHistoryService';
 
 interface Props {
     onLoadAnalysis: (analysis: SavedAnalysis) => void;
@@ -51,27 +37,36 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
         loadData();
     }, []);
 
-    const loadData = () => {
+    const loadData = async () => {
         setLoading(true);
         try {
-            setSummary(getDashboardSummary());
-            setAnalyses(getAllAnalyses());
-            setStudentProgressList(getAllStudentProgress());
-            setClassProgressList(getAllClassProgress());
+            const [sum, allAnalyses, students, classes] = await Promise.all([
+                analysisHistoryService.getDashboardSummary(),
+                analysisHistoryService.getAllAnalyses(),
+                analysisHistoryService.getAllStudentProgress(),
+                analysisHistoryService.getAllClassProgress()
+            ]);
+
+            setSummary(sum);
+            setAnalyses(allAnalyses);
+            setStudentProgressList(students);
+            setClassProgressList(classes);
+        } catch (error) {
+            console.error('Veri yüklenirken hata:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleDeleteAnalysis = (id: string) => {
+    const handleDeleteAnalysis = async (id: string) => {
         if (window.confirm('Bu analizi silmek istediğinizden emin misiniz?')) {
-            deleteAnalysis(id);
+            await analysisHistoryService.deleteAnalysis(id);
             loadData();
         }
     };
 
-    const handleExportData = () => {
-        const data = exportAllData();
+    const handleExportData = async () => {
+        const data = await analysisHistoryService.exportAllData();
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -81,10 +76,16 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
         URL.revokeObjectURL(url);
     };
 
-    const filteredAnalyses = getFilteredAnalyses({
-        className: filterClass || undefined,
-        subject: filterSubject || undefined,
-        searchText: searchText || undefined
+    // Not: getFilteredAnalyses asenkron olduğu için useEffect içinde veya loadData içinde çağrılmalı
+    // Ancak şimdilik client-side filtreleme yapabiliriz veya servisi güncelleyebiliriz.
+    // Basitlik için client-side filtreleme yapalım:
+    const filteredAnalyses = analyses.filter(a => {
+        const matchClass = !filterClass || a.metadata.className === filterClass;
+        const matchSubject = !filterSubject || a.metadata.subject === filterSubject;
+        const matchSearch = !searchText ||
+            a.metadata.className.toLowerCase().includes(searchText.toLowerCase()) ||
+            a.metadata.subject.toLowerCase().includes(searchText.toLowerCase());
+        return matchClass && matchSubject && matchSearch;
     });
 
     const getTrendIcon = (trend: 'improving' | 'stable' | 'declining' | 'up' | 'down') => {
@@ -156,8 +157,8 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                     setSelectedClass(null);
                                 }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${viewMode === tab.id
-                                        ? 'bg-white text-indigo-600 shadow-lg'
-                                        : 'bg-white/10 text-white hover:bg-white/20'
+                                    ? 'bg-white text-indigo-600 shadow-lg'
+                                    : 'bg-white/10 text-white hover:bg-white/20'
                                     }`}
                             >
                                 <tab.icon className="w-4 h-4" />
@@ -238,7 +239,7 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                                         key={idx}
                                                         className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 cursor-pointer transition-colors"
                                                         onClick={() => {
-                                                            const progress = getStudentProgress(student.name);
+                                                            const progress = studentProgressList.find(p => p.studentName === student.name);
                                                             if (progress) {
                                                                 setSelectedStudent(progress);
                                                                 setViewMode('student');
@@ -247,9 +248,9 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                                     >
                                                         <div className="flex items-center gap-3">
                                                             <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                                    idx === 1 ? 'bg-slate-200 text-slate-700' :
-                                                                        idx === 2 ? 'bg-orange-100 text-orange-700' :
-                                                                            'bg-slate-100 text-slate-600'
+                                                                idx === 1 ? 'bg-slate-200 text-slate-700' :
+                                                                    idx === 2 ? 'bg-orange-100 text-orange-700' :
+                                                                        'bg-slate-100 text-slate-600'
                                                                 }`}>
                                                                 {idx + 1}
                                                             </span>
@@ -294,7 +295,7 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                                         <div className="w-full bg-slate-200 rounded-full h-2">
                                                             <div
                                                                 className={`h-2 rounded-full ${cls.averageScore >= 70 ? 'bg-green-500' :
-                                                                        cls.averageScore >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                    cls.averageScore >= 50 ? 'bg-yellow-500' : 'bg-red-500'
                                                                     }`}
                                                                 style={{ width: `${cls.averageScore}%` }}
                                                             />
@@ -370,8 +371,8 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <span className={`px-3 py-1 rounded-full text-sm font-bold ${analysis.analysis.classAverage >= 70 ? 'bg-green-100 text-green-700' :
-                                                        analysis.analysis.classAverage >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-red-100 text-red-700'
+                                                    analysis.analysis.classAverage >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                                                        'bg-red-100 text-red-700'
                                                     }`}>
                                                     %{analysis.analysis.classAverage.toFixed(1)}
                                                 </span>
@@ -407,7 +408,7 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                     className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                 >
                                     <option value="">Tüm Sınıflar</option>
-                                    {getUniqueClasses().map(cls => (
+                                    {Array.from(new Set(analyses.map(a => a.metadata.className))).sort().map(cls => (
                                         <option key={cls} value={cls}>{cls}</option>
                                     ))}
                                 </select>
@@ -417,7 +418,7 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                     className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                 >
                                     <option value="">Tüm Dersler</option>
-                                    {getUniqueSubjects().map(sub => (
+                                    {Array.from(new Set(analyses.map(a => a.metadata.subject))).sort().map(sub => (
                                         <option key={sub} value={sub}>{sub}</option>
                                     ))}
                                 </select>
@@ -462,8 +463,8 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                                     <div className="flex items-center gap-4">
                                                         <div className="text-right">
                                                             <span className={`text-lg font-bold ${analysis.analysis.classAverage >= 70 ? 'text-green-600' :
-                                                                    analysis.analysis.classAverage >= 50 ? 'text-yellow-600' :
-                                                                        'text-red-600'
+                                                                analysis.analysis.classAverage >= 50 ? 'text-yellow-600' :
+                                                                    'text-red-600'
                                                                 }`}>
                                                                 %{analysis.analysis.classAverage.toFixed(1)}
                                                             </span>
@@ -652,7 +653,7 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                                             <td className="px-4 py-3 text-center">{exam.score}</td>
                                                             <td className="px-4 py-3 text-center">
                                                                 <span className={`font-bold ${exam.percentage >= 70 ? 'text-green-600' :
-                                                                        exam.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'
+                                                                    exam.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'
                                                                     }`}>
                                                                     %{exam.percentage.toFixed(1)}
                                                                 </span>
@@ -800,7 +801,7 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                                             <td className="px-4 py-3 font-medium">{exam.examType}</td>
                                                             <td className="px-4 py-3 text-center">
                                                                 <span className={`font-bold ${exam.classAverage >= 70 ? 'text-green-600' :
-                                                                        exam.classAverage >= 50 ? 'text-yellow-600' : 'text-red-600'
+                                                                    exam.classAverage >= 50 ? 'text-yellow-600' : 'text-red-600'
                                                                     }`}>
                                                                     %{exam.classAverage.toFixed(1)}
                                                                 </span>
@@ -827,7 +828,7 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                                                 <div className="flex items-center justify-between mb-2">
                                                                     <span className="font-bold text-indigo-600">{oc.outcomeCode}</span>
                                                                     <span className={`font-bold ${latestRate >= 70 ? 'text-green-600' :
-                                                                            latestRate >= 50 ? 'text-yellow-600' : 'text-red-600'
+                                                                        latestRate >= 50 ? 'text-yellow-600' : 'text-red-600'
                                                                         }`}>
                                                                         %{latestRate.toFixed(0)}
                                                                     </span>
@@ -836,7 +837,7 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
                                                                 <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2">
                                                                     <div
                                                                         className={`h-1.5 rounded-full ${latestRate >= 70 ? 'bg-green-500' :
-                                                                                latestRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                            latestRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
                                                                             }`}
                                                                         style={{ width: `${latestRate}%` }}
                                                                     />

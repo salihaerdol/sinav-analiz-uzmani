@@ -5,7 +5,7 @@ import {
     MEBScenario,
     getScenariosByGrade,
     downloadMEBPDF
-} from '../services/mebScraper';
+} from '../services/mebScraperAdvanced';
 import { scenarioService, achievementService } from '../services/supabase';
 
 interface ScenarioSelectorProps {
@@ -64,7 +64,7 @@ export function ScenarioSelector({ grade, subject, onScenarioSelect }: ScenarioS
 
         try {
             // Try to get achievements from Supabase
-            const achievements = await achievementService.getByGradeAndSubject(
+            const achievements = await achievementService.search(
                 scenario.grade,
                 scenario.subject
             );
@@ -131,8 +131,8 @@ export function ScenarioSelector({ grade, subject, onScenarioSelect }: ScenarioS
                         <div
                             key={index}
                             className={`p-4 border-2 rounded-xl transition-all ${selectedScenario === scenario
-                                    ? 'border-indigo-500 bg-indigo-50'
-                                    : 'border-slate-200 bg-white hover:border-indigo-300'
+                                ? 'border-indigo-500 bg-indigo-50'
+                                : 'border-slate-200 bg-white hover:border-indigo-300'
                                 }`}
                         >
                             <div className="flex items-center justify-between">

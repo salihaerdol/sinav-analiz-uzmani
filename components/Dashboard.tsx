@@ -6,9 +6,9 @@ import {
     StudentList,
     Exam
 } from '../services/supabase';
-import { getAllAnalyses } from '../services/historyService';
+import { analysisHistoryService } from '../services/supabaseHistoryService';
 import { SavedAnalysis } from '../types';
-import { MEB_SCENARIOS_ADVANCED, getCurrentScenarios, getMEBDistributionTableURL } from '../services/mebScraperAdvanced';
+import { MEB_SCENARIOS, getCurrentScenarios } from '../services/mebScraperAdvanced';
 import {
     Plus,
     GraduationCap,
@@ -173,7 +173,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             setRecentExams(exams);
 
             // Yerel geçmiş analizleri yükle
-            const localAnalyses = getAllAnalyses();
+            const localAnalyses = await analysisHistoryService.getAllAnalyses();
             setRecentAnalyses(localAnalyses.slice(0, 5));
         } catch (error) {
             console.error('Error loading dashboard data:', error);

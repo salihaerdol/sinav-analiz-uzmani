@@ -72,3 +72,7 @@ export async function downloadMEBPDF(pdfUrl: string): Promise<Blob> {
     if (!response.ok) throw new Error(`PDF indirilemedi: ${response.statusText}`);
     return await response.blob();
 }
+
+export function getMEBDistributionTableURL(): string {
+    return 'https://odsgm.meb.gov.tr/www/2023-2024-egitim-ogretim-yili-1-donem-1-yazili-sinav-konu-soru-dagilim-tablolari/icerik/1138';
+}
