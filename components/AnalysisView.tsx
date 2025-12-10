@@ -11,7 +11,7 @@ import {
   ClipboardList, Globe, Calculator, BarChart2, UserCheck, PieChart as PieChartIcon,
   Activity, Brain, Signal, ChevronDown, FileCheck, GraduationCap, Building, Sparkles
 } from 'lucide-react';
-import { exportToWord } from '../services/exportService';
+// import { exportToWord } from '../services/exportService';
 import {
   exportToPDFAdvanced,
   exportBilingualReports,
@@ -762,24 +762,6 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
                   </div>
                 </div>
               )}
-            </div>
-
-            <div className="w-px h-8 bg-slate-200"></div>
-
-            {/* Word Export */}
-            <button
-              onClick={() => exportToWord(analysis, metadata, questions, students)}
-              className="flex items-center px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors font-medium text-sm border border-blue-200"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Word
-            </button>
-
-            {/* Individual Reports */}
-            <button
-              onClick={() => exportIndividualStudentReports(analysis, metadata, questions, students, selectedLanguage)}
-              className="flex items-center px-4 py-2 bg-orange-50 text-orange-700 hover:bg-orange-100 rounded-lg transition-colors font-medium text-sm border border-orange-200"
-            >
               <UserCheck className="w-4 h-4 mr-2" />
               Karneler
             </button>
