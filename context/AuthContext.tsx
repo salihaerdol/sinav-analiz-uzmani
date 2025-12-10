@@ -63,7 +63,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     redirectTo: 'https://sinav-analiz-uzmani.vercel.app',
                     queryParams: {
                         access_type: 'offline',
-                        prompt: 'consent',
                     },
                 },
             });
