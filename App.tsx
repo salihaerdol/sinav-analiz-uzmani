@@ -22,7 +22,7 @@ enum Step {
   ANALYSIS = 3
 }
 
-const STORAGE_KEY = 'exam_analysis_v1';
+const STORAGE_KEY = 'exam_analysis_v2'; // Updated to clear old cache
 
 const INITIAL_METADATA: ExamMetadata = {
   grade: '5',
