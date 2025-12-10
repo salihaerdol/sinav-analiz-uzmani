@@ -16,6 +16,7 @@ import {
   exportToPDFAdvanced,
   exportBilingualReports,
   exportIndividualStudentReports,
+  exportToWord,
   quickExport,
   getExportScenarios,
   ExportScenario,
@@ -763,6 +764,17 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
                 </div>
               )}
             </div>
+
+            <div className="w-px h-8 bg-slate-200"></div>
+
+            {/* Word Export */}
+            <button
+              onClick={() => exportToWord(analysis, metadata, questions, students)}
+              className="flex items-center px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors font-medium text-sm border border-blue-200"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Word
+            </button>
 
             <div className="w-px h-8 bg-slate-200"></div>
 
