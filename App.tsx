@@ -100,6 +100,15 @@ function MainApp() {
 
   // --- NEW FEATURES HANDLERS ---
 
+  // Auto-redirect to production URL
+  useEffect(() => {
+    // FORCE REDIRECT TO PRODUCTION DOMAIN
+    if (window.location.hostname.includes('vercel.app') && window.location.hostname !== 'sinav-analiz-uzmani.vercel.app') {
+      window.location.href = 'https://sinav-analiz-uzmani.vercel.app';
+      return;
+    }
+  }, []);
+
   // Update analysis count with debug logging
   useEffect(() => {
     const fetchCount = async () => {
