@@ -4,14 +4,13 @@ import { QuestionConfig, Student, ExamMetadata, AnalysisResult, SavedAnalysis } 
 import { AnalysisView } from './components/AnalysisView';
 import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X, History, TrendingUp, Key } from 'lucide-react';
 import { ScenarioVisualSelector } from './components/ScenarioVisualSelector';
-import { MEB_SCENARIOS_ADVANCED } from './services/mebScraperAdvanced';
+import { MEB_SCENARIOS } from './services/mebScraperAdvanced';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
 import { classListService, ClassList } from './services/supabase';
 import { DataImport } from './components/DataImport';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { SettingsModal } from './components/SettingsModal';
-import { saveAnalysis, getAllAnalyses, updateAnalysis, getDashboardSummary, clearAllData } from './services/historyService';
 import { analysisHistoryService } from './services/supabaseHistoryService';
 
 // Steps Enum
@@ -101,30 +100,47 @@ function MainApp() {
 
   // Update analysis count
   useEffect(() => {
-    setAnalysisCount(getAllAnalyses().length);
+    const fetchCount = async () => {
+      const analyses = await analysisHistoryService.getAllAnalyses();
+      setAnalysisCount(analyses.length);
+    };
+    fetchCount();
   }, [showProgressDashboard]);
 
-  const handleSaveAnalysis = () => {
+  const handleSaveAnalysis = async () => {
     if (questions.length === 0 || students.length === 0) {
       alert('Kaydedilecek analiz verisi bulunamadı.');
       return;
     }
 
-    if (currentAnalysisId) {
-      // Update existing
-      updateAnalysis(currentAnalysisId, {
-        metadata,
-        analysis,
-        questions,
-        students
-      });
-      alert('Analiz başarıyla GÜNCELLENDİ!');
-    } else {
-      // Create new
-      const saved = saveAnalysis(metadata, analysis, questions, students);
-      setCurrentAnalysisId(saved.id);
-      setAnalysisCount(getAllAnalyses().length);
-      alert('Yeni analiz başarıyla KAYDEDİLDİ!');
+    setIsSaving(true);
+    try {
+      if (currentAnalysisId) {
+        // Update existing
+        await analysisHistoryService.updateAnalysis(currentAnalysisId, {
+          metadata,
+          analysis,
+          questions,
+          students
+        });
+        alert('Analiz başarıyla GÜNCELLENDİ!');
+      } else {
+        // Create new
+        const saved = await analysisHistoryService.saveAnalysis(metadata, analysis, questions, students);
+        if (saved) {
+          setCurrentAnalysisId(saved.id);
+          const analyses = await analysisHistoryService.getAllAnalyses();
+          setAnalysisCount(analyses.length);
+          alert('Yeni analiz başarıyla KAYDEDİLDİ!');
+        } else {
+          alert('Analiz kaydedilirken bir hata oluştu.');
+        }
+      }
+    } catch (error) {
+      console.error('Kaydetme hatası:', error);
+      alert('İşlem sırasında bir hata oluştu.');
+    } finally {
+      setIsSaving(false);
     }
   };
 

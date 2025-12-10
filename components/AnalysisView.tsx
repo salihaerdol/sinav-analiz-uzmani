@@ -59,6 +59,8 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('tr');
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
+  const exportScenarios = getExportScenarios(selectedLanguage);
+
   // Close export menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -236,14 +238,10 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
     { name: 'Başarısız', value: analysis.outcomeStats.filter(o => o.isFailed).length, color: '#ef4444' },
   ];
 
-  const exportScenarios = getExportScenarios(selectedLanguage);
-
   return (
     <div className="space-y-8 animate-fade-in pb-24">
-
       {/* Visual Report Container */}
       <div className="space-y-8 p-4 -m-4 bg-slate-50">
-
         {/* 1. Summary Dashboard */}
         <div id="summary-dashboard" className="bg-slate-50 p-2">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
