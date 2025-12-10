@@ -15,6 +15,7 @@ export type Language = 'tr' | 'en';
 export type ExportScenario = 'full_report' | 'student_cards';
 
 // Dosya adı güvenliği
+// Dosya adı güvenliği
 function safeName(text: string): string {
     return text
         .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
@@ -24,6 +25,17 @@ function safeName(text: string): string {
         .replace(/ö/g, 'o').replace(/Ö/g, 'O')
         .replace(/ç/g, 'c').replace(/Ç/g, 'C')
         .replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+// Türkçe karakter güvenliği ve büyük harf dönüşümü
+function tr(text: string): string {
+    if (!text) return '';
+    return text;
+}
+
+function toUpperTr(text: string): string {
+    if (!text) return '';
+    return text.toLocaleUpperCase('tr-TR');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -41,47 +53,47 @@ async function createFullReport(
     let y = 0;
 
     // ═══════════════════════════════════════════════════════════════
-    // MODERN GRADIENT HEADER
+    // SAYFA 1: KAPAK VE ÖZET
     // ═══════════════════════════════════════════════════════════════
 
     // Gradient background (mavi tonları)
     doc.setFillColor(41, 128, 185);
-    doc.rect(0, 0, pageWidth, 55, 'F');
+    doc.rect(0, 0, pageWidth, 60, 'F');
 
     // Dekoratif alt dalga
     doc.setFillColor(52, 152, 219);
-    doc.rect(0, 50, pageWidth, 5, 'F');
+    doc.rect(0, 55, pageWidth, 5, 'F');
 
     // Beyaz başlık metni
     doc.setTextColor(255, 255, 255);
     doc.setFont('Roboto', 'bold');
-    doc.setFontSize(22);
-    y = 18;
+    doc.setFontSize(24);
+    y = 20;
     doc.text('SINAV SONUÇ RAPORU', pageWidth / 2, y, { align: 'center' });
 
     // Dönem bilgisi
-    doc.setFontSize(11);
+    doc.setFontSize(12);
     doc.setFont('Roboto', 'normal');
-    y += 10;
-    doc.text(`${metadata.className} - ${metadata.subject}`, pageWidth / 2, y, { align: 'center' });
+    y += 12;
+    doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)}`, pageWidth / 2, y, { align: 'center' });
 
     // Sınav türü ve tarih
-    doc.setFontSize(9);
-    y += 7;
-    const examInfo = `${metadata.examType} | ${metadata.schoolYear || '2025-2026 Eğitim Öğretim Yılı'}`;
+    doc.setFontSize(10);
+    y += 8;
+    const examInfo = `${toUpperTr(metadata.examType)} | ${metadata.schoolYear || '2025-2026 EĞİTİM ÖĞRETİM YILI'}`;
     doc.text(examInfo, pageWidth / 2, y, { align: 'center' });
 
     // Okul adı (alt kısımda, küçük font)
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     y += 10;
-    doc.text(metadata.schoolName || 'OKUL ADI', pageWidth / 2, y, { align: 'center' });
+    doc.text(toUpperTr(metadata.schoolName || 'OKUL ADI'), pageWidth / 2, y, { align: 'center' });
 
     // ═══════════════════════════════════════════════════════════════
-    // ÖZET BİLGİLER KARTI (Modern Card Design)
+    // ÖZET BİLGİLER KARTI (Zenginleştirilmiş)
     // ═══════════════════════════════════════════════════════════════
 
-    y = 65;
-    const cardHeight = 28;
+    y = 75;
+    const cardHeight = 40;
 
     // Kart arka planı
     doc.setFillColor(248, 250, 252);
@@ -95,8 +107,8 @@ async function createFullReport(
     // Başlık
     doc.setTextColor(71, 85, 105);
     doc.setFont('Roboto', 'bold');
-    doc.setFontSize(9);
-    doc.text('SINIF PERFORMANS ÖZETİ', margin + 5, y + 6);
+    doc.setFontSize(10);
+    doc.text('SINIF PERFORMANS ÖZETİ', margin + 5, y + 8);
 
     // İstatistikler
     const maxScore = Math.max(...students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0)));
@@ -108,75 +120,232 @@ async function createFullReport(
     }).length;
 
     doc.setFont('Roboto', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
 
-    const statsY = y + 14;
-    const col1X = margin + 8;
-    const col2X = margin + 55;
-    const col3X = margin + 100;
-    const col4X = margin + 145;
+    const statsY = y + 20;
+    const col1X = margin + 10;
+    const col2X = margin + 60;
+    const col3X = margin + 110;
+    const col4X = margin + 150;
 
-    // Sınıf Ortalaması (renkli)
+    // Sınıf Ortalaması (Büyük ve Renkli)
     doc.setFont('Roboto', 'bold');
     doc.setTextColor(71, 85, 105);
-    doc.text('Sınıf Ort:', col1X, statsY);
+    doc.text('Sınıf Ortalaması', col1X, statsY);
+
+    doc.setFontSize(20);
     doc.setTextColor(analysis.classAverage >= 50 ? 34 : 220, analysis.classAverage >= 50 ? 197 : 53, analysis.classAverage >= 50 ? 94 : 69);
-    doc.setFontSize(11);
-    doc.text(`%${analysis.classAverage.toFixed(1)}`, col1X, statsY + 7);
+    doc.text(`%${analysis.classAverage.toFixed(1)}`, col1X, statsY + 10);
 
-    // Öğrenci Sayısı
-    doc.setFont('Roboto', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(71, 85, 105);
-    doc.text('Öğrenci:', col2X, statsY);
-    doc.setTextColor(59, 130, 246);
-    doc.setFontSize(11);
-    doc.text(String(students.length), col2X, statsY + 7);
+    // Görsel Bar (Ortalama)
+    doc.setFillColor(226, 232, 240);
+    doc.roundedRect(col1X + 35, statsY + 2, 40, 6, 2, 2, 'F');
+    doc.setFillColor(analysis.classAverage >= 50 ? 34 : 220, analysis.classAverage >= 50 ? 197 : 53, analysis.classAverage >= 50 ? 94 : 69);
+    doc.roundedRect(col1X + 35, statsY + 2, 40 * (analysis.classAverage / 100), 6, 2, 2, 'F');
 
-    // Başarılı Sayısı
-    doc.setFont('Roboto', 'bold');
-    doc.setFontSize(8);
+    // Diğer İstatistikler
+    doc.setFontSize(9);
     doc.setTextColor(71, 85, 105);
-    doc.text('Başarılı:', col3X, statsY);
+
+    // Başarı Durumu
+    doc.text('Başarı Durumu:', col3X, statsY);
     doc.setTextColor(34, 197, 94);
-    doc.setFontSize(11);
-    doc.text(String(passCount), col3X, statsY + 7);
+    doc.text(`${passCount} Başarılı`, col3X, statsY + 6);
+    doc.setTextColor(239, 68, 68);
+    doc.text(`${students.length - passCount} Başarısız`, col3X, statsY + 12);
 
     // En Yüksek/Düşük
-    doc.setFont('Roboto', 'bold');
-    doc.setFontSize(8);
     doc.setTextColor(71, 85, 105);
-    doc.text('Max/Min:', col4X, statsY);
-    doc.setFontSize(9);
+    doc.text('Puan Aralığı:', col4X, statsY);
+    doc.setFontSize(10);
     doc.setTextColor(34, 197, 94);
-    doc.text(String(maxScore), col4X, statsY + 7);
+    doc.text(`Max: ${maxScore}`, col4X, statsY + 6);
     doc.setTextColor(239, 68, 68);
-    doc.text(` / ${minScore}`, col4X + 8, statsY + 7);
+    doc.text(`Min: ${minScore}`, col4X, statsY + 12);
 
-    y += cardHeight + 12;
+    // Sayfa 1 Alt Bilgi (Boşluk bırakmak için burada bitiriyoruz)
+    // İsteğe bağlı olarak buraya bir grafik veya ek bilgi eklenebilir.
 
     // ═══════════════════════════════════════════════════════════════
-    // SORU ANALİZİ TABLOSU (Modern Design)
+    // SAYFA 2: DETAYLI ANALİZLER
     // ═══════════════════════════════════════════════════════════════
 
+    doc.addPage();
+    y = 15;
+
+    // Sayfa 2 Başlık
     doc.setFont('Roboto', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(30, 41, 59);
+    doc.text('DETAYLI ANALİZ RAPORU', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+
+    // ---------------------------------------------------------------
+    // SATIR 1: YETKİNLİK HARİTASI (SOL) | NOT DAĞILIMI (SAĞ)
+    // ---------------------------------------------------------------
+
+    const row1Y = y;
+    const leftColWidth = (pageWidth - margin * 2) / 2 - 5;
+    const rightColX = margin + leftColWidth + 10;
+
+    // --- SOL: YETKİNLİK HARİTASI (Kazanım Tablosu - Özet) ---
     doc.setFontSize(11);
     doc.setTextColor(30, 41, 59);
-    doc.text('📊 SORU BAZLI ANALİZ', margin, y);
-    y += 2;
+    doc.text('Yetkinlik Haritası', margin, row1Y);
 
     // Alt çizgi
+    doc.setDrawColor(52, 168, 83);
+    doc.setLineWidth(0.5);
+    doc.line(margin, row1Y + 2, margin + 40, row1Y + 2);
+
+    const outcomeRows = analysis.outcomeStats.slice(0, 10).map(o => [ // İlk 10 kazanım
+        o.code,
+        `%${o.successRate.toFixed(0)}`,
+        o.isFailed ? 'Geliştirilmeli' : 'Başarılı'
+    ]);
+
+    autoTable(doc, {
+        startY: row1Y + 5,
+        head: [['Kod', 'Başarı', 'Durum']],
+        body: outcomeRows,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [52, 168, 83], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+            0: { cellWidth: 20, fontStyle: 'bold' },
+            1: { cellWidth: 15, halign: 'center' },
+            2: { cellWidth: 25, halign: 'center' }
+        },
+        didParseCell: (data) => {
+            if (data.section === 'body' && data.column.index === 2) {
+                if (data.cell.raw === 'Geliştirilmeli') {
+                    data.cell.styles.textColor = [220, 53, 69];
+                } else {
+                    data.cell.styles.textColor = [21, 128, 61];
+                }
+            }
+        },
+        margin: { left: margin },
+        tableWidth: leftColWidth
+    });
+
+    // --- SAĞ: NOT DAĞILIMI (Tablo/Grafik) ---
+    doc.text('Not Dağılımı', rightColX, row1Y);
+    doc.setDrawColor(245, 158, 11);
+    doc.line(rightColX, row1Y + 2, rightColX + 30, row1Y + 2);
+
+    // Not dağılımını hesapla
+    const gradeDist = {
+        'Pekiyi (85-100)': 0,
+        'İyi (70-84)': 0,
+        'Orta (55-69)': 0,
+        'Geçer (45-54)': 0,
+        'Başarısız (0-44)': 0
+    };
+
+    students.forEach(s => {
+        const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
+        const maxTotal = questions.reduce((a, q) => a + q.maxScore, 0);
+        const score = (total / maxTotal) * 100;
+
+        if (score >= 85) gradeDist['Pekiyi (85-100)']++;
+        else if (score >= 70) gradeDist['İyi (70-84)']++;
+        else if (score >= 55) gradeDist['Orta (55-69)']++;
+        else if (score >= 45) gradeDist['Geçer (45-54)']++;
+        else gradeDist['Başarısız (0-44)']++;
+    });
+
+    const gradeRows = Object.entries(gradeDist).map(([label, count]) => [label, String(count)]);
+
+    autoTable(doc, {
+        startY: row1Y + 5,
+        head: [['Not Aralığı', 'Öğrenci Sayısı']],
+        body: gradeRows,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [245, 158, 11], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+            0: { cellWidth: 50 },
+            1: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }
+        },
+        margin: { left: rightColX },
+        tableWidth: leftColWidth // Sağ taraf da aynı genişlikte
+    });
+
+    // En alt Y pozisyonunu bul
+    y = Math.max((doc as any).lastAutoTable.finalY, row1Y + 5 + (outcomeRows.length * 8)) + 15;
+
+    // ---------------------------------------------------------------
+    // SATIR 2: PUAN DAĞILIMI (Sayfa Genişliğinde)
+    // ---------------------------------------------------------------
+
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Puan Dağılımı', margin, y);
     doc.setDrawColor(99, 102, 241);
-    doc.setLineWidth(0.8);
-    doc.line(margin, y, margin + 50, y);
+    doc.line(margin, y + 2, margin + 40, y + 2);
+    y += 8;
+
+    // Basit bir bar grafik çizimi (Puan aralıkları: 0-10, 10-20, ..., 90-100)
+    const scoreRanges = Array(10).fill(0);
+    students.forEach(s => {
+        const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
+        const maxTotal = questions.reduce((a, q) => a + q.maxScore, 0);
+        const score = (total / maxTotal) * 100;
+        const index = Math.min(Math.floor(score / 10), 9);
+        scoreRanges[index]++;
+    });
+
+    const maxCount = Math.max(...scoreRanges);
+    const chartHeight = 30;
+    const barWidth = (pageWidth - margin * 2) / 10 - 2;
+
+    // Grafik alanı
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, y, pageWidth - margin * 2, chartHeight + 10, 2, 2, 'F');
+
+    scoreRanges.forEach((count, i) => {
+        if (count > 0) {
+            const barHeight = (count / maxCount) * chartHeight;
+            const x = margin + 5 + (i * (barWidth + 2));
+            const barY = y + chartHeight - barHeight + 5;
+
+            // Bar
+            doc.setFillColor(99, 102, 241);
+            doc.rect(x, barY, barWidth, barHeight, 'F');
+
+            // Sayı
+            doc.setFontSize(8);
+            doc.setTextColor(71, 85, 105);
+            doc.text(String(count), x + barWidth / 2, barY - 2, { align: 'center' });
+        }
+
+        // Etiket (X ekseni)
+        const label = `${i * 10}-${(i + 1) * 10}`;
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text(label, margin + 5 + (i * (barWidth + 2)) + barWidth / 2, y + chartHeight + 9, { align: 'center' });
+    });
+
+    y += chartHeight + 20;
+
+    // ---------------------------------------------------------------
+    // SATIR 3: SORU BAZLI ANALİZ (Sayfa Genişliğinde)
+    // ---------------------------------------------------------------
+
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Soru Bazlı Analiz', margin, y);
+    doc.setDrawColor(236, 72, 153);
+    doc.line(margin, y + 2, margin + 40, y + 2);
     y += 5;
 
     const questionRows = analysis.questionStats.map(q => {
         const qConfig = questions.find(x => x.id === q.questionId);
         return [
             String(q.questionId),
-            q.outcome.description.length > 65 ? q.outcome.description.substring(0, 65) + '...' : q.outcome.description,
+            q.outcome.description.length > 80 ? q.outcome.description.substring(0, 80) + '...' : q.outcome.description,
             String(qConfig?.maxScore || 0),
             q.averageScore.toFixed(1),
             `%${q.successRate.toFixed(0)}`
@@ -192,128 +361,51 @@ async function createFullReport(
             font: 'Roboto',
             fontSize: 8,
             cellPadding: 3,
-            overflow: 'linebreak',
             lineColor: [226, 232, 240],
             lineWidth: 0.1
         },
         headStyles: {
-            fillColor: [99, 102, 241],
+            fillColor: [236, 72, 153],
             textColor: 255,
             fontStyle: 'bold',
-            fontSize: 9,
             halign: 'center'
         },
-        alternateRowStyles: {
-            fillColor: [248, 250, 252]
-        },
         columnStyles: {
-            0: { cellWidth: 13, halign: 'center', fontStyle: 'bold', textColor: [71, 85, 105] },
-            1: { cellWidth: 108 },
-            2: { cellWidth: 13, halign: 'center' },
-            3: { cellWidth: 16, halign: 'center', fontStyle: 'bold' },
-            4: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }
+            0: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
+            1: { cellWidth: 110 },
+            2: { cellWidth: 15, halign: 'center' },
+            3: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
+            4: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }
         },
         didParseCell: (data) => {
             if (data.section === 'body' && data.column.index === 4) {
                 const value = parseFloat(data.cell.raw.toString().replace('%', ''));
-                if (value < 50) {
-                    data.cell.styles.textColor = [220, 53, 69];
-                } else if (value < 75) {
-                    data.cell.styles.textColor = [245, 158, 11];
-                } else {
-                    data.cell.styles.textColor = [34, 197, 94];
-                }
+                if (value < 50) data.cell.styles.textColor = [220, 53, 69];
+                else if (value < 75) data.cell.styles.textColor = [245, 158, 11];
+                else data.cell.styles.textColor = [34, 197, 94];
             }
         },
         margin: { left: margin, right: margin }
     });
 
-    y = (doc as any).lastAutoTable.finalY + 12;
+    // Öğrenci Listesi
+    await createStudentListPage(doc, analysis, metadata, questions, students);
+}
 
-    if (y > 200) { doc.addPage(); y = 20; }
-
-    // ═══════════════════════════════════════════════════════════════
-    // KAZANIM DURUMU TABLOSU (Enhanced)
-    // ═══════════════════════════════════════════════════════════════
-
-    doc.setFont('Roboto', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(30, 41, 59);
-    doc.text('🎯 KAZANIM BAŞARI DURUMU', margin, y);
-    y += 2;
-
-    // Alt çizgi
-    doc.setDrawColor(52, 168, 83);
-    doc.setLineWidth(0.8);
-    doc.line(margin, y, margin + 60, y);
-    y += 5;
-
-    const outcomeRows = analysis.outcomeStats.map(o => [
-        o.code,
-        o.description.length > 60 ? o.description.substring(0, 60) + '...' : o.description,
-        `%${o.successRate.toFixed(1)}`,
-        o.isFailed ? 'GELİŞTİRİLMELİ' : 'BAŞARILI'
-    ]);
-
-    autoTable(doc, {
-        startY: y,
-        head: [['Kod', 'Açıklama', 'Başarı', 'Durum']],
-        body: outcomeRows,
-        theme: 'striped',
-        styles: {
-            font: 'Roboto',
-            fontSize: 8,
-            cellPadding: 3,
-            overflow: 'linebreak',
-            lineColor: [226, 232, 240],
-            lineWidth: 0.1
-        },
-        headStyles: {
-            fillColor: [52, 168, 83],
-            textColor: 255,
-            fontStyle: 'bold',
-            fontSize: 9,
-            halign: 'center'
-        },
-        alternateRowStyles: {
-            fillColor: [248, 250, 252]
-        },
-        columnStyles: {
-            0: { cellWidth: 28, fontStyle: 'bold', textColor: [71, 85, 105] },
-            1: { cellWidth: 105 },
-            2: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
-            3: { cellWidth: 28, halign: 'center', fontStyle: 'bold' }
-        },
-        didParseCell: (data) => {
-            if (data.section === 'body' && data.column.index === 3) {
-                if (data.cell.raw === 'GELİŞTİRİLMELİ') {
-                    data.cell.styles.textColor = [220, 53, 69];
-                    data.cell.styles.fillColor = [254, 226, 226];
-                } else {
-                    data.cell.styles.textColor = [21, 128, 61];
-                    data.cell.styles.fillColor = [220, 252, 231];
-                }
-            }
-            if (data.section === 'body' && data.column.index === 2) {
-                const value = parseFloat(data.cell.raw.toString().replace('%', ''));
-                if (value < 50) {
-                    data.cell.styles.textColor = [220, 53, 69];
-                } else if (value < 75) {
-                    data.cell.styles.textColor = [245, 158, 11];
-                } else {
-                    data.cell.styles.textColor = [34, 197, 94];
-                }
-            }
-        },
-        margin: { left: margin, right: margin }
-    });
-
-    // ═══════════════════════════════════════════════════════════════
-    // ÖĞRENCİ LİSTESİ - YENİ SAYFA
-    // ═══════════════════════════════════════════════════════════════
-
+// ═══════════════════════════════════════════════════════════════
+// ÖĞRENCİ LİSTESİ - YENİ SAYFA
+// ═══════════════════════════════════════════════════════════════
+async function createStudentListPage(
+    doc: jsPDF,
+    analysis: AnalysisResult,
+    metadata: ExamMetadata,
+    questions: QuestionConfig[],
+    students: Student[]
+) {
+    const pageWidth = 210;
+    const margin = 15;
     doc.addPage();
-    y = 0;
+    let y = 0;
 
     // Sayfa 2 Header (daha küçük)
     doc.setFillColor(99, 102, 241);
@@ -326,7 +418,7 @@ async function createFullReport(
 
     doc.setFontSize(9);
     doc.setFont('Roboto', 'normal');
-    doc.text(`${metadata.className} - ${metadata.subject}`, pageWidth / 2, 25, { align: 'center' });
+    doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)}`, pageWidth / 2, 25, { align: 'center' });
 
     y = 45;
 
@@ -443,10 +535,10 @@ async function createStudentCards(
 
         doc.setFontSize(9);
         doc.setFont('Roboto', 'normal');
-        doc.text(metadata.schoolName || 'OKUL ADI', pageWidth / 2, 25, { align: 'center' });
+        doc.text(toUpperTr(metadata.schoolName || 'OKUL ADI'), pageWidth / 2, 25, { align: 'center' });
 
         doc.setFontSize(8);
-        doc.text(`${metadata.className} | ${metadata.subject} | ${metadata.examType}`, pageWidth / 2, 33, { align: 'center' });
+        doc.text(`${toUpperTr(metadata.className)} | ${toUpperTr(metadata.subject)} | ${toUpperTr(metadata.examType)}`, pageWidth / 2, 33, { align: 'center' });
 
         y = 55;
 
