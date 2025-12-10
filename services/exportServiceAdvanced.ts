@@ -53,40 +53,26 @@ async function createFullReport(
     let y = 0;
 
     // ═══════════════════════════════════════════════════════════════
-    // SAYFA 1: KAPAK VE ÖZET
+    // SAYFA 1: ÖZET VE LİSTE
     // ═══════════════════════════════════════════════════════════════
 
-    // Gradient background (mavi tonları)
-    doc.setFillColor(41, 128, 185);
-    doc.rect(0, 0, pageWidth, 60, 'F');
-
-    // Dekoratif alt dalga
-    doc.setFillColor(52, 152, 219);
-    doc.rect(0, 55, pageWidth, 5, 'F');
-
-    // Beyaz başlık metni
-    doc.setTextColor(255, 255, 255);
+    // Basit Header
     doc.setFont('Roboto', 'bold');
-    doc.setFontSize(24);
-    y = 20;
-    doc.text('SINAV SONUÇ RAPORU', pageWidth / 2, y, { align: 'center' });
+    doc.setFontSize(18);
+    doc.setTextColor(30, 41, 59);
+    doc.text('SINAV SONUÇ ANALİZ RAPORU', pageWidth / 2, 15, { align: 'center' });
 
-    // Dönem bilgisi
-    doc.setFontSize(12);
-    doc.setFont('Roboto', 'normal');
-    y += 12;
-    doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)}`, pageWidth / 2, y, { align: 'center' });
-
-    // Sınav türü ve tarih
     doc.setFontSize(10);
-    y += 8;
-    const examInfo = `${toUpperTr(metadata.examType)} | ${metadata.schoolYear || '2025-2026 EĞİTİM ÖĞRETİM YILI'}`;
-    doc.text(examInfo, pageWidth / 2, y, { align: 'center' });
+    doc.setFont('Roboto', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)} | ${toUpperTr(metadata.examType)}`, pageWidth / 2, 22, { align: 'center' });
 
-    // Okul adı (alt kısımda, küçük font)
-    doc.setFontSize(9);
-    y += 10;
-    doc.text(toUpperTr(metadata.schoolName || 'OKUL ADI'), pageWidth / 2, y, { align: 'center' });
+    // Çizgi
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(margin, 28, pageWidth - margin, 28);
+
+    y = 35;
 
     // ═══════════════════════════════════════════════════════════════
     // ÖZET BİLGİLER KARTI (Zenginleştirilmiş)
@@ -389,8 +375,10 @@ async function createFullReport(
         margin: { left: margin, right: margin }
     });
 
-    // Öğrenci Listesi
-    await createStudentListPage(doc, analysis, metadata, questions, students);
+    // Öğrenci Listesi (Özetin hemen altına)
+    // Özet kartı yüksekliği + margin + biraz boşluk
+    const studentListStartY = 75 + 40 + 10;
+    await createStudentListPage(doc, analysis, metadata, questions, students, studentListStartY);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -401,27 +389,38 @@ async function createStudentListPage(
     analysis: AnalysisResult,
     metadata: ExamMetadata,
     questions: QuestionConfig[],
-    students: Student[]
+    students: Student[],
+    startY?: number
 ) {
     const pageWidth = 210;
     const margin = 15;
-    doc.addPage();
-    let y = 0;
 
-    // Sayfa 2 Header (daha küçük)
-    doc.setFillColor(99, 102, 241);
-    doc.rect(0, 0, pageWidth, 35, 'F');
+    let y = startY || 0;
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('Roboto', 'bold');
-    doc.setFontSize(16);
-    doc.text('👨‍🎓 ÖĞRENCİ SONUÇ LİSTESİ', pageWidth / 2, 15, { align: 'center' });
+    if (!startY) {
+        doc.addPage();
+        // Sayfa 2 Header (daha küçük)
+        doc.setFillColor(99, 102, 241);
+        doc.rect(0, 0, pageWidth, 35, 'F');
 
-    doc.setFontSize(9);
-    doc.setFont('Roboto', 'normal');
-    doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)}`, pageWidth / 2, 25, { align: 'center' });
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('Roboto', 'bold');
+        doc.setFontSize(16);
+        doc.text('👨‍🎓 ÖĞRENCİ SONUÇ LİSTESİ', pageWidth / 2, 15, { align: 'center' });
 
-    y = 45;
+        doc.setFontSize(9);
+        doc.setFont('Roboto', 'normal');
+        doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)}`, pageWidth / 2, 25, { align: 'center' });
+        y = 45;
+    } else {
+        // Aynı sayfada devam ediyorsa başlık
+        y += 10;
+        doc.setFont('Roboto', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(30, 41, 59);
+        doc.text('ÖĞRENCİ SONUÇ LİSTESİ', margin, y);
+        y += 5;
+    }
 
     const maxTotal = questions.reduce((a, q) => a + q.maxScore, 0);
 
