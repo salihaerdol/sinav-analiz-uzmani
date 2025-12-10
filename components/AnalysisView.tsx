@@ -756,18 +756,221 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
                       onClick={() => handlePdfExport('both')}
                       className="w-full flex items-center justify-center gap-2 p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors text-sm font-medium"
                     >
-                      <Globe className="w-4 h-4" />
-                      {selectedLanguage === 'tr' ? 'İki Dilde İndir (TR + EN)' : 'Download Both (TR + EN)'}
-                    </button>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {analysis.questionStats.map((q) => (
+                      <tr key={q.questionId} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 text-center font-bold text-slate-700">{q.questionId}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-indigo-600 text-xs mb-0.5">{q.outcome.code}</span>
+                            <span>{q.outcome.description}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center text-slate-500">{questions.find(qu => qu.id === q.questionId)?.maxScore}</td>
+                        <td className="px-6 py-4 text-center font-medium">{q.averageScore.toFixed(1)}</td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex items-center justify-center">
+                            <div className={`w-12 py-1 rounded text-xs font-bold ${q.successRate < 50 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                              %{q.successRate.toFixed(0)}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+          </div>
+          </div>
+
+          {/* Outcome Stats */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 bg-slate-50">
+              <h3 className="text-lg font-bold text-slate-800">2. Kazanım Başarı Durumu</h3>
+              <p className="text-xs text-slate-500 mt-1">Kazanımların genel başarı durumları ve başarısız ({"<"}%50) kazanımlar.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-600">
+                <thead className="bg-white text-slate-800 font-semibold border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-4">Kazanım Kodu</th>
+                    <th className="px-6 py-4">Kazanım Açıklaması</th>
+                    <th className="px-6 py-4 text-center">Başarı Oranı</th>
+                    <th className="px-6 py-4 text-center">Durum</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {analysis.outcomeStats.map((o) => (
+                    <tr key={o.code} className={`hover:bg-slate-50 transition-colors ${o.isFailed ? 'bg-red-50/30' : ''}`}>
+                      <td className="px-6 py-4 font-bold text-slate-700">{o.code}</td>
+                      <td className="px-6 py-4">{o.description}</td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="w-full bg-slate-200 rounded-full h-2.5 max-w-[100px] mx-auto overflow-hidden">
+                          <div className={`h-2.5 rounded-full ${o.successRate < 50 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${o.successRate}%` }}></div>
+                        </div>
+                        <span className="text-xs font-medium text-slate-500 mt-1 block">%{o.successRate.toFixed(1)}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {o.isFailed ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                            <AlertTriangle className="w-3 h-3 mr-1" /> GELİŞTİRİLMELİ
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">
+                            <CheckCircle className="w-3 h-3 mr-1" /> BAŞARILI
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* AI Analysis */}
+          <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-xl border border-indigo-100 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-100 rounded-bl-full opacity-50 -mr-10 -mt-10"></div>
+
+            <div className="flex items-center justify-between mb-6 relative z-10">
+              <div>
+                <h3 className="text-xl font-bold text-indigo-900 flex items-center">
+                  <Bot className="w-6 h-6 mr-2 text-indigo-600" />
+                  Yapay Zeka Analiz Asistanı
+                </h3>
+                <p className="text-sm text-indigo-700 mt-1">Sınav sonuçlarını pedagojik açıdan değerlendirin ve öneriler alın.</p>
+              </div>
+              <button
+                onClick={handleAiAnalysis}
+                disabled={loadingAi}
+                className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-70 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-indigo-500/30 flex items-center"
+              >
+                {loadingAi ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Analiz Yapılıyor...
+                  </>
+                ) : 'Yorum Oluştur'}
+              </button>
+            </div>
+
+            {aiReport && (
+              <div className="prose prose-sm prose-indigo bg-white/80 p-6 rounded-lg border border-indigo-50 text-slate-700 whitespace-pre-wrap relative z-10 shadow-sm">
+                {aiReport}
+              </div>
+            )}
+            {!aiReport && !loadingAi && (
+              <div className="bg-white/50 border border-dashed border-indigo-200 rounded-lg p-6 text-center">
+                <p className="text-indigo-400 text-sm">Yapay zeka analizi için "Yorum Oluştur" butonuna tıklayın.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer Actions - Enhanced Export Panel */}
+          <div className="sticky bottom-4 z-20 flex justify-end gap-3">
+            <div className="bg-white p-3 rounded-xl shadow-lg border border-slate-200 flex gap-3 items-center">
+
+              {/* Language Toggle */}
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                <button
+                  onClick={() => setSelectedLanguage('tr')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${selectedLanguage === 'tr'
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                >
+                  🇹🇷 TR
+                </button>
+                <button
+                  onClick={() => setSelectedLanguage('en')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${selectedLanguage === 'en'
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                >
+                  🇬🇧 EN
+                </button>
+              </div>
+
+              <div className="w-px h-8 bg-slate-200"></div>
+
+              {/* Quick Export Dropdown */}
+              <div className="relative" ref={exportMenuRef}>
+                <button
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  disabled={exportingPdf}
+                  className="flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800 rounded-lg transition-all font-medium text-sm shadow-md hover:shadow-indigo-500/30 disabled:opacity-50"
+                >
+                  {exportingPdf ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Hazırlanıyor...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Hızlı PDF İndir
+                      <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+                    </>
+                  )}
+                </button>
+
+                {/* Dropdown Menu */}
+                {showExportMenu && (
+                  <div className="absolute bottom-full mb-2 right-0 w-80 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in">
+                    <div className="p-3 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-slate-100">
+                      <p className="text-xs font-semibold text-indigo-800">🚀 {selectedLanguage === 'tr' ? 'Senaryo Seçin' : 'Select Scenario'}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{selectedLanguage === 'tr' ? 'İhtiyacınıza uygun rapor formatı' : 'Report format for your needs'}</p>
+                    </div>
+                    <div className="p-2 max-h-80 overflow-y-auto">
+                      {exportScenarios.map((scenario) => (
+                        <button
+                          key={scenario.id}
+                          onClick={() => handleQuickExport(scenario.id)}
+                          className="w-full flex items-start gap-3 p-3 hover:bg-indigo-50 rounded-lg transition-colors text-left group"
+                        >
+                          <div className="p-2 bg-slate-100 rounded-lg text-indigo-600 group-hover:bg-indigo-100 transition-colors">
+                            {scenarioIcons[scenario.id]}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-slate-800 text-sm">{scenario.icon} {scenario.name}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{scenario.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="p-2 border-t border-slate-100 bg-slate-50">
+                      <button
+                        onClick={() => handlePdfExport('both')}
+                        className="w-full flex items-center justify-center gap-2 p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors text-sm font-medium"
+                      >
+                        <Globe className="w-4 h-4" />
+                        {selectedLanguage === 'tr' ? 'İki Dilde İndir (TR + EN)' : 'Download Both (TR + EN)'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-              <UserCheck className="w-4 h-4 mr-2" />
-              Karneler
-            </button>
+            </div>
+
+              <div className="w-px h-8 bg-slate-200"></div>
+
+              {/* Individual Reports */}
+              <button
+                onClick={() => exportIndividualStudentReports(analysis, metadata, questions, students, selectedLanguage)}
+                className="flex items-center px-4 py-2 bg-orange-50 text-orange-700 hover:bg-orange-100 rounded-lg transition-colors font-medium text-sm border border-orange-200"
+              >
+                <UserCheck className="w-4 h-4 mr-2" />
+                Karneler
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+      );
 };
