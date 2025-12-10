@@ -8,6 +8,7 @@ import { MEB_SCENARIOS } from './services/mebScraperAdvanced';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
 import { classListService, ClassList } from './services/supabase';
+import { supabase } from './services/supabase';
 import { DataImport } from './components/DataImport';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { SettingsModal } from './components/SettingsModal';
@@ -61,6 +62,7 @@ function MainApp() {
   const [analysisCount, setAnalysisCount] = useState(0);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   // --- PERSISTENCE LOGIC ---
 
@@ -98,11 +100,23 @@ function MainApp() {
 
   // --- NEW FEATURES HANDLERS ---
 
-  // Update analysis count
+  // Update analysis count with debug logging
   useEffect(() => {
     const fetchCount = async () => {
-      const analyses = await analysisHistoryService.getAllAnalyses();
-      setAnalysisCount(analyses.length);
+      try {
+        console.log('🔍 Fetching analyses...');
+        const analyses = await analysisHistoryService.getAllAnalyses();
+        console.log(`✅ Found ${analyses.length} analyses:`, analyses);
+        setAnalysisCount(analyses.length);
+
+        if (analyses.length === 0) {
+          console.warn('⚠️ No analyses found for this user!');
+          const { data: { user } } = await supabase.auth.getUser();
+          console.log('👤 Current user:', user?.email, user?.id);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching analyses:', error);
+      }
     };
     fetchCount();
   }, [showProgressDashboard]);
