@@ -102,9 +102,11 @@ function MainApp() {
 
   // Auto-redirect to production URL
   useEffect(() => {
-    // FORCE REDIRECT TO PRODUCTION DOMAIN
+    // FORCE REDIRECT TO PRODUCTION DOMAIN (Preserving path, query, and hash)
     if (window.location.hostname.includes('vercel.app') && window.location.hostname !== 'sinav-analiz-uzmani.vercel.app') {
-      window.location.href = 'https://sinav-analiz-uzmani.vercel.app';
+      const targetUrl = new URL(window.location.href);
+      targetUrl.hostname = 'sinav-analiz-uzmani.vercel.app';
+      window.location.href = targetUrl.toString();
       return;
     }
   }, []);
