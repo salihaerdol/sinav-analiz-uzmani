@@ -17,6 +17,7 @@ import {
   exportBilingualReports,
   exportIndividualStudentReports,
   exportToWord,
+  exportToOfficialForm,
   quickExport,
   getExportScenarios,
   ExportScenario,
@@ -764,6 +765,17 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
                 </div>
               )}
             </div>
+
+            <div className="w-px h-8 bg-slate-200"></div>
+
+            {/* Resmi Form Export */}
+            <button
+              onClick={() => exportToOfficialForm(analysis, metadata, questions, students)}
+              className="flex items-center px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors font-medium text-sm border border-emerald-200"
+            >
+              <FileCheck className="w-4 h-4 mr-2" />
+              Resmi Form
+            </button>
 
             <div className="w-px h-8 bg-slate-200"></div>
 

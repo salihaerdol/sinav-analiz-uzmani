@@ -790,6 +790,137 @@ export async function exportToWord(
 // ANA EXPORT FONKSİYONLARI
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// RESMİ FORM (MEB STANDARDI)
+// ═══════════════════════════════════════════════════════════════
+export async function exportToOfficialForm(
+    analysis: AnalysisResult,
+    metadata: ExamMetadata,
+    questions: QuestionConfig[],
+    students: Student[]
+) {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    await addTurkishFontsToPDF(doc);
+
+    const pageWidth = 210;
+    const margin = 10;
+    let y = 10;
+
+    // Header
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(10);
+    doc.text('T.C.', pageWidth / 2, y, { align: 'center' });
+    y += 5;
+    doc.text('KAHRAMANMARAŞ VALİLİĞİ', pageWidth / 2, y, { align: 'center' });
+    y += 5;
+    doc.text('Onikişubat / Kalekaya Ortaokulu Müdürlüğü', pageWidth / 2, y, { align: 'center' });
+    y += 5;
+    doc.setFontSize(11);
+    doc.text('SINAV ANALİZİ VE SINIF DEĞERLENDİRMESİ', pageWidth / 2, y, { align: 'center' });
+    y += 8;
+
+    // Metadata Grid
+    doc.setFontSize(8);
+    doc.setFont('Roboto', 'normal');
+
+    const col1 = margin;
+    const col2 = margin + 45;
+    const col3 = margin + 90;
+    const col4 = margin + 135;
+
+    doc.text(`Okul: ${metadata.schoolName || 'KALEKAYA ORTAOKULU'}`, col1, y);
+    doc.text(`Sınıf: ${metadata.className}`, col3, y);
+    y += 4;
+    doc.text(`Öğretim Yılı: ${metadata.academicYear || '2025-2026'}`, col1, y);
+    doc.text(`Sınav Dönemi: ${metadata.term}. Dönem`, col3, y);
+    y += 4;
+    doc.text(`Ders: ${metadata.subject}`, col1, y);
+    doc.text(`Sınav Numarası: ${metadata.examNumber}. Yazılı`, col3, y);
+    y += 4;
+    doc.text(`Öğretmen: ${metadata.teacherName}`, col1, y);
+    doc.text(`Sınav Tarihi: ${metadata.date}`, col3, y);
+    y += 6;
+
+    // Student Scores Table (Grid 1-20 questions)
+    const maxQuestions = 20;
+    const head = [['SIRA', 'OKU', 'ADI', 'SOYADI', ...Array.from({ length: maxQuestions }, (_, i) => (i + 1).toString()), 'PUAN', 'SONUÇ']];
+
+    const body = students.map((s, i) => {
+        const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
+        let result = 'Geçmez';
+        if (total >= 85) result = 'Pekiyi';
+        else if (total >= 70) result = 'İyi';
+        else if (total >= 60) result = 'Orta';
+        else if (total >= 50) result = 'Geçer';
+
+        const row = [
+            (i + 1).toString(),
+            s.student_number || '',
+            s.name.split(' ')[0] || '',
+            s.name.split(' ').slice(1).join(' ') || '',
+            ...questions.map(q => s.scores[q.id]?.toString() || ''),
+            ...Array(maxQuestions - questions.length).fill(''),
+            total.toString(),
+            result
+        ];
+        return row;
+    });
+
+    autoTable(doc, {
+        startY: y,
+        head: head,
+        body: body,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 6, cellPadding: 1, halign: 'center' },
+        headStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold', lineWidth: 0.1 },
+        columnStyles: {
+            2: { halign: 'left', cellWidth: 20 },
+            3: { halign: 'left', cellWidth: 20 },
+        },
+        margin: { left: margin, right: margin }
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 5;
+
+    // Success Rates Table
+    const successHead = [['Konular', 'Puan']];
+    const successBody = analysis.outcomeStats.map(o => [o.description, `%${o.successRate.toFixed(0)}`]);
+
+    autoTable(doc, {
+        startY: y,
+        head: successHead,
+        body: successBody,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 7, cellPadding: 1 },
+        headStyles: { fillColor: [240, 240, 240], textColor: 0 },
+        margin: { left: margin, right: pageWidth / 2 + 5 }
+    });
+
+    // Evaluation Section
+    const evalY = y;
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(9);
+    doc.text('SINAV DEĞERLENDİRMESİ', pageWidth / 2 + 10, evalY);
+
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(8);
+    const evalText = `Sınıf genelinde %${analysis.classAverage.toFixed(1)} başarıya ulaşılmıştır. Sınav, Ölçme Değerlendirme kriterleri bakımından başarılı kabul edilmektedir. Başarı oranı düşük kazanımlar için ek çalışmalar planlanmıştır.`;
+    doc.text(evalText, pageWidth / 2 + 10, evalY + 5, { maxWidth: 80 });
+
+    y = Math.max((doc as any).lastAutoTable.finalY + 10, evalY + 30);
+
+    // Signatures
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(9);
+    doc.text(metadata.teacherName || 'Öğretmen', margin + 30, y, { align: 'center' });
+    doc.text('SÜLEYMAN ALİ DALKIRAN', pageWidth - margin - 30, y, { align: 'center' });
+    y += 4;
+    doc.text('Ders Öğretmeni', margin + 30, y, { align: 'center' });
+    doc.text('Okul Müdürü', pageWidth - margin - 30, y, { align: 'center' });
+
+    doc.save(`${safeName(metadata.className)}_Resmi_Analiz.pdf`);
+}
+
 export async function exportToPDFAdvanced(
     analysis: AnalysisResult,
     metadata: ExamMetadata,
