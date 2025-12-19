@@ -21,10 +21,10 @@ if (!isSupabaseConfigured) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    flowType: 'pkce',
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    flowType: 'pkce' // PKCE is preferred, but we'll ensure the redirect handles it
   }
 });
 
@@ -201,447 +201,427 @@ export const userProfileService = {
     }
     return data;
   },
+  // =====================================================
 
-  async updateProfile(updates: Partial<UserProfile>): Promise<boolean> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
+  export const studentListService = {
+    async getAll(): Promise<StudentList[]> {
+      const { data, error } = await supabase
+        .from('student_lists')
+        .select('*')
+        .eq('is_archived', false)
+        .order('created_at', { ascending: false });
 
-    const { error } = await supabase
-      .from('user_profiles')
-      .update(updates)
-      .eq('id', user.id);
+      if (error) {
+        console.error('Error fetching student lists:', error);
+        return [];
+      }
+      return data || [];
+    },
 
-    if (error) {
-      console.error('Error updating profile:', error);
-      return false;
+    async getByGrade(grade: string): Promise<StudentList[]> {
+      const { data, error } = await supabase
+        .from('student_lists')
+        .select('*')
+        .eq('grade', grade)
+        .eq('is_archived', false)
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching student lists by grade:', error);
+        return [];
+      }
+      return data || [];
+    },
+
+    async create(list: StudentList): Promise<StudentList | null> {
+      const { data, error } = await supabase
+        .from('student_lists')
+        .insert(list)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating student list:', error);
+        return null;
+      }
+      return data;
+    },
+
+    async update(id: string, updates: Partial<StudentList>): Promise<boolean> {
+      const { error } = await supabase
+        .from('student_lists')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating student list:', error);
+        return false;
+      }
+      return true;
+    },
+
+    async delete(id: string): Promise<boolean> {
+      const { error } = await supabase
+        .from('student_lists')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting student list:', error);
+        return false;
+      }
+      return true;
+    },
+
+    async archive(id: string): Promise<boolean> {
+      return this.update(id, { is_archived: true });
     }
-    return true;
-  }
-};
+  };
 
-// =====================================================
-// STUDENT LIST SERVICES
-// =====================================================
+  // =====================================================
+  // STUDENT SERVICES
+  // =====================================================
 
-export const studentListService = {
-  async getAll(): Promise<StudentList[]> {
-    const { data, error } = await supabase
-      .from('student_lists')
-      .select('*')
-      .eq('is_archived', false)
-      .order('created_at', { ascending: false });
+  export const studentService = {
+    async getByList(listId: string): Promise<Student[]> {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('student_list_id', listId)
+        .eq('is_active', true)
+        .order('full_name');
 
-    if (error) {
-      console.error('Error fetching student lists:', error);
-      return [];
+      if (error) {
+        console.error('Error fetching students:', error);
+        return [];
+      }
+      return data || [];
+    },
+
+    async create(student: Student): Promise<Student | null> {
+      const { data, error } = await supabase
+        .from('students')
+        .insert(student)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating student:', error);
+        return null;
+      }
+      return data;
+    },
+
+    async bulkCreate(students: Student[]): Promise<Student[]> {
+      const { data, error } = await supabase
+        .from('students')
+        .insert(students)
+        .select();
+
+      if (error) {
+        console.error('Error bulk creating students:', error);
+        return [];
+      }
+      return data || [];
+    },
+
+    async update(id: string, updates: Partial<Student>): Promise<boolean> {
+      const { error } = await supabase
+        .from('students')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating student:', error);
+        return false;
+      }
+      return true;
+    },
+
+    async delete(id: string): Promise<boolean> {
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting student:', error);
+        return false;
+      }
+      return true;
     }
-    return data || [];
-  },
+  };
 
-  async getByGrade(grade: string): Promise<StudentList[]> {
-    const { data, error } = await supabase
-      .from('student_lists')
-      .select('*')
-      .eq('grade', grade)
-      .eq('is_archived', false)
-      .order('name');
+  // =====================================================
+  // EXAM SERVICES
+  // =====================================================
 
-    if (error) {
-      console.error('Error fetching student lists by grade:', error);
-      return [];
+  export const examService = {
+    async getAll(status?: string): Promise<Exam[]> {
+      let query = supabase
+        .from('exams')
+        .select('*, student_lists(name, grade)')
+        .order('exam_date', { ascending: false });
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching exams:', error);
+        return [];
+      }
+      return data || [];
+    },
+
+    async getById(id: string): Promise<Exam | null> {
+      const { data, error } = await supabase
+        .from('exams')
+        .select('*, student_lists(*)')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching exam:', error);
+        return null;
+      }
+      return data;
+    },
+
+    async create(exam: Exam): Promise<Exam | null> {
+      const { data, error } = await supabase
+        .from('exams')
+        .insert(exam)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating exam:', error);
+        return null;
+      }
+      return data;
+    },
+
+    async update(id: string, updates: Partial<Exam>): Promise<boolean> {
+      const { error } = await supabase
+        .from('exams')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating exam:', error);
+        return false;
+      }
+      return true;
+    },
+
+    async delete(id: string): Promise<boolean> {
+      const { error } = await supabase
+        .from('exams')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting exam:', error);
+        return false;
+      }
+      return true;
     }
-    return data || [];
-  },
+  };
 
-  async create(list: StudentList): Promise<StudentList | null> {
-    const { data, error } = await supabase
-      .from('student_lists')
-      .insert(list)
-      .select()
-      .single();
+  // =====================================================
+  // EXAM QUESTION SERVICES
+  // =====================================================
 
-    if (error) {
-      console.error('Error creating student list:', error);
-      return null;
+  export const examQuestionService = {
+    async getByExam(examId: string): Promise<ExamQuestion[]> {
+      const { data, error } = await supabase
+        .from('exam_questions')
+        .select('*')
+        .eq('exam_id', examId)
+        .order('question_number');
+
+      if (error) {
+        console.error('Error fetching exam questions:', error);
+        return [];
+      }
+      return data || [];
+    },
+
+    async bulkCreate(questions: ExamQuestion[]): Promise<ExamQuestion[]> {
+      const { data, error } = await supabase
+        .from('exam_questions')
+        .insert(questions)
+        .select();
+
+      if (error) {
+        console.error('Error bulk creating questions:', error);
+        return [];
+      }
+      return data || [];
+    },
+
+    async update(id: string, updates: Partial<ExamQuestion>): Promise<boolean> {
+      const { error } = await supabase
+        .from('exam_questions')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating question:', error);
+        return false;
+      }
+      return true;
     }
-    return data;
-  },
+  };
 
-  async update(id: string, updates: Partial<StudentList>): Promise<boolean> {
-    const { error } = await supabase
-      .from('student_lists')
-      .update(updates)
-      .eq('id', id);
+  // =====================================================
+  // EXAM SCORE SERVICES
+  // =====================================================
 
-    if (error) {
-      console.error('Error updating student list:', error);
-      return false;
+  export const examScoreService = {
+    async getByExam(examId: string): Promise<ExamScore[]> {
+      const { data, error } = await supabase
+        .from('exam_scores')
+        .select('*, students(full_name), exam_questions(question_number, max_score)')
+        .eq('exam_id', examId);
+
+      if (error) {
+        console.error('Error fetching exam scores:', error);
+        return [];
+      }
+      return data || [];
+    },
+
+    async bulkUpsert(scores: ExamScore[]): Promise<boolean> {
+      const { error } = await supabase
+        .from('exam_scores')
+        .upsert(scores, { onConflict: 'exam_id,student_id,exam_question_id' });
+
+      if (error) {
+        console.error('Error upserting scores:', error);
+        return false;
+      }
+      return true;
     }
-    return true;
-  },
+  };
 
-  async delete(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('student_lists')
-      .delete()
-      .eq('id', id);
+  // =====================================================
+  // EXAM ANALYTICS SERVICES
+  // =====================================================
 
-    if (error) {
-      console.error('Error deleting student list:', error);
-      return false;
+  export const examAnalyticsService = {
+    async getByExam(examId: string): Promise<ExamAnalytics | null> {
+      const { data, error } = await supabase
+        .from('exam_analytics')
+        .select('*')
+        .eq('exam_id', examId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching analytics:', error);
+        return null;
+      }
+      return data;
+    },
+
+    async save(analytics: ExamAnalytics): Promise<boolean> {
+      const { error } = await supabase
+        .from('exam_analytics')
+        .upsert(analytics, { onConflict: 'exam_id' });
+
+      if (error) {
+        console.error('Error saving analytics:', error);
+        return false;
+      }
+      return true;
     }
-    return true;
-  },
+  };
 
-  async archive(id: string): Promise<boolean> {
-    return this.update(id, { is_archived: true });
-  }
-};
+  // =====================================================
+  // LEGACY SERVICES (Backward Compatibility)
+  // =====================================================
 
-// =====================================================
-// STUDENT SERVICES
-// =====================================================
+  export const classListService = {
+    async getAll(): Promise<ClassList[]> {
+      const { data, error } = await supabase
+        .from('class_lists')
+        .select('*')
+        .order('createdAt', { ascending: false });
 
-export const studentService = {
-  async getByList(listId: string): Promise<Student[]> {
-    const { data, error } = await supabase
-      .from('students')
-      .select('*')
-      .eq('student_list_id', listId)
-      .eq('is_active', true)
-      .order('full_name');
+      if (error) {
+        console.error('Error fetching class lists:', error);
+        return [];
+      }
+      return data || [];
+    },
 
-    if (error) {
-      console.error('Error fetching students:', error);
-      return [];
+    async create(classList: ClassList): Promise<ClassList | null> {
+      const { data, error } = await supabase
+        .from('class_lists')
+        .insert(classList)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating class list:', error);
+        return null;
+      }
+      return data;
     }
-    return data || [];
-  },
+  };
 
-  async create(student: Student): Promise<Student | null> {
-    const { data, error } = await supabase
-      .from('students')
-      .insert(student)
-      .select()
-      .single();
+  export const achievementService = {
+    async search(grade: string, subject: string, searchTerm?: string): Promise<Achievement[]> {
+      let query = supabase
+        .from('achievements')
+        .select('*')
+        .eq('grade', grade)
+        .eq('subject', subject);
 
-    if (error) {
-      console.error('Error creating student:', error);
-      return null;
+      if (searchTerm) {
+        query = query.or(`code.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+      }
+
+      const { data, error } = await query.limit(50);
+
+      if (error) {
+        console.error('Error searching achievements:', error);
+        return [];
+      }
+      return data || [];
+    },
+
+    async create(achievement: Achievement): Promise<Achievement | null> {
+      const { data, error } = await supabase
+        .from('achievements')
+        .insert(achievement)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating achievement:', error);
+        return null;
+      }
+      return data;
     }
-    return data;
-  },
+  };
 
-  async bulkCreate(students: Student[]): Promise<Student[]> {
-    const { data, error } = await supabase
-      .from('students')
-      .insert(students)
-      .select();
+  export const scenarioService = {
+    async getByGradeSubject(grade: string, subject: string): Promise<Scenario[]> {
+      const { data, error } = await supabase
+        .from('scenarios')
+        .select('*')
+        .eq('grade', grade)
+        .eq('subject', subject)
+        .order('scenarioNumber');
 
-    if (error) {
-      console.error('Error bulk creating students:', error);
-      return [];
+      if (error) {
+        console.error('Error fetching scenarios:', error);
+        return [];
+      }
+      return data || [];
     }
-    return data || [];
-  },
-
-  async update(id: string, updates: Partial<Student>): Promise<boolean> {
-    const { error } = await supabase
-      .from('students')
-      .update(updates)
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error updating student:', error);
-      return false;
-    }
-    return true;
-  },
-
-  async delete(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('students')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting student:', error);
-      return false;
-    }
-    return true;
-  }
-};
-
-// =====================================================
-// EXAM SERVICES
-// =====================================================
-
-export const examService = {
-  async getAll(status?: string): Promise<Exam[]> {
-    let query = supabase
-      .from('exams')
-      .select('*, student_lists(name, grade)')
-      .order('exam_date', { ascending: false });
-
-    if (status) {
-      query = query.eq('status', status);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching exams:', error);
-      return [];
-    }
-    return data || [];
-  },
-
-  async getById(id: string): Promise<Exam | null> {
-    const { data, error } = await supabase
-      .from('exams')
-      .select('*, student_lists(*)')
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      console.error('Error fetching exam:', error);
-      return null;
-    }
-    return data;
-  },
-
-  async create(exam: Exam): Promise<Exam | null> {
-    const { data, error } = await supabase
-      .from('exams')
-      .insert(exam)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating exam:', error);
-      return null;
-    }
-    return data;
-  },
-
-  async update(id: string, updates: Partial<Exam>): Promise<boolean> {
-    const { error } = await supabase
-      .from('exams')
-      .update(updates)
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error updating exam:', error);
-      return false;
-    }
-    return true;
-  },
-
-  async delete(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('exams')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting exam:', error);
-      return false;
-    }
-    return true;
-  }
-};
-
-// =====================================================
-// EXAM QUESTION SERVICES
-// =====================================================
-
-export const examQuestionService = {
-  async getByExam(examId: string): Promise<ExamQuestion[]> {
-    const { data, error } = await supabase
-      .from('exam_questions')
-      .select('*')
-      .eq('exam_id', examId)
-      .order('question_number');
-
-    if (error) {
-      console.error('Error fetching exam questions:', error);
-      return [];
-    }
-    return data || [];
-  },
-
-  async bulkCreate(questions: ExamQuestion[]): Promise<ExamQuestion[]> {
-    const { data, error } = await supabase
-      .from('exam_questions')
-      .insert(questions)
-      .select();
-
-    if (error) {
-      console.error('Error bulk creating questions:', error);
-      return [];
-    }
-    return data || [];
-  },
-
-  async update(id: string, updates: Partial<ExamQuestion>): Promise<boolean> {
-    const { error } = await supabase
-      .from('exam_questions')
-      .update(updates)
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error updating question:', error);
-      return false;
-    }
-    return true;
-  }
-};
-
-// =====================================================
-// EXAM SCORE SERVICES
-// =====================================================
-
-export const examScoreService = {
-  async getByExam(examId: string): Promise<ExamScore[]> {
-    const { data, error } = await supabase
-      .from('exam_scores')
-      .select('*, students(full_name), exam_questions(question_number, max_score)')
-      .eq('exam_id', examId);
-
-    if (error) {
-      console.error('Error fetching exam scores:', error);
-      return [];
-    }
-    return data || [];
-  },
-
-  async bulkUpsert(scores: ExamScore[]): Promise<boolean> {
-    const { error } = await supabase
-      .from('exam_scores')
-      .upsert(scores, { onConflict: 'exam_id,student_id,exam_question_id' });
-
-    if (error) {
-      console.error('Error upserting scores:', error);
-      return false;
-    }
-    return true;
-  }
-};
-
-// =====================================================
-// EXAM ANALYTICS SERVICES
-// =====================================================
-
-export const examAnalyticsService = {
-  async getByExam(examId: string): Promise<ExamAnalytics | null> {
-    const { data, error } = await supabase
-      .from('exam_analytics')
-      .select('*')
-      .eq('exam_id', examId)
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching analytics:', error);
-      return null;
-    }
-    return data;
-  },
-
-  async save(analytics: ExamAnalytics): Promise<boolean> {
-    const { error } = await supabase
-      .from('exam_analytics')
-      .upsert(analytics, { onConflict: 'exam_id' });
-
-    if (error) {
-      console.error('Error saving analytics:', error);
-      return false;
-    }
-    return true;
-  }
-};
-
-// =====================================================
-// LEGACY SERVICES (Backward Compatibility)
-// =====================================================
-
-export const classListService = {
-  async getAll(): Promise<ClassList[]> {
-    const { data, error } = await supabase
-      .from('class_lists')
-      .select('*')
-      .order('createdAt', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching class lists:', error);
-      return [];
-    }
-    return data || [];
-  },
-
-  async create(classList: ClassList): Promise<ClassList | null> {
-    const { data, error } = await supabase
-      .from('class_lists')
-      .insert(classList)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating class list:', error);
-      return null;
-    }
-    return data;
-  }
-};
-
-export const achievementService = {
-  async search(grade: string, subject: string, searchTerm?: string): Promise<Achievement[]> {
-    let query = supabase
-      .from('achievements')
-      .select('*')
-      .eq('grade', grade)
-      .eq('subject', subject);
-
-    if (searchTerm) {
-      query = query.or(`code.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
-    }
-
-    const { data, error } = await query.limit(50);
-
-    if (error) {
-      console.error('Error searching achievements:', error);
-      return [];
-    }
-    return data || [];
-  },
-
-  async create(achievement: Achievement): Promise<Achievement | null> {
-    const { data, error } = await supabase
-      .from('achievements')
-      .insert(achievement)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating achievement:', error);
-      return null;
-    }
-    return data;
-  }
-};
-
-export const scenarioService = {
-  async getByGradeSubject(grade: string, subject: string): Promise<Scenario[]> {
-    const { data, error } = await supabase
-      .from('scenarios')
-      .select('*')
-      .eq('grade', grade)
-      .eq('subject', subject)
-      .order('scenarioNumber');
-
-    if (error) {
-      console.error('Error fetching scenarios:', error);
-      return [];
-    }
-    return data || [];
-  }
-};
+  };
