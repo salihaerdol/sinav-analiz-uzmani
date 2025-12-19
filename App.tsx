@@ -2,7 +2,7 @@
 import { getScenarioData, getOutcomeDescription } from './data/curriculum';
 import { QuestionConfig, Student, ExamMetadata, AnalysisResult, SavedAnalysis } from './types';
 import { AnalysisView } from './components/AnalysisView';
-import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X, History, TrendingUp, Key } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X, History, TrendingUp, Key, Sparkles } from 'lucide-react';
 import { ScenarioVisualSelector } from './components/ScenarioVisualSelector';
 import { MEB_SCENARIOS } from './services/mebScraperAdvanced';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -13,6 +13,7 @@ import { DataImport } from './components/DataImport';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { SettingsModal } from './components/SettingsModal';
 import { analysisHistoryService } from './services/supabaseHistoryService';
+import { DEMO_DATA_6A, calculateDemoAnalysis } from './services/demoDataService';
 
 // Steps Enum
 enum Step {
@@ -817,6 +818,13 @@ function MainApp() {
     </div>
   );
 
+  const loadDemo = () => {
+    setMetadata(DEMO_DATA_6A.metadata);
+    setQuestions(DEMO_DATA_6A.questions);
+    setStudents(DEMO_DATA_6A.students);
+    setStep(Step.ANALYSIS);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-inter selection:bg-indigo-100 selection:text-indigo-700">
       {/* Navbar */}
@@ -855,6 +863,13 @@ function MainApp() {
                 title="API Ayarları"
               >
                 <Key className="w-4 h-4 mr-1" /> API
+              </button>
+              <button
+                onClick={loadDemo}
+                className="ml-2 flex items-center px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors"
+                title="Demo Verisi Yükle"
+              >
+                <Sparkles className="w-4 h-4 mr-1" /> Demo Verisi
               </button>
             </div>
             <div className="flex items-center space-x-4">

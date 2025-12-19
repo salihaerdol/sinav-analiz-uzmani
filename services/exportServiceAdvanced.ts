@@ -705,7 +705,7 @@ export async function exportToWord(
                 <div class="title">SINAV SONUÇ ANALİZ RAPORU</div>
                 <div class="subtitle">${toUpperTr(metadata.schoolName || '')}</div>
                 <div class="subtitle">${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)}</div>
-                <div class="subtitle">${toUpperTr(metadata.examType)} | ${metadata.schoolYear || ''}</div>
+                <div class="subtitle">${toUpperTr(metadata.examType)} | ${metadata.academicYear || ''}</div>
             </div>
 
             <h3>1. SINIF ÖZETİ</h3>
