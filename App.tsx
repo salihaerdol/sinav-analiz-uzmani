@@ -5,6 +5,7 @@ import { AnalysisView } from './components/AnalysisView';
 import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X, History, TrendingUp, Key, Sparkles } from 'lucide-react';
 import { ScenarioVisualSelector } from './components/ScenarioVisualSelector';
 import { MEB_SCENARIOS } from './services/mebScraperAdvanced';
+import { isSupabaseConfigured } from './services/supabase';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
 import { classListService, ClassList } from './services/supabase';
@@ -1069,6 +1070,23 @@ function AuthWrapper() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-red-50 p-4">
+        <div className="bg-white p-8 rounded-xl shadow-xl max-w-md w-full border-t-4 border-red-600">
+          <h2 className="text-2xl font-bold text-red-700 mb-4">Yapılandırma Hatası</h2>
+          <p className="text-slate-600 mb-6">
+            Supabase bağlantı bilgileri (URL veya Anon Key) eksik. Lütfen Vercel panelinden environment variables ayarlarını kontrol edin.
+          </p>
+          <div className="bg-slate-100 p-4 rounded text-xs font-mono text-slate-500">
+            VITE_SUPABASE_URL: {import.meta.env.VITE_SUPABASE_URL ? '✅ Tanımlı' : '❌ Eksik'}<br />
+            VITE_SUPABASE_ANON_KEY: {import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅ Tanımlı' : '❌ Eksik'}
+          </div>
+        </div>
       </div>
     );
   }
