@@ -32,14 +32,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         console.log('🔐 AuthProvider mounted. Checking session...');
         console.log('📍 Current URL:', window.location.href);
+        console.log('📍 Current Hash:', window.location.hash ? 'Present' : 'None');
+        console.log('📍 Current Search:', window.location.search ? 'Present' : 'None');
 
         const checkSession = async (retries = 5) => {
             try {
                 const { data: { session }, error } = await supabase.auth.getSession();
                 console.log(`📡 getSession result (attempt ${6 - retries}):`, {
                     session: !!session,
-                    error,
-                    hasHash: !!window.location.hash
+                    error: error?.message,
+                    user: session?.user?.email,
+                    hasHash: !!window.location.hash,
+                    hasCode: window.location.search.includes('code')
                 });
 
                 if (error) {
@@ -52,28 +56,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setError(error.message);
                 }
 
-                if (!session && window.location.hash.includes('access_token') && retries > 0) {
-                    console.warn('🔑 Token found in URL but no session yet. Retrying in 2s...');
-                    setTimeout(() => checkSession(retries - 1), 2000);
-                    return;
+                if (session) {
+                    setSession(session);
+                    setUser(session.user);
+                    checkAdmin(session.user);
+                    setLoading(false);
+                } else {
+                    // If we have auth params but no session, wait a bit and retry
+                    if ((window.location.hash.includes('access_token') || window.location.search.includes('code')) && retries > 0) {
+                        console.warn('🔑 Auth data found in URL but no session yet. Retrying in 2s...');
+                        setTimeout(() => checkSession(retries - 1), 2000);
+                        return;
+                    }
+                    setLoading(false);
                 }
-
-                setSession(session);
-                setUser(session?.user ?? null);
-                checkAdmin(session?.user);
-                setLoading(false);
             } catch (err: any) {
                 console.error('Unexpected error in checkSession:', err);
                 setLoading(false);
             }
         };
 
-        console.log('🏁 Initial session check starting...');
         checkSession();
 
         // Listen for changes on auth state (sign in, sign out, etc.)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            console.log('🔄 Auth state change:', event, { session: !!session });
+            console.log('🔄 Auth state change event:', event);
+            console.log('🔄 Auth state change session:', !!session);
+
             if (session) {
                 setSession(session);
                 setUser(session.user);
@@ -85,10 +94,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             setLoading(false);
 
-            // Clear hash from URL after successful sign in
-            if (event === 'SIGNED_IN' && window.location.hash) {
-                console.log('🧹 Clearing hash from URL');
-                window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            // Clear hash/search from URL after successful sign in
+            if (event === 'SIGNED_IN' && (window.location.hash || window.location.search)) {
+                console.log('🧹 Clearing auth params from URL');
+                window.history.replaceState(null, '', window.location.pathname);
             }
         });
 

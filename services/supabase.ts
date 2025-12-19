@@ -9,6 +9,10 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
+console.log('🌐 Supabase URL:', supabaseUrl);
+console.log('🔑 Anon Key prefix:', supabaseAnonKey?.substring(0, 20) + '...');
+console.log('🆔 Google Client ID prefix:', import.meta.env.VITE_GOOGLE_CLIENT_ID?.substring(0, 10));
+
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 if (!isSupabaseConfigured) {
@@ -17,7 +21,7 @@ if (!isSupabaseConfigured) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    flowType: 'implicit',
+    flowType: 'pkce',
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true
