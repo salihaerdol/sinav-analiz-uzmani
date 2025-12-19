@@ -19,37 +19,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
-
     const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        // Check active sessions and sets the user
-        supabase.auth.getSession().then(({ data: { session }, error }) => {
-            if (error) {
-                console.error('Error getting session:', error);
-                setError(error.message);
-            }
-            setSession(session);
-            setUser(session?.user ?? null);
-            checkAdmin(session?.user);
-            setLoading(false);
-        });
-
-        // Listen for changes on auth state (sign in, sign out, etc.)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            checkAdmin(session?.user);
-            setLoading(false);
-
-            // Clear hash from URL after successful sign in
-            if (event === 'SIGNED_IN' && window.location.hash) {
-                window.history.replaceState(null, '', window.location.pathname + window.location.search);
-            }
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
 
     const checkAdmin = (user: User | null | undefined) => {
         if (user && user.email === 'salihaerdol11@gmail.com') {
@@ -58,6 +28,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setIsAdmin(false);
         }
     };
+
+    useEffect(() => {
+        console.log('🔐 AuthProvider mounted. Checking session...');
+        console.log('📍 Current URL:', window.location.href);
+
+        const checkSession = async (retries = 3) => {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                console.log(`📡 getSession result (attempt ${4 - retries}):`, { session: !!session, error });
+
+                if (error) {
+                    if (error.message.includes('future') && retries > 0) {
+                        console.warn('⏰ Clock skew detected (token issued in future). Retrying in 2s...');
+                        setTimeout(() => checkSession(retries - 1), 2000);
+                        return;
+                    }
+                    console.error('Error getting session:', error);
+                    setError(error.message);
+                }
+
+                setSession(session);
+                setUser(session?.user ?? null);
+                checkAdmin(session?.user);
+                setLoading(false);
+            } catch (err: any) {
+                console.error('Unexpected error in checkSession:', err);
+                setLoading(false);
+            }
+        };
+
+        checkSession();
+
+        // Listen for changes on auth state (sign in, sign out, etc.)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            console.log('🔄 Auth state change:', event, { session: !!session });
+            if (session) {
+                setSession(session);
+                setUser(session.user);
+                checkAdmin(session.user);
+            } else if (event === 'SIGNED_OUT') {
+                setSession(null);
+                setUser(null);
+                setIsAdmin(false);
+            }
+            setLoading(false);
+
+            // Clear hash from URL after successful sign in
+            if (event === 'SIGNED_IN' && window.location.hash) {
+                console.log('🧹 Clearing hash from URL');
+                window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
 
     const signInWithGoogle = async () => {
         try {

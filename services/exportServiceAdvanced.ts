@@ -40,6 +40,16 @@ function toUpperTr(text: string): string {
     return text.toLocaleUpperCase('tr-TR');
 }
 
+function toLowerTr(text: string): string {
+    if (!text) return '';
+    return text.toLocaleLowerCase('tr-TR');
+}
+
+function normalizeText(text: string): string {
+    if (!text) return '';
+    return text.replace(/\s+/g, ' ').trim();
+}
+
 function drawChartCard(
     doc: jsPDF,
     options: {
@@ -131,7 +141,7 @@ async function createFullReport(
     doc.setFontSize(10);
     doc.setFont('Roboto', 'normal');
     doc.setTextColor(100, 116, 139);
-    doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)} | ${toUpperTr(metadata.examType)}`, pageWidth / 2, 22, { align: 'center' });
+    doc.text(`${toUpperTr(normalizeText(metadata.className))} - ${toUpperTr(normalizeText(metadata.subject))} | ${toUpperTr(normalizeText(metadata.examType))}`, pageWidth / 2, 22, { align: 'center' });
 
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.5);
@@ -140,7 +150,7 @@ async function createFullReport(
     let y = 32;
 
     // Metadata
-    const infoBoxHeight = 22;
+    const infoBoxHeight = 24;
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
     doc.roundedRect(margin, y, pageWidth - margin * 2, infoBoxHeight, 2, 2, 'FD');
@@ -151,14 +161,14 @@ async function createFullReport(
     doc.text('Sınav Bilgileri', margin + 3, y + 7);
 
     const infoLeft = [
-        { label: 'Okul', value: metadata.schoolName || '-' },
-        { label: 'Tarih', value: metadata.date || '-' },
-        { label: 'Öğretmen', value: metadata.teacherName || '-' }
+        { label: 'Okul', value: normalizeText(metadata.schoolName || '-') },
+        { label: 'Tarih', value: normalizeText(metadata.date || '-') },
+        { label: 'Öğretmen', value: normalizeText(metadata.teacherName || '-') }
     ];
     const infoRight = [
-        { label: 'Ders', value: metadata.subject },
-        { label: 'Dönem/Sınav', value: `${metadata.term}. Dönem | ${metadata.examNumber}. ${metadata.examType}` },
-        { label: 'Sınıf', value: metadata.className }
+        { label: 'Ders', value: normalizeText(metadata.subject) },
+        { label: 'Dönem/Sınav', value: normalizeText(`${metadata.term}. Dönem | ${metadata.examNumber}. ${metadata.examType}`) },
+        { label: 'Sınıf', value: normalizeText(metadata.className) }
     ];
 
     doc.setFont('Roboto', 'normal');
@@ -262,7 +272,7 @@ async function createFullReport(
 
     doc.setFontSize(9);
     doc.setFont('Roboto', 'normal');
-    doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)}`, pageWidth / 2, 25, { align: 'center' });
+    doc.text(`${toUpperTr(normalizeText(metadata.className))} - ${toUpperTr(normalizeText(metadata.subject))}`, pageWidth / 2, 25, { align: 'center' });
 
     let analysisY = 45;
     const colWidth = (pageWidth - (margin * 3)) / 2;
@@ -436,7 +446,7 @@ async function createStudentListPage(
 
         doc.setFontSize(9);
         doc.setFont('Roboto', 'normal');
-        doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)}`, pageWidth / 2, 25, { align: 'center' });
+        doc.text(`${toUpperTr(normalizeText(metadata.className))} - ${toUpperTr(normalizeText(metadata.subject))}`, pageWidth / 2, 25, { align: 'center' });
         y = 45;
     } else {
         // Aynı sayfada devam ediyorsa başlık
@@ -459,7 +469,9 @@ async function createStudentListPage(
     const studentRows = sortedStudents.map((s, i) => {
         const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
         const pct = (total / maxTotal) * 100;
-        return [String(i + 1), s.student_number || '-', s.name, String(total), `%${pct.toFixed(0)}`, pct >= 50 ? 'GEÇTİ' : 'KALDI'];
+        const studentNumber = normalizeText(s.student_number || '-');
+        const studentName = toUpperTr(normalizeText(s.name));
+        return [String(i + 1), studentNumber, studentName, String(total), `%${pct.toFixed(0)}`, pct >= 50 ? 'GEÇTİ' : 'KALDI'];
     });
 
     autoTable(doc, {
@@ -561,10 +573,10 @@ async function createStudentCards(
 
         doc.setFontSize(9);
         doc.setFont('Roboto', 'normal');
-        doc.text(toUpperTr(metadata.schoolName || 'OKUL ADI'), pageWidth / 2, 25, { align: 'center' });
+        doc.text(toUpperTr(normalizeText(metadata.schoolName || 'OKUL ADI')), pageWidth / 2, 25, { align: 'center' });
 
         doc.setFontSize(8);
-        doc.text(`${toUpperTr(metadata.className)} | ${toUpperTr(metadata.subject)} | ${toUpperTr(metadata.examType)}`, pageWidth / 2, 33, { align: 'center' });
+        doc.text(`${toUpperTr(normalizeText(metadata.className))} | ${toUpperTr(normalizeText(metadata.subject))} | ${toUpperTr(normalizeText(metadata.examType))}`, pageWidth / 2, 33, { align: 'center' });
 
         y = 55;
 
@@ -587,15 +599,15 @@ async function createStudentCards(
         doc.setFont('Roboto', 'bold');
         doc.setFontSize(13);
         doc.setTextColor(30, 41, 59);
-        doc.text(`👤 ${student.name}`, margin + 5, y + 10);
+        doc.text(`👤 ${toUpperTr(normalizeText(student.name))}`, margin + 5, y + 10);
 
         // Öğrenci bilgileri
         doc.setFont('Roboto', 'normal');
         doc.setFontSize(9);
         doc.setTextColor(100, 116, 139);
-        doc.text(`Numara: ${student.student_number || '-'}`, margin + 5, y + 18);
-        doc.text(`Sınıf: ${metadata.className}`, margin + 5, y + 25);
-        doc.text(`Ders: ${metadata.subject}`, margin + 60, y + 25);
+        doc.text(`Numara: ${normalizeText(student.student_number || '-')}`, margin + 5, y + 18);
+        doc.text(`Sınıf: ${normalizeText(metadata.className)}`, margin + 5, y + 25);
+        doc.text(`Ders: ${normalizeText(metadata.subject)}`, margin + 60, y + 25);
 
         // PUAN KUTUSU (Sağ taraf)
         const scoreBoxX = pageWidth - margin - 45;
@@ -729,9 +741,9 @@ export async function exportToWord(
         <body>
             <div class="header">
                 <div class="title">SINAV SONUÇ ANALİZ RAPORU</div>
-                <div class="subtitle">${toUpperTr(metadata.schoolName || '')}</div>
-                <div class="subtitle">${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)}</div>
-                <div class="subtitle">${toUpperTr(metadata.examType)} | ${metadata.academicYear || ''}</div>
+                <div class="subtitle">${toUpperTr(normalizeText(metadata.schoolName || ''))}</div>
+                <div class="subtitle">${toUpperTr(normalizeText(metadata.className))} - ${toUpperTr(normalizeText(metadata.subject))}</div>
+                <div class="subtitle">${toUpperTr(normalizeText(metadata.examType))} | ${normalizeText(metadata.academicYear || '')}</div>
             </div>
 
             <h3>1. SINIF ÖZETİ</h3>
@@ -854,17 +866,17 @@ export async function exportToOfficialForm(
     const col3 = margin + 90;
     const col4 = margin + 135;
 
-    doc.text(`Okul: ${metadata.schoolName || 'KALEKAYA ORTAOKULU'}`, col1, y);
-    doc.text(`Sınıf: ${metadata.className}`, col3, y);
+    doc.text(`Okul: ${toUpperTr(normalizeText(metadata.schoolName || 'KALEKAYA ORTAOKULU'))}`, col1, y);
+    doc.text(`Sınıf: ${toUpperTr(normalizeText(metadata.className))}`, col3, y);
     y += 4;
-    doc.text(`Öğretim Yılı: ${metadata.academicYear || '2025-2026'}`, col1, y);
+    doc.text(`Öğretim Yılı: ${toUpperTr(normalizeText(metadata.academicYear || '2025-2026'))}`, col1, y);
     doc.text(`Sınav Dönemi: ${metadata.term}. Dönem`, col3, y);
     y += 4;
-    doc.text(`Ders: ${metadata.subject}`, col1, y);
+    doc.text(`Ders: ${toUpperTr(normalizeText(metadata.subject))}`, col1, y);
     doc.text(`Sınav Numarası: ${metadata.examNumber}. Yazılı`, col3, y);
     y += 4;
-    doc.text(`Öğretmen: ${metadata.teacherName}`, col1, y);
-    doc.text(`Sınav Tarihi: ${metadata.date}`, col3, y);
+    doc.text(`Öğretmen: ${toUpperTr(normalizeText(metadata.teacherName))}`, col1, y);
+    doc.text(`Sınav Tarihi: ${normalizeText(metadata.date)}`, col3, y);
     y += 6;
 
     // Student Scores Table (Grid 1-20 questions)
@@ -993,13 +1005,13 @@ export async function exportToPDFAdvanced(
     metadata: ExamMetadata,
     questions: QuestionConfig[],
     students: Student[],
-    chartImages: any = {},
+    chartImages: ChartImages = {},
     language: Language = 'tr',
     options: any = {}
 ) {
     const doc = new jsPDF('p', 'mm', 'a4');
     await addTurkishFontsToPDF(doc);
-    await createFullReport(doc, analysis, metadata, questions, students);
+    await createFullReport(doc, analysis, metadata, questions, students, chartImages);
     doc.save(`${safeName(metadata.className)}_Rapor.pdf`);
 }
 
@@ -1009,7 +1021,7 @@ export async function quickExport(
     metadata: ExamMetadata,
     questions: QuestionConfig[],
     students: Student[],
-    chartImages: any = {},
+    chartImages: ChartImages = {},
     language: Language = 'tr'
 ) {
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -1019,7 +1031,7 @@ export async function quickExport(
         await createStudentCards(doc, analysis, metadata, questions, students);
         doc.save(`${safeName(metadata.className)}_Karneler.pdf`);
     } else {
-        await createFullReport(doc, analysis, metadata, questions, students);
+        await createFullReport(doc, analysis, metadata, questions, students, chartImages);
         doc.save(`${safeName(metadata.className)}_Rapor.pdf`);
     }
 }
@@ -1029,7 +1041,7 @@ export async function exportBilingualReports(
     metadata: ExamMetadata,
     questions: QuestionConfig[],
     students: Student[],
-    chartImages: any = {}
+    chartImages: ChartImages = {}
 ) {
     await quickExport('full_report', analysis, metadata, questions, students, chartImages, 'tr');
 }
