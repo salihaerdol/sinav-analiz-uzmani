@@ -58,6 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         };
 
+        console.log('🏁 Initial session check starting...');
         checkSession();
 
         // Listen for changes on auth state (sign in, sign out, etc.)
