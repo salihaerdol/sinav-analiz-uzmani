@@ -13,7 +13,7 @@ import { DataImport } from './components/DataImport';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { SettingsModal } from './components/SettingsModal';
 import { analysisHistoryService } from './services/supabaseHistoryService';
-import { DEMO_DATA_6A, calculateDemoAnalysis } from './services/demoDataService';
+import { DEMO_CLASSES, calculateDemoAnalysis } from './services/demoDataService';
 
 // Steps Enum
 enum Step {
@@ -818,11 +818,39 @@ function MainApp() {
     </div>
   );
 
-  const loadDemo = () => {
-    setMetadata(DEMO_DATA_6A.metadata);
-    setQuestions(DEMO_DATA_6A.questions);
-    setStudents(DEMO_DATA_6A.students);
+  const loadDemo = (key: string) => {
+    const demo = DEMO_CLASSES[key];
+    if (!demo) return;
+    setMetadata(demo.metadata);
+    setQuestions(demo.questions);
+    setStudents(demo.students);
     setStep(Step.ANALYSIS);
+  };
+
+  const saveAllDemosToDB = async () => {
+    setIsSaving(true);
+    try {
+      for (const key of Object.keys(DEMO_CLASSES)) {
+        const demo = DEMO_CLASSES[key];
+        await classListService.create({
+          schoolName: demo.metadata.schoolName,
+          teacherName: demo.metadata.teacherName,
+          academicYear: demo.metadata.academicYear,
+          grade: demo.metadata.grade,
+          subject: demo.metadata.subject,
+          className: demo.metadata.className,
+          // Convert students and questions to JSON strings for the legacy schema
+          students: [JSON.stringify(demo.students)],
+        });
+      }
+      alert('Tüm demo sınıflar başarıyla kaydedildi!');
+      loadSavedClasses();
+    } catch (error) {
+      console.error('Error saving demos:', error);
+      alert('Kaydedilirken bir hata oluştu.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -857,19 +885,42 @@ function MainApp() {
                   </span>
                 )}
               </button>
+
+              {/* Demo Menu */}
+              <div className="relative group ml-2">
+                <button
+                  className="flex items-center px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors"
+                >
+                  <Sparkles className="w-4 h-4 mr-1" /> Demo Verileri
+                </button>
+                <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[60]">
+                  {Object.keys(DEMO_CLASSES).map(key => (
+                    <button
+                      key={key}
+                      onClick={() => loadDemo(key)}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 transition-colors flex flex-col"
+                    >
+                      <span className="font-bold">{key}</span>
+                      <span className="text-[10px] opacity-70">{DEMO_CLASSES[key].metadata.teacherName}</span>
+                    </button>
+                  ))}
+                  <div className="border-t border-slate-100 my-1"></div>
+                  <button
+                    onClick={saveAllDemosToDB}
+                    disabled={isSaving}
+                    className="w-full text-left px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 font-bold transition-colors flex items-center"
+                  >
+                    <Save className="w-4 h-4 mr-2" /> {isSaving ? 'Kaydediliyor...' : 'Tümünü Veritabanına Kaydet'}
+                  </button>
+                </div>
+              </div>
+
               <button
                 onClick={() => setShowSettingsModal(true)}
                 className="ml-2 flex items-center px-3 py-1.5 bg-violet-50 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-100 transition-colors"
                 title="API Ayarları"
               >
                 <Key className="w-4 h-4 mr-1" /> API
-              </button>
-              <button
-                onClick={loadDemo}
-                className="ml-2 flex items-center px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors"
-                title="Demo Verisi Yükle"
-              >
-                <Sparkles className="w-4 h-4 mr-1" /> Demo Verisi
               </button>
             </div>
             <div className="flex items-center space-x-4">
@@ -910,94 +961,102 @@ function MainApp() {
             </div>
           </div>
         </div>
-      </nav>
+      </nav >
 
       {/* Main Content */}
-      <main className="py-10 px-4 sm:px-6 lg:px-8">
+      < main className="py-10 px-4 sm:px-6 lg:px-8" >
         <div className="animate-fade-in-up">
           {step === Step.METADATA && renderMetadataStep()}
           {step === Step.QUESTIONS && renderQuestionsStep()}
           {step === Step.SCORES && renderScoresStep()}
           {step === Step.ANALYSIS && renderAnalysisStep()}
         </div>
-      </main>
+      </main >
 
       {/* Modals */}
-      {showClassModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-slate-800">Kayıtlı Sınıflar</h3>
-              <button onClick={() => setShowClassModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto flex-1">
-              {savedClasses.length === 0 ? (
-                <p className="text-center text-slate-500 py-8">Henüz kayıtlı sınıf bulunmamaktadır.</p>
-              ) : (
-                <div className="grid gap-4">
-                  {savedClasses.map((cls) => (
-                    <div key={cls.id} className="border border-slate-200 rounded-lg p-4 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all flex justify-between items-center group">
-                      <div>
-                        <h4 className="font-bold text-slate-800">{cls.className}</h4>
-                        <p className="text-sm text-slate-500">{cls.schoolName} - {cls.academicYear}</p>
-                        <p className="text-xs text-slate-400 mt-1">{cls.grade}. Sınıf {cls.subject}</p>
+      {
+        showClassModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold text-slate-800">Kayıtlı Sınıflar</h3>
+                <button onClick={() => setShowClassModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {savedClasses.length === 0 ? (
+                  <p className="text-center text-slate-500 py-8">Henüz kayıtlı sınıf bulunmamaktadır.</p>
+                ) : (
+                  <div className="grid gap-4">
+                    {savedClasses.map((cls) => (
+                      <div key={cls.id} className="border border-slate-200 rounded-lg p-4 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all flex justify-between items-center group">
+                        <div>
+                          <h4 className="font-bold text-slate-800">{cls.className}</h4>
+                          <p className="text-sm text-slate-500">{cls.schoolName} - {cls.academicYear}</p>
+                          <p className="text-xs text-slate-400 mt-1">{cls.grade}. Sınıf {cls.subject}</p>
+                        </div>
+                        <button
+                          onClick={() => loadClass(cls)}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          Seç ve Yükle
+                        </button>
                       </div>
-                      <button
-                        onClick={() => loadClass(cls)}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        Seç ve Yükle
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showBulkAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-slate-800">Toplu Öğrenci Ekle</h3>
-              <button onClick={() => setShowBulkAddModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6">
-              <p className="text-sm text-slate-600 mb-3">Öğrenci isimlerini alt alta yapıştırın veya yazın.</p>
-              <textarea
-                className="w-full h-64 border-2 border-slate-300 rounded-lg p-3 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 text-sm"
-                placeholder="Ahmet Yılmaz&#10;Ayşe Demir&#10;Mehmet Kaya..."
-                value={bulkStudentText}
-                onChange={(e) => setBulkStudentText(e.target.value)}
-              />
-              <div className="mt-4 flex justify-end gap-3">
-                <button onClick={() => setShowBulkAddModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">İptal</button>
-                <button onClick={handleBulkAdd} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold">Ekle</button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
+
+      {
+        showBulkAddModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold text-slate-800">Toplu Öğrenci Ekle</h3>
+                <button onClick={() => setShowBulkAddModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="p-6">
+                <p className="text-sm text-slate-600 mb-3">Öğrenci isimlerini alt alta yapıştırın veya yazın.</p>
+                <textarea
+                  className="w-full h-64 border-2 border-slate-300 rounded-lg p-3 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 text-sm"
+                  placeholder="Ahmet Yılmaz&#10;Ayşe Demir&#10;Mehmet Kaya..."
+                  value={bulkStudentText}
+                  onChange={(e) => setBulkStudentText(e.target.value)}
+                />
+                <div className="mt-4 flex justify-end gap-3">
+                  <button onClick={() => setShowBulkAddModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">İptal</button>
+                  <button onClick={handleBulkAdd} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold">Ekle</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
       {/* Progress Dashboard Modal */}
-      {showProgressDashboard && (
-        <ProgressDashboard
-          onLoadAnalysis={handleLoadAnalysis}
-          onClose={() => setShowProgressDashboard(false)}
-        />
-      )}
+      {
+        showProgressDashboard && (
+          <ProgressDashboard
+            onLoadAnalysis={handleLoadAnalysis}
+            onClose={() => setShowProgressDashboard(false)}
+          />
+        )
+      }
 
       {/* Settings Modal */}
-      {showSettingsModal && (
-        <SettingsModal onClose={() => setShowSettingsModal(false)} />
-      )}
-    </div>
+      {
+        showSettingsModal && (
+          <SettingsModal onClose={() => setShowSettingsModal(false)} />
+        )
+      }
+    </div >
   );
 }
 

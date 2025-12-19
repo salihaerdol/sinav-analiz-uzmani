@@ -75,28 +75,51 @@ async function createFullReport(
     y = 35;
 
     // ═══════════════════════════════════════════════════════════════
-    // ÖZET BİLGİLER KARTI (Zenginleştirilmiş)
+    // ÖZET BİLGİLER KARTI (Dashboard Style)
     // ═══════════════════════════════════════════════════════════════
 
-    y = 75;
-    const cardHeight = 40;
+    y = 35;
+    const cardWidth = (pageWidth - margin * 2 - 10) / 3;
+    const cardHeight = 25;
 
-    // Kart arka planı
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(margin, y, pageWidth - margin * 2, cardHeight, 3, 3, 'F');
+    const stats = [
+        { label: 'SINIF ORTALAMASI', value: `%${analysis.classAverage.toFixed(1)}`, color: [79, 70, 229] },
+        { label: 'TOPLAM ÖĞRENCİ', value: students.length.toString(), color: [16, 185, 129] },
+        { label: 'SORU SAYISI', value: questions.length.toString(), color: [245, 158, 11] }
+    ];
 
-    // Kart çerçevesi
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(margin, y, pageWidth - margin * 2, cardHeight, 3, 3, 'S');
+    stats.forEach((stat, i) => {
+        const curX = margin + i * (cardWidth + 5);
 
-    // Başlık
-    doc.setTextColor(71, 85, 105);
+        // Card BG
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(curX, y, cardWidth, cardHeight, 2, 2, 'FD');
+
+        // Accent line
+        doc.setFillColor(stat.color[0], stat.color[1], stat.color[2]);
+        doc.rect(curX, y, 2, cardHeight, 'F');
+
+        // Text
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.setFont('Roboto', 'bold');
+        doc.text(stat.label, curX + 6, y + 8);
+
+        doc.setFontSize(12);
+        doc.setTextColor(30, 41, 59);
+        doc.text(stat.value, curX + 6, y + 18);
+    });
+
+    y += cardHeight + 10;
+
+    // Student List Header
+    doc.setFontSize(11);
     doc.setFont('Roboto', 'bold');
-    doc.setFontSize(10);
-    doc.text('SINIF PERFORMANS ÖZETİ', margin + 5, y + 8);
+    doc.setTextColor(30, 41, 59);
+    doc.text('ÖĞRENCİ BAŞARI LİSTESİ', margin, y);
+    y += 5;
 
-    // İstatistikler
     const maxScore = Math.max(...students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0)));
     const minScore = Math.min(...students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0)));
     const passCount = students.filter(s => {
@@ -880,34 +903,75 @@ export async function exportToOfficialForm(
         margin: { left: margin, right: margin }
     });
 
-    y = (doc as any).lastAutoTable.finalY + 5;
+    y = (doc as any).lastAutoTable.finalY + 10;
 
-    // Success Rates Table
-    const successHead = [['Konular', 'Puan']];
-    const successBody = analysis.outcomeStats.map(o => [o.description, `%${o.successRate.toFixed(0)}`]);
+    // Charts Row (Drawn with primitives for reliability)
+    const chartWidth = 85;
+    const chartHeight = 40;
 
-    autoTable(doc, {
-        startY: y,
-        head: successHead,
-        body: successBody,
-        theme: 'grid',
-        styles: { font: 'Roboto', fontSize: 7, cellPadding: 1 },
-        headStyles: { fillColor: [240, 240, 240], textColor: 0 },
-        margin: { left: margin, right: pageWidth / 2 + 5 }
+    // 1. Success by Question Chart
+    doc.setFontSize(8);
+    doc.setFont('Roboto', 'bold');
+    doc.text('SORULARA GÖRE BAŞARI YÜZDESİ GRAFİĞİ', margin, y);
+
+    const chartY = y + 5;
+    doc.setDrawColor(200);
+    doc.line(margin, chartY + chartHeight, margin + chartWidth, chartY + chartHeight); // X axis
+    doc.line(margin, chartY, margin, chartY + chartHeight); // Y axis
+
+    const barWidth = (chartWidth - 10) / maxQuestions;
+    analysis.questionStats.forEach((qs, i) => {
+        const h = (qs.successRate / 100) * chartHeight;
+        doc.setFillColor(79, 70, 229);
+        doc.rect(margin + 2 + i * barWidth, chartY + chartHeight - h, barWidth - 1, h, 'F');
+        doc.setFontSize(5);
+        doc.text((i + 1).toString(), margin + 2 + i * barWidth + barWidth / 2, chartY + chartHeight + 3, { align: 'center' });
     });
 
-    // Evaluation Section
-    const evalY = y;
+    // 2. Grade Distribution Table
+    const distHead = [['NOT ARALIĞI', 'DERECE', 'SAYI']];
+    const dists = [
+        { range: '85-100', label: 'Pekiyi', count: students.filter(s => Object.values(s.scores).reduce((a, b) => a + b, 0) >= 85).length },
+        { range: '70-84', label: 'İyi', count: students.filter(s => { const t = Object.values(s.scores).reduce((a, b) => a + b, 0); return t >= 70 && t < 85; }).length },
+        { range: '60-69', label: 'Orta', count: students.filter(s => { const t = Object.values(s.scores).reduce((a, b) => a + b, 0); return t >= 60 && t < 70; }).length },
+        { range: '50-59', label: 'Geçer', count: students.filter(s => { const t = Object.values(s.scores).reduce((a, b) => a + b, 0); return t >= 50 && t < 60; }).length },
+        { range: '0-49', label: 'Geçmez', count: students.filter(s => Object.values(s.scores).reduce((a, b) => a + b, 0) < 50).length },
+    ];
+    const distBody = dists.map(d => [d.range, d.label, d.count.toString()]);
+
+    autoTable(doc, {
+        startY: y + 5,
+        head: distHead,
+        body: distBody,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 6, cellPadding: 1 },
+        headStyles: { fillColor: [240, 240, 240], textColor: 0 },
+        margin: { left: margin + chartWidth + 10, right: margin }
+    });
+
+    y += chartHeight + 15;
+
+    // Evaluation Boxes
+    const boxWidth = (pageWidth - margin * 2 - 5) / 2;
+    const boxHeight = 35;
+
+    // Box 1: Sınıf Değerlendirmesi
+    doc.setDrawColor(0);
+    doc.rect(margin, y, boxWidth, boxHeight);
     doc.setFont('Roboto', 'bold');
-    doc.setFontSize(9);
-    doc.text('SINAV DEĞERLENDİRMESİ', pageWidth / 2 + 10, evalY);
-
+    doc.text('SINIF DEĞERLENDİRMESİ', margin + 2, y + 5);
     doc.setFont('Roboto', 'normal');
-    doc.setFontSize(8);
-    const evalText = `Sınıf genelinde %${analysis.classAverage.toFixed(1)} başarıya ulaşılmıştır. Sınav, Ölçme Değerlendirme kriterleri bakımından başarılı kabul edilmektedir. Başarı oranı düşük kazanımlar için ek çalışmalar planlanmıştır.`;
-    doc.text(evalText, pageWidth / 2 + 10, evalY + 5, { maxWidth: 80 });
+    doc.text(`Sınıf genelinde %${analysis.classAverage.toFixed(1)} başarıya ulaşılmıştır.`, margin + 2, y + 12, { maxWidth: boxWidth - 4 });
 
-    y = Math.max((doc as any).lastAutoTable.finalY + 10, evalY + 30);
+    // Box 2: Sınav Değerlendirmesi
+    doc.rect(margin + boxWidth + 5, y, boxWidth, boxHeight);
+    doc.setFont('Roboto', 'bold');
+    doc.text('SINAV DEĞERLENDİRMESİ', margin + boxWidth + 7, y + 5);
+    doc.setFont('Roboto', 'normal');
+    const evalText = `Sınav, Ölçme Değerlendirme kriterleri bakımından başarılı kabul edilmektedir. Başarı oranı düşük kazanımlar için ek çalışmalar planlanmıştır.`;
+    doc.text(evalText, margin + boxWidth + 7, y + 12, { maxWidth: boxWidth - 4 });
+
+    y += boxHeight + 15;
 
     // Signatures
     doc.setFont('Roboto', 'normal');
