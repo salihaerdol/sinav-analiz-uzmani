@@ -36,11 +36,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         // Listen for changes on auth state (sign in, sign out, etc.)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
             checkAdmin(session?.user);
             setLoading(false);
+
+            // Clear hash from URL after successful sign in
+            if (event === 'SIGNED_IN' && window.location.hash) {
+                window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            }
         });
 
         return () => subscription.unsubscribe();

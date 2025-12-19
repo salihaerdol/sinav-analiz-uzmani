@@ -13,6 +13,8 @@ import { addTurkishFontsToPDF } from './fontService';
 
 export type Language = 'tr' | 'en';
 export type ExportScenario = 'full_report' | 'student_cards';
+type ChartKey = 'overview' | 'questionChart' | 'outcomeChart' | 'histogramChart' | 'radarChart' | 'gradePieChart' | 'questionSuccessChart' | 'cognitiveChart' | 'difficultyChart';
+type ChartImages = Partial<Record<ChartKey, string>>;
 
 // Dosya adı güvenliği
 // Dosya adı güvenliği
@@ -38,6 +40,66 @@ function toUpperTr(text: string): string {
     return text.toLocaleUpperCase('tr-TR');
 }
 
+function drawChartCard(
+    doc: jsPDF,
+    options: {
+        title: string;
+        image?: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        hint?: string;
+    }
+) {
+    const { title, image, x, y, width, height, hint } = options;
+
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(x, y, width, height, 3, 3, 'FD');
+
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(30, 41, 59);
+    doc.text(title, x + 4, y + 8);
+
+    const availableWidth = width - 10;
+    const availableHeight = height - 16;
+
+    if (image) {
+        try {
+            const props = doc.getImageProperties(image);
+            let renderWidth = availableWidth;
+            let renderHeight = renderWidth * (props.height / props.width);
+
+            if (renderHeight > availableHeight) {
+                renderHeight = availableHeight;
+                renderWidth = renderHeight * (props.width / props.height);
+            }
+
+            const imgX = x + (width - renderWidth) / 2;
+            const imgY = y + height - renderHeight - 4;
+            doc.addImage(image, (props as any).fileType || 'PNG', imgX, imgY, renderWidth, renderHeight, undefined, 'FAST');
+        } catch (error) {
+            doc.setFont('Roboto', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(120, 120, 120);
+            doc.text('Görsel eklenirken hata oluştu', x + 4, y + height - 6);
+        }
+    } else {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(x + 4, y + 10, width - 8, height - 14, 'F');
+        doc.setFont('Roboto', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        doc.text('Görsel hazır değil', x + width / 2, y + height / 2, { align: 'center' });
+        if (hint) {
+            doc.setFontSize(7);
+            doc.text(hint, x + width / 2, y + height / 2 + 6, { align: 'center' });
+        }
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // TAM RAPOR
 // ═══════════════════════════════════════════════════════════════
@@ -46,17 +108,21 @@ async function createFullReport(
     analysis: AnalysisResult,
     metadata: ExamMetadata,
     questions: QuestionConfig[],
-    students: Student[]
+    students: Student[],
+    chartImages: ChartImages = {}
 ) {
     const pageWidth = 210;
     const margin = 15;
-    let y = 0;
+    const maxTotal = questions.reduce((a, q) => a + q.maxScore, 0);
+    const studentTotals = students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0));
+    const maxScore = studentTotals.length ? Math.max(...studentTotals) : 0;
+    const minScore = studentTotals.length ? Math.min(...studentTotals) : 0;
+    const passCount = students.filter(s => {
+        const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
+        return maxTotal > 0 ? (total / maxTotal * 100) >= 50 : false;
+    }).length;
 
-    // ═══════════════════════════════════════════════════════════════
-    // SAYFA 1: ÖZET VE LİSTE
-    // ═══════════════════════════════════════════════════════════════
-
-    // Basit Header
+    // Başlık
     doc.setFont('Roboto', 'bold');
     doc.setFontSize(18);
     doc.setTextColor(30, 41, 59);
@@ -67,40 +133,69 @@ async function createFullReport(
     doc.setTextColor(100, 116, 139);
     doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)} | ${toUpperTr(metadata.examType)}`, pageWidth / 2, 22, { align: 'center' });
 
-    // Çizgi
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.5);
     doc.line(margin, 28, pageWidth - margin, 28);
 
-    y = 35;
+    let y = 32;
 
-    // ═══════════════════════════════════════════════════════════════
-    // ÖZET BİLGİLER KARTI (Dashboard Style)
-    // ═══════════════════════════════════════════════════════════════
+    // Metadata
+    const infoBoxHeight = 22;
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, y, pageWidth - margin * 2, infoBoxHeight, 2, 2, 'FD');
 
-    y = 35;
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Sınav Bilgileri', margin + 3, y + 7);
+
+    const infoLeft = [
+        { label: 'Okul', value: metadata.schoolName || '-' },
+        { label: 'Tarih', value: metadata.date || '-' },
+        { label: 'Öğretmen', value: metadata.teacherName || '-' }
+    ];
+    const infoRight = [
+        { label: 'Ders', value: metadata.subject },
+        { label: 'Dönem/Sınav', value: `${metadata.term}. Dönem | ${metadata.examNumber}. ${metadata.examType}` },
+        { label: 'Sınıf', value: metadata.className }
+    ];
+
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+
+    infoLeft.forEach((item, idx) => {
+        doc.text(`${item.label}: ${toUpperTr(item.value)}`, margin + 3, y + 13 + idx * 5);
+    });
+
+    const secondColumnX = margin + ((pageWidth - margin * 2) / 2) + 2;
+    infoRight.forEach((item, idx) => {
+        doc.text(`${item.label}: ${toUpperTr(item.value)}`, secondColumnX, y + 13 + idx * 5);
+    });
+
+    y += infoBoxHeight + 8;
+
+    // Özet kartları
     const cardWidth = (pageWidth - margin * 2 - 10) / 3;
     const cardHeight = 25;
 
     const stats = [
-        { label: 'SINIF ORTALAMASI', value: `%${analysis.classAverage.toFixed(1)}`, color: [79, 70, 229] },
-        { label: 'TOPLAM ÖĞRENCİ', value: students.length.toString(), color: [16, 185, 129] },
-        { label: 'SORU SAYISI', value: questions.length.toString(), color: [245, 158, 11] }
+        { label: 'SINIF ORTALAMASI', value: `%${analysis.classAverage.toFixed(1)}`, color: [79, 70, 229] as [number, number, number] },
+        { label: 'TOPLAM ÖĞRENCİ', value: students.length.toString(), color: [16, 185, 129] as [number, number, number] },
+        { label: 'SORU SAYISI', value: questions.length.toString(), color: [245, 158, 11] as [number, number, number] }
     ];
 
     stats.forEach((stat, i) => {
         const curX = margin + i * (cardWidth + 5);
 
-        // Card BG
         doc.setFillColor(255, 255, 255);
         doc.setDrawColor(226, 232, 240);
         doc.roundedRect(curX, y, cardWidth, cardHeight, 2, 2, 'FD');
 
-        // Accent line
         doc.setFillColor(stat.color[0], stat.color[1], stat.color[2]);
         doc.rect(curX, y, 2, cardHeight, 'F');
 
-        // Text
         doc.setFontSize(7);
         doc.setTextColor(100, 116, 139);
         doc.setFont('Roboto', 'bold');
@@ -113,127 +208,50 @@ async function createFullReport(
 
     y += cardHeight + 10;
 
-    // Student List Header
-    doc.setFontSize(11);
+    // Hızlı genel görünüm
     doc.setFont('Roboto', 'bold');
-    doc.setTextColor(30, 41, 59);
-    doc.text('ÖĞRENCİ BAŞARI LİSTESİ', margin, y);
-    y += 5;
-
-    const maxScore = Math.max(...students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0)));
-    const minScore = Math.min(...students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0)));
-    const passCount = students.filter(s => {
-        const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
-        const maxTotal = questions.reduce((a, q) => a + q.maxScore, 0);
-        return (total / maxTotal * 100) >= 50;
-    }).length;
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Sınıf Dağılımı', margin, y);
 
     doc.setFont('Roboto', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
+    doc.text(`Başarılı: ${passCount} | Başarısız: ${students.length - passCount}`, margin, y + 6);
+    doc.text(`En yüksek: ${maxScore} | En düşük: ${minScore}`, margin + 90, y + 6);
 
-    const statsY = y + 20;
-    const col1X = margin + 10;
-    const col2X = margin + 60;
-    const col3X = margin + 110;
-    const col4X = margin + 150;
+    y += 14;
 
-    // Sınıf Ortalaması (Büyük ve Renkli)
-    doc.setFont('Roboto', 'bold');
-    doc.setTextColor(71, 85, 105);
-    doc.text('Sınıf Ortalaması', col1X, statsY);
-
-    doc.setFontSize(20);
-    doc.setTextColor(analysis.classAverage >= 50 ? 34 : 220, analysis.classAverage >= 50 ? 197 : 53, analysis.classAverage >= 50 ? 94 : 69);
-    doc.text(`%${analysis.classAverage.toFixed(1)}`, col1X, statsY + 10);
-
-    // Görsel Bar (Ortalama)
-    doc.setFillColor(226, 232, 240);
-    doc.roundedRect(col1X + 35, statsY + 2, 40, 6, 2, 2, 'F');
-    doc.setFillColor(analysis.classAverage >= 50 ? 34 : 220, analysis.classAverage >= 50 ? 197 : 53, analysis.classAverage >= 50 ? 94 : 69);
-    doc.roundedRect(col1X + 35, statsY + 2, 40 * (analysis.classAverage / 100), 6, 2, 2, 'F');
-
-    // Diğer İstatistikler
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-
-    // Başarı Durumu
-    doc.text('Başarı Durumu:', col3X, statsY);
-    doc.setTextColor(34, 197, 94);
-    doc.text(`${passCount} Başarılı`, col3X, statsY + 6);
-    doc.setTextColor(239, 68, 68);
-    doc.text(`${students.length - passCount} Başarısız`, col3X, statsY + 12);
-
-    // En Yüksek/Düşük
-    doc.setTextColor(71, 85, 105);
-    doc.text('Puan Aralığı:', col4X, statsY);
-    doc.setFontSize(10);
-    doc.setTextColor(34, 197, 94);
-    doc.text(`Max: ${maxScore}`, col4X, statsY + 6);
-    doc.setTextColor(239, 68, 68);
-    doc.text(`Min: ${minScore}`, col4X, statsY + 12);
-
-    // Sayfa 1 Alt Bilgi (Boşluk bırakmak için burada bitiriyoruz)
-    // İsteğe bağlı olarak buraya bir grafik veya ek bilgi eklenebilir.
-
-    // ═══════════════════════════════════════════════════════════════
-    // ÖĞRENCİ LİSTESİ (Sayfa 1'in devamı veya Sayfa 2)
-    // ═══════════════════════════════════════════════════════════════
-
-    y = 120; // Karttan sonra boşluk
-
-    doc.setFontSize(14);
-    doc.setTextColor(30, 41, 59);
-    doc.text('ÖĞRENCİ SONUÇ LİSTESİ', pageWidth / 2, y, { align: 'center' });
-    y += 10;
-
-    const sortedStudents = [...students].sort((a, b) => {
-        const sa = Object.values(a.scores).reduce((x, y) => x + y, 0);
-        const sb = Object.values(b.scores).reduce((x, y) => x + y, 0);
-        return sb - sa;
+    // İlk sayfada görsel özet (Not dağılımı + histogram)
+    const chartCardWidth = (pageWidth - margin * 2 - 8) / 2;
+    const chartCardHeight = 60;
+    drawChartCard(doc, {
+        title: 'Not Dağılımı (5\'li Sistem)',
+        image: chartImages.gradePieChart,
+        x: margin,
+        y,
+        width: chartCardWidth,
+        height: chartCardHeight
     });
 
-    const studentRows = sortedStudents.map((s, i) => {
-        const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
-        const max = questions.reduce((a, q) => a + q.maxScore, 0);
-        const pct = (total / max) * 100;
-        return [
-            String(i + 1),
-            toUpperTr(s.name),
-            total.toString(),
-            `%${pct.toFixed(0)}`,
-            pct >= 50 ? 'GEÇTİ' : 'KALDI'
-        ];
+    drawChartCard(doc, {
+        title: 'Not Dağılımı (Histogram)',
+        image: chartImages.histogramChart,
+        x: margin + chartCardWidth + 8,
+        y,
+        width: chartCardWidth,
+        height: chartCardHeight
     });
 
-    autoTable(doc, {
-        startY: y,
-        head: [['Sıra', 'Adı Soyadı', 'Puan', 'Başarı', 'Durum']],
-        body: studentRows,
-        theme: 'striped',
-        styles: { font: 'Roboto', fontSize: 10, cellPadding: 3 },
-        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
-        columnStyles: {
-            0: { cellWidth: 15, halign: 'center' },
-            1: { cellWidth: 'auto' },
-            2: { cellWidth: 20, halign: 'center' },
-            3: { cellWidth: 20, halign: 'center' },
-            4: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }
-        },
-        didParseCell: (data) => {
-            if (data.section === 'body' && data.column.index === 4) {
-                const val = data.cell.raw as string;
-                data.cell.styles.textColor = val === 'GEÇTİ' ? [34, 197, 94] : [220, 53, 69];
-            }
-        },
-        margin: { left: margin, right: margin }
-    });
+    y += chartCardHeight + 10;
+
+    // Öğrenci listesi - sıralı tablo
+    const studentListStartY = Math.max(y, 110);
+    await createStudentListPage(doc, analysis, metadata, questions, students, studentListStartY);
 
     // Yeni Sayfa: Analizler
     doc.addPage();
-    y = 20;
 
-    // Sayfa 2 Header (daha küçük)
     doc.setFillColor(99, 102, 241);
     doc.rect(0, 0, pageWidth, 35, 'F');
 
@@ -246,29 +264,23 @@ async function createFullReport(
     doc.setFont('Roboto', 'normal');
     doc.text(`${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)}`, pageWidth / 2, 25, { align: 'center' });
 
-    y = 45;
-
-    // 1. Satır: Yetkinlik Haritası ve Not Dağılımı (Yan Yana)
+    let analysisY = 45;
     const colWidth = (pageWidth - (margin * 3)) / 2;
 
-    // Sol: Yetkinlik Haritası (Tablo Olarak)
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
-    doc.text('Kazanım Başarı Durumu', margin, y);
+    doc.text('Kazanım Başarı Durumu', margin, analysisY);
+    doc.text('Not Dağılımı', margin + colWidth + margin, analysisY);
 
-    // Sağ: Not Dağılımı
-    doc.text('Not Dağılımı', margin + colWidth + margin, y);
+    analysisY += 5;
 
-    y += 5;
-
-    // Yetkinlik Tablosu
     const outcomeRows = analysis.outcomeStats.map(t => [
         t.description.length > 30 ? t.description.substring(0, 30) + '...' : t.description,
         `%${t.successRate.toFixed(0)}`
     ]);
 
     autoTable(doc, {
-        startY: y,
+        startY: analysisY,
         head: [['Kazanım', 'Başarı']],
         body: outcomeRows,
         theme: 'grid',
@@ -279,9 +291,8 @@ async function createFullReport(
         tableWidth: colWidth
     });
 
-    const tableFinalY = (doc as any).lastAutoTable.finalY;
+    const outcomeTableY = (doc as any).lastAutoTable.finalY;
 
-    // Not Dağılımı Tablosu (Sağ Taraf)
     const gradeRanges = [
         { label: 'Pekiyi (85-100)', min: 85, max: 100 },
         { label: 'İyi (70-84)', min: 70, max: 84 },
@@ -299,7 +310,7 @@ async function createFullReport(
     });
 
     autoTable(doc, {
-        startY: y,
+        startY: analysisY,
         head: [['Not Aralığı', 'Öğrenci']],
         body: gradeCounts,
         theme: 'grid',
@@ -310,63 +321,19 @@ async function createFullReport(
         tableWidth: colWidth
     });
 
-    y = Math.max(tableFinalY, (doc as any).lastAutoTable.finalY) + 10;
-
-    // 2. Satır: Puan Dağılımı (Geniş Bar Grafik - Basit Çizim)
-    doc.setFontSize(12);
-    doc.setTextColor(30, 41, 59);
-    doc.text('Puan Dağılımı', margin, y);
-    y += 5;
-
-    // Basit Bar Grafik Çizimi
-    const chartHeight = 40;
-    const chartWidth = pageWidth - (margin * 2);
-    doc.setDrawColor(203, 213, 225);
-    doc.rect(margin, y, chartWidth, chartHeight); // Çerçeve
-
-    // 10'luk dilimler
-    const ranges = Array.from({ length: 10 }, (_, i) => ({ min: i * 10, max: (i * 10) + 9 }));
-    ranges[9].max = 100;
-
-    const rangeCounts = ranges.map(r => students.filter(s => {
-        const score = Object.values(s.scores).reduce((a, b) => a + b, 0);
-        return score >= r.min && score <= r.max;
-    }).length);
-
-    const maxCount = Math.max(...rangeCounts, 1);
-    const barWidth = (chartWidth - 20) / 10;
-
-    rangeCounts.forEach((count, i) => {
-        if (count > 0) {
-            const barHeight = (count / maxCount) * (chartHeight - 10);
-            doc.setFillColor(99, 102, 241);
-            doc.rect(margin + 10 + (i * barWidth), y + chartHeight - 5 - barHeight, barWidth - 2, barHeight, 'F');
-            doc.setFontSize(7);
-            doc.setTextColor(100);
-            doc.text(count.toString(), margin + 10 + (i * barWidth) + (barWidth / 2), y + chartHeight - 7 - barHeight, { align: 'center' });
-        }
-        // X ekseni etiketleri
-        doc.setFontSize(6);
-        doc.setTextColor(150);
-        doc.text(`${ranges[i].min}-${ranges[i].max}`, margin + 10 + (i * barWidth) + (barWidth / 2), y + chartHeight + 3, { align: 'center' });
-    });
-
-    y += chartHeight + 10;
-
-    // 3. Satır: Soru Bazlı Analiz (Geniş Tablo)
-    if (y > 230) { doc.addPage(); y = 20; }
+    const gradeTableY = (doc as any).lastAutoTable.finalY;
+    analysisY = Math.max(outcomeTableY, gradeTableY) + 12;
 
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
-    doc.text('Soru Bazlı Analiz', margin, y);
-    y += 5;
+    doc.text('Soru Bazlı Analiz', margin, analysisY);
+    analysisY += 5;
 
     const questionStatsRows = analysis.questionStats.map((q, i) => {
         const qConfig = questions.find(x => x.id === q.questionId);
-        const maxScore = qConfig?.maxScore || 0;
+        const maxScoreForQuestion = qConfig?.maxScore || 0;
 
-        // Hesaplamalar
-        const correctCount = students.filter(s => (s.scores[q.questionId] || 0) === maxScore).length;
+        const correctCount = students.filter(s => (s.scores[q.questionId] || 0) === maxScoreForQuestion).length;
         const incorrectCount = students.filter(s => (s.scores[q.questionId] || 0) === 0).length;
         const emptyCount = students.length - correctCount - incorrectCount;
 
@@ -381,7 +348,7 @@ async function createFullReport(
     });
 
     autoTable(doc, {
-        startY: y,
+        startY: analysisY,
         head: [['Soru', 'Kazanım', 'Doğru', 'Yanlış', 'Boş', 'Başarı']],
         body: questionStatsRows,
         theme: 'striped',
@@ -398,10 +365,46 @@ async function createFullReport(
         margin: { left: margin, right: margin }
     });
 
-    // Öğrenci Listesi (Özetin hemen altına)
-    // Özet kartı yüksekliği + margin + biraz boşluk
-    const studentListStartY = 75 + 40 + 10;
-    await createStudentListPage(doc, analysis, metadata, questions, students, studentListStartY);
+    const visuals = [
+        { title: 'Özet Gösterge Paneli', image: chartImages.overview },
+        { title: 'Kazanım Başarı Grafiği', image: chartImages.outcomeChart },
+        { title: 'Soru Bazlı Başarı Grafiği', image: chartImages.questionSuccessChart },
+        { title: 'Kazanım Radar Haritası', image: chartImages.radarChart },
+        { title: 'Bilişsel Düzey Dağılımı', image: chartImages.cognitiveChart },
+        { title: 'Güçlük Dağılımı', image: chartImages.difficultyChart }
+    ].filter(item => item.image);
+
+    if (visuals.length > 0) {
+        doc.addPage();
+        doc.setFont('Roboto', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Görsel Analizler', margin, 20);
+
+        let visualY = 28;
+        const visualCardHeight = 70;
+
+        visuals.forEach((visual, idx) => {
+            if (idx % 2 === 0 && idx > 0) {
+                visualY += visualCardHeight + 10;
+                if (visualY + visualCardHeight > 280) {
+                    doc.addPage();
+                    visualY = 20;
+                }
+            }
+
+            const x = margin + (idx % 2) * (chartCardWidth + 8);
+            drawChartCard(doc, {
+                title: visual.title,
+                image: visual.image,
+                x,
+                y: visualY,
+                width: chartCardWidth,
+                height: visualCardHeight,
+                hint: 'Ekran görüntüsü kullanıldı'
+            });
+        });
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
