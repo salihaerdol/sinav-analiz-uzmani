@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: 'https://sinav-analiz-uzmani.vercel.app',
+                    redirectTo: window.location.origin,
                     queryParams: {
                         access_type: 'offline',
                     },
