@@ -33,19 +33,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('🔐 AuthProvider mounted. Checking session...');
         console.log('📍 Current URL:', window.location.href);
 
-        const checkSession = async (retries = 3) => {
+        const checkSession = async (retries = 5) => {
             try {
                 const { data: { session }, error } = await supabase.auth.getSession();
-                console.log(`📡 getSession result (attempt ${4 - retries}):`, { session: !!session, error });
+                console.log(`📡 getSession result (attempt ${6 - retries}):`, {
+                    session: !!session,
+                    error,
+                    hasHash: !!window.location.hash
+                });
 
                 if (error) {
-                    if (error.message.includes('future') && retries > 0) {
-                        console.warn('⏰ Clock skew detected (token issued in future). Retrying in 2s...');
-                        setTimeout(() => checkSession(retries - 1), 2000);
+                    if ((error.message.includes('future') || error.message.includes('skew')) && retries > 0) {
+                        console.warn('⏰ Clock skew detected. Retrying in 3s...');
+                        setTimeout(() => checkSession(retries - 1), 3000);
                         return;
                     }
                     console.error('Error getting session:', error);
                     setError(error.message);
+                }
+
+                if (!session && window.location.hash.includes('access_token') && retries > 0) {
+                    console.warn('🔑 Token found in URL but no session yet. Retrying in 2s...');
+                    setTimeout(() => checkSession(retries - 1), 2000);
+                    return;
                 }
 
                 setSession(session);
