@@ -37,24 +37,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const checkSession = async (retries = 5) => {
             try {
+                console.log(`📡 Checking session... (retries left: ${retries})`);
                 const { data: { session }, error } = await supabase.auth.getSession();
-                console.log(`📡 getSession result (attempt ${6 - retries}):`, {
-                    session: !!session,
-                    error: error?.message,
-                    user: session?.user?.email,
-                    hasHash: !!window.location.hash,
-                    hasCode: window.location.search.includes('code')
-                });
 
                 if (error) {
+                    console.error('❌ getSession error:', error);
                     if ((error.message.includes('future') || error.message.includes('skew')) && retries > 0) {
                         console.warn('⏰ Clock skew detected. Retrying in 3s...');
                         setTimeout(() => checkSession(retries - 1), 3000);
                         return;
                     }
-                    console.error('Error getting session:', error);
                     setError(error.message);
                 }
+
+                console.log('📡 getSession result:', {
+                    hasSession: !!session,
+                    user: session?.user?.email,
+                    url: window.location.href
+                });
 
                 if (session) {
                     setSession(session);
@@ -62,7 +62,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     checkAdmin(session.user);
                     setLoading(false);
                 } else {
-                    // If we have auth params but no session, wait a bit and retry
                     if ((window.location.hash.includes('access_token') || window.location.search.includes('code')) && retries > 0) {
                         console.warn('🔑 Auth data found in URL but no session yet. Retrying in 2s...');
                         setTimeout(() => checkSession(retries - 1), 2000);
