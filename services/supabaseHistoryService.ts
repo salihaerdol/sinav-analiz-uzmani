@@ -3,7 +3,7 @@
  * Analiz geçmişi, öğrenci ve sınıf gelişim takibi için Supabase servisi
  */
 
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 import { ExamMetadata, AnalysisResult, QuestionConfig, Student, SavedAnalysis, StudentProgress, ClassProgress, DashboardSummary } from '../types';
 
 // =====================================================
@@ -73,6 +73,230 @@ interface ClassProgressDB {
 }
 
 // =====================================================
+// LOCAL STORAGE HELPERS
+// =====================================================
+
+const LOCAL_STORAGE_PREFIX = 'analysis_history_local_v1';
+
+const getLocalStorageKey = (userId?: string) => `${LOCAL_STORAGE_PREFIX}:${userId || 'guest'}`;
+
+const readLocalAnalyses = (key: string): SavedAnalysis[] => {
+    if (typeof localStorage === 'undefined') return [];
+    try {
+        const stored = localStorage.getItem(key);
+        return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+        console.warn('Local analysis read failed:', error);
+        return [];
+    }
+};
+
+const writeLocalAnalyses = (key: string, analyses: SavedAnalysis[]) => {
+    if (typeof localStorage === 'undefined') return;
+    try {
+        localStorage.setItem(key, JSON.stringify(analyses));
+    } catch (error) {
+        console.warn('Local analysis write failed:', error);
+    }
+};
+
+const mergeAnalyses = (remote: SavedAnalysis[], local: SavedAnalysis[]) => {
+    const remoteIds = new Set(remote.map(item => item.id));
+    const merged = [...remote];
+    local.forEach(item => {
+        if (!remoteIds.has(item.id)) {
+            merged.push(item);
+        }
+    });
+    return merged.sort((a, b) => {
+        const aDate = new Date(a.metadata.date || a.createdAt).getTime();
+        const bDate = new Date(b.metadata.date || b.createdAt).getTime();
+        return bDate - aDate;
+    });
+};
+
+const buildLocalSavedAnalysis = (
+    metadata: ExamMetadata,
+    analysis: AnalysisResult,
+    questions: QuestionConfig[],
+    students: Student[],
+    aiSummary?: string
+): SavedAnalysis => {
+    const now = new Date().toISOString();
+    return {
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        createdAt: now,
+        updatedAt: now,
+        metadata,
+        analysis,
+        questions,
+        students,
+        aiSummary
+    };
+};
+
+const upsertLocalAnalysis = (key: string, analysis: SavedAnalysis) => {
+    const items = readLocalAnalyses(key);
+    const index = items.findIndex(item => item.id === analysis.id);
+    if (index >= 0) {
+        items[index] = { ...items[index], ...analysis, updatedAt: new Date().toISOString() };
+    } else {
+        items.unshift(analysis);
+    }
+    writeLocalAnalyses(key, items);
+};
+
+const updateLocalAnalysis = (key: string, id: string, updates: Partial<SavedAnalysis>): boolean => {
+    const items = readLocalAnalyses(key);
+    const index = items.findIndex(item => item.id === id);
+    if (index < 0) return false;
+    items[index] = {
+        ...items[index],
+        ...updates,
+        updatedAt: new Date().toISOString()
+    };
+    writeLocalAnalyses(key, items);
+    return true;
+};
+
+const deleteLocalAnalysis = (key: string, id: string) => {
+    const items = readLocalAnalyses(key).filter(item => item.id !== id);
+    writeLocalAnalyses(key, items);
+};
+
+const buildStudentProgressFromAnalyses = (analyses: SavedAnalysis[]): StudentProgress[] => {
+    const sortedAnalyses = [...analyses].sort((a, b) => {
+        const aDate = new Date(a.metadata.date || a.createdAt).getTime();
+        const bDate = new Date(b.metadata.date || b.createdAt).getTime();
+        return aDate - bDate;
+    });
+
+    const studentMap = new Map<string, StudentProgress>();
+
+    sortedAnalyses.forEach(entry => {
+        const stats = entry.analysis.studentStats;
+        const totalStudents = entry.students.length;
+        const ranked = [...stats].sort((a, b) => b.percentage - a.percentage);
+        const rankMap = new Map(ranked.map((item, index) => [item.studentId, index + 1]));
+
+        stats.forEach(stat => {
+            const student = entry.students.find(s => s.id === stat.studentId);
+            if (!student) return;
+
+            const key = student.name;
+            const existing = studentMap.get(key) || {
+                studentId: `local-${key}`,
+                studentName: student.name,
+                className: entry.metadata.className,
+                examHistory: [],
+                outcomeProgress: [],
+                overallTrend: 'stable',
+                averagePercentage: 0
+            };
+
+            existing.examHistory.push({
+                analysisId: entry.id,
+                date: entry.metadata.date || entry.createdAt,
+                subject: entry.metadata.subject,
+                examType: entry.metadata.examType,
+                score: stat.totalScore,
+                percentage: stat.percentage,
+                classAverage: entry.analysis.classAverage,
+                rank: rankMap.get(stat.studentId) || existing.examHistory.length + 1,
+                totalStudents
+            });
+
+            existing.className = entry.metadata.className;
+            studentMap.set(key, existing);
+        });
+    });
+
+    return Array.from(studentMap.values()).map(student => {
+        const scores = student.examHistory.map(e => e.percentage);
+        const average = scores.reduce((sum, score) => sum + score, 0) / (scores.length || 1);
+        let overallTrend: StudentProgress['overallTrend'] = 'stable';
+        if (scores.length >= 2) {
+            const lastTwo = scores.slice(-2);
+            if (lastTwo[1] > lastTwo[0] + 5) overallTrend = 'improving';
+            else if (lastTwo[1] < lastTwo[0] - 5) overallTrend = 'declining';
+        }
+        return {
+            ...student,
+            overallTrend,
+            averagePercentage: average,
+            totalExams: scores.length,
+            averageScore: average,
+            bestScore: Math.max(...scores),
+            worstScore: Math.min(...scores),
+            trend: overallTrend === 'improving' ? 'up' : overallTrend === 'declining' ? 'down' : 'stable'
+        } as any;
+    }).sort((a, b) => b.averagePercentage - a.averagePercentage);
+};
+
+const buildClassProgressFromAnalyses = (analyses: SavedAnalysis[]): ClassProgress[] => {
+    const sortedAnalyses = [...analyses].sort((a, b) => {
+        const aDate = new Date(a.metadata.date || a.createdAt).getTime();
+        const bDate = new Date(b.metadata.date || b.createdAt).getTime();
+        return aDate - bDate;
+    });
+
+    const classMap = new Map<string, ClassProgress>();
+
+    sortedAnalyses.forEach(entry => {
+        const key = `${entry.metadata.className}::${entry.metadata.subject}`;
+        const percentages = entry.analysis.studentStats.map(stat => stat.percentage);
+        const highest = percentages.length ? Math.max(...percentages) : 0;
+        const lowest = percentages.length ? Math.min(...percentages) : 0;
+        const passRate = percentages.length
+            ? (percentages.filter(p => p >= 50).length / percentages.length) * 100
+            : 0;
+
+        const existing = classMap.get(key) || {
+            className: entry.metadata.className,
+            subject: entry.metadata.subject,
+            examHistory: [],
+            outcomeProgress: [],
+            overallTrend: 'stable'
+        };
+
+        existing.examHistory.push({
+            analysisId: entry.id,
+            date: entry.metadata.date || entry.createdAt,
+            examType: entry.metadata.examType,
+            classAverage: entry.analysis.classAverage,
+            highestScore: highest,
+            lowestScore: lowest,
+            passRate,
+            studentCount: entry.students.length
+        });
+
+        classMap.set(key, existing);
+    });
+
+    return Array.from(classMap.values()).map(cls => {
+        const averages = cls.examHistory.map(e => e.classAverage);
+        const averageScore = averages.reduce((sum, score) => sum + score, 0) / (averages.length || 1);
+        let overallTrend: ClassProgress['overallTrend'] = 'stable';
+        if (averages.length >= 2) {
+            const lastTwo = averages.slice(-2);
+            if (lastTwo[1] > lastTwo[0] + 3) overallTrend = 'improving';
+            else if (lastTwo[1] < lastTwo[0] - 3) overallTrend = 'declining';
+        }
+
+        return {
+            ...cls,
+            overallTrend,
+            grade: cls.examHistory[cls.examHistory.length - 1]?.grade || undefined,
+            totalExams: averages.length,
+            averageScore,
+            bestAverage: Math.max(...averages),
+            worstAverage: Math.min(...averages),
+            trend: overallTrend === 'improving' ? 'up' : overallTrend === 'declining' ? 'down' : 'stable'
+        } as any;
+    }).sort((a, b) => b.averageScore - a.averageScore);
+};
+
+// =====================================================
 // ANALİZ GEÇMİŞİ SERVİSİ
 // =====================================================
 
@@ -88,13 +312,17 @@ export const analysisHistoryService = {
         aiSummary?: string
     ): Promise<SavedAnalysis | null> {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            console.error('Kullanıcı oturum açmamış');
-            return null;
+        const userId = user?.id;
+        const localKey = getLocalStorageKey(userId);
+
+        if (!isSupabaseConfigured || !userId) {
+            const local = buildLocalSavedAnalysis(metadata, analysis, questions, students, aiSummary);
+            upsertLocalAnalysis(localKey, local);
+            return local;
         }
 
         const record = {
-            user_id: user.id,
+            user_id: userId,
             school_name: metadata.schoolName,
             teacher_name: metadata.teacherName,
             class_name: metadata.className,
@@ -126,47 +354,69 @@ export const analysisHistoryService = {
 
         if (error) {
             console.error('Analiz kaydedilemedi:', error);
-            return null;
+            const local = buildLocalSavedAnalysis(metadata, analysis, questions, students, aiSummary);
+            upsertLocalAnalysis(localKey, local);
+            return local;
         }
 
         // Öğrenci ve sınıf ilerlemesini güncelle
-        await this.updateStudentProgress(metadata, analysis, students);
-        await this.updateClassProgress(metadata, analysis);
+        const saved = this.dbToSavedAnalysis(data);
+        upsertLocalAnalysis(localKey, saved);
+        await this.updateStudentProgress(metadata, analysis, students, saved.id);
+        await this.updateClassProgress(metadata, analysis, saved.id);
 
-        return this.dbToSavedAnalysis(data);
+        return saved;
     },
 
     /**
      * Tüm analizleri getir
      */
     async getAllAnalyses(): Promise<SavedAnalysis[]> {
+        const { data: { user } } = await supabase.auth.getUser();
+        const localKey = getLocalStorageKey(user?.id);
+        const localAnalyses = readLocalAnalyses(localKey);
+
+        if (!isSupabaseConfigured || !user?.id) {
+            return localAnalyses;
+        }
+
         const { data, error } = await supabase
             .from('analysis_history')
             .select('*')
             .eq('is_archived', false)
+            .eq('user_id', user.id)
             .order('created_at', { ascending: false });
 
         if (error) {
             console.error('Analizler getirilemedi:', error);
-            return [];
+            return localAnalyses;
         }
 
-        return (data || []).map(this.dbToSavedAnalysis);
+        const remoteAnalyses = (data || []).map(this.dbToSavedAnalysis);
+        return mergeAnalyses(remoteAnalyses, localAnalyses);
     },
 
     /**
      * Tek analiz getir
      */
     async getAnalysisById(id: string): Promise<SavedAnalysis | null> {
+        const { data: { user } } = await supabase.auth.getUser();
+        const localKey = getLocalStorageKey(user?.id);
+
+        if (!isSupabaseConfigured || !user?.id) {
+            return readLocalAnalyses(localKey).find(item => item.id === id) || null;
+        }
+
         const { data, error } = await supabase
             .from('analysis_history')
             .select('*')
             .eq('id', id)
+            .eq('user_id', user.id)
             .single();
 
         if (error) {
             console.error('Analiz getirilemedi:', error);
-            return null;
+            return readLocalAnalyses(localKey).find(item => item.id === id) || null;
         }
 
         return this.dbToSavedAnalysis(data);
@@ -176,16 +426,40 @@ export const analysisHistoryService = {
      * Analiz güncelle
      */
     async updateAnalysis(id: string, updates: Partial<SavedAnalysis>): Promise<boolean> {
+        const { data: { user } } = await supabase.auth.getUser();
+        const localKey = getLocalStorageKey(user?.id);
+        const localUpdated = updateLocalAnalysis(localKey, id, updates);
+
+        if (!isSupabaseConfigured || !user?.id) {
+            return localUpdated;
+        }
+
         const dbUpdates: any = {};
 
         if (updates.metadata) {
             dbUpdates.school_name = updates.metadata.schoolName;
             dbUpdates.teacher_name = updates.metadata.teacherName;
             dbUpdates.class_name = updates.metadata.className;
+            dbUpdates.grade = updates.metadata.grade;
+            dbUpdates.subject = updates.metadata.subject;
+            dbUpdates.scenario = updates.metadata.scenario;
+            dbUpdates.exam_date = updates.metadata.date;
+            dbUpdates.term = updates.metadata.term;
+            dbUpdates.exam_number = updates.metadata.examNumber;
+            dbUpdates.exam_type = updates.metadata.examType;
+            dbUpdates.academic_year = updates.metadata.academicYear;
         }
         if (updates.analysis) {
             dbUpdates.analysis_data = updates.analysis;
             dbUpdates.class_average = updates.analysis.classAverage;
+        }
+        if (updates.questions) {
+            dbUpdates.questions_data = updates.questions;
+            dbUpdates.total_questions = updates.questions.length;
+        }
+        if (updates.students) {
+            dbUpdates.students_data = updates.students;
+            dbUpdates.total_students = updates.students.length;
         }
         if (updates.aiSummary !== undefined) {
             dbUpdates.ai_summary = updates.aiSummary;
@@ -194,11 +468,12 @@ export const analysisHistoryService = {
         const { error } = await supabase
             .from('analysis_history')
             .update(dbUpdates)
-            .eq('id', id);
+            .eq('id', id)
+            .eq('user_id', user.id);
 
         if (error) {
             console.error('Analiz güncellenemedi:', error);
-            return false;
+            return localUpdated;
         }
 
         return true;
@@ -208,10 +483,19 @@ export const analysisHistoryService = {
      * Analiz sil
      */
     async deleteAnalysis(id: string): Promise<boolean> {
+        const { data: { user } } = await supabase.auth.getUser();
+        const localKey = getLocalStorageKey(user?.id);
+        deleteLocalAnalysis(localKey, id);
+
+        if (!isSupabaseConfigured || !user?.id) {
+            return true;
+        }
+
         const { error } = await supabase
             .from('analysis_history')
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .eq('user_id', user.id);
 
         if (error) {
             console.error('Analiz silinemedi:', error);
@@ -231,10 +515,26 @@ export const analysisHistoryService = {
         startDate?: string;
         endDate?: string;
     }): Promise<SavedAnalysis[]> {
+        const { data: { user } } = await supabase.auth.getUser();
+        const localKey = getLocalStorageKey(user?.id);
+        const localAnalyses = readLocalAnalyses(localKey);
+
+        if (!isSupabaseConfigured || !user?.id) {
+            return localAnalyses.filter(item => {
+                if (filters.className && item.metadata.className !== filters.className) return false;
+                if (filters.subject && item.metadata.subject !== filters.subject) return false;
+                if (filters.grade && item.metadata.grade !== filters.grade) return false;
+                if (filters.startDate && item.metadata.date < filters.startDate) return false;
+                if (filters.endDate && item.metadata.date > filters.endDate) return false;
+                return true;
+            });
+        }
+
         let query = supabase
             .from('analysis_history')
             .select('*')
-            .eq('is_archived', false);
+            .eq('is_archived', false)
+            .eq('user_id', user.id);
 
         if (filters.className) {
             query = query.eq('class_name', filters.className);
@@ -256,7 +556,7 @@ export const analysisHistoryService = {
 
         if (error) {
             console.error('Filtrelenmiş analizler getirilemedi:', error);
-            return [];
+            return localAnalyses;
         }
 
         return (data || []).map(this.dbToSavedAnalysis);
@@ -268,7 +568,8 @@ export const analysisHistoryService = {
     async updateStudentProgress(
         metadata: ExamMetadata,
         analysis: AnalysisResult,
-        students: Student[]
+        students: Student[],
+        analysisId?: string
     ): Promise<void> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
@@ -290,7 +591,7 @@ export const analysisHistoryService = {
                 subject: metadata.subject,
                 className: metadata.className,
                 score: studentStat.percentage,
-                analysisId: null
+                analysisId: analysisId || null
             };
 
             if (existing) {
@@ -342,7 +643,8 @@ export const analysisHistoryService = {
      */
     async updateClassProgress(
         metadata: ExamMetadata,
-        analysis: AnalysisResult
+        analysis: AnalysisResult,
+        analysisId?: string
     ): Promise<void> {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
@@ -362,7 +664,7 @@ export const analysisHistoryService = {
             date: metadata.date,
             average: analysis.classAverage,
             studentCount: analysis.studentStats.length,
-            analysisId: null
+            analysisId: analysisId || null
         };
 
         if (existing) {
@@ -412,6 +714,13 @@ export const analysisHistoryService = {
      * Tüm öğrenci ilerlemelerini getir
      */
     async getAllStudentProgress(): Promise<StudentProgress[]> {
+        const { data: { user } } = await supabase.auth.getUser();
+        const localKey = getLocalStorageKey(user?.id);
+
+        if (!isSupabaseConfigured || !user?.id) {
+            return buildStudentProgressFromAnalyses(readLocalAnalyses(localKey));
+        }
+
         const { data, error } = await supabase
             .from('student_progress')
             .select('*')
@@ -419,7 +728,7 @@ export const analysisHistoryService = {
 
         if (error) {
             console.error('Öğrenci ilerlemeleri getirilemedi:', error);
-            return [];
+            return buildStudentProgressFromAnalyses(readLocalAnalyses(localKey));
         }
 
         return (data || []).map(this.dbToStudentProgress);
@@ -429,6 +738,13 @@ export const analysisHistoryService = {
      * Tüm sınıf ilerlemelerini getir
      */
     async getAllClassProgress(): Promise<ClassProgress[]> {
+        const { data: { user } } = await supabase.auth.getUser();
+        const localKey = getLocalStorageKey(user?.id);
+
+        if (!isSupabaseConfigured || !user?.id) {
+            return buildClassProgressFromAnalyses(readLocalAnalyses(localKey));
+        }
+
         const { data, error } = await supabase
             .from('class_progress')
             .select('*')
@@ -436,7 +752,7 @@ export const analysisHistoryService = {
 
         if (error) {
             console.error('Sınıf ilerlemeleri getirilemedi:', error);
-            return [];
+            return buildClassProgressFromAnalyses(readLocalAnalyses(localKey));
         }
 
         return (data || []).map(this.dbToClassProgress);

@@ -161,6 +161,7 @@ export interface ClassList {
   academicYear: string;
   students?: string[];
   createdAt?: string;
+  source?: 'local' | 'supabase';
 }
 
 export interface Achievement {
@@ -571,8 +572,60 @@ export const examAnalyticsService = {
 // LEGACY SERVICES (Backward Compatibility)
 // =====================================================
 
+const LOCAL_STORAGE_KEYS = {
+  classLists: (userId?: string) => `class_lists_local_v1:${userId || 'guest'}`
+};
+
+const readLocalClassLists = (key: string): ClassList[] => {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.warn('Local class list read failed:', error);
+    return [];
+  }
+};
+
+const writeLocalClassLists = (key: string, lists: ClassList[]) => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(lists));
+  } catch (error) {
+    console.warn('Local class list write failed:', error);
+  }
+};
+
+const getLocalClassListKey = async (): Promise<string> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    return LOCAL_STORAGE_KEYS.classLists(user?.id);
+  } catch {
+    return LOCAL_STORAGE_KEYS.classLists();
+  }
+};
+
+const mergeClassLists = (remote: ClassList[], local: ClassList[]) => {
+  const remoteIds = new Set(
+    remote.map(item => item.id).filter((id): id is number => typeof id === 'number')
+  );
+  const merged = [...remote];
+  local.forEach(item => {
+    if (!item.id || !remoteIds.has(item.id)) {
+      merged.push(item);
+    }
+  });
+  return merged;
+};
+
 export const classListService = {
   async getAll(): Promise<ClassList[]> {
+    const localKey = await getLocalClassListKey();
+    const localLists = readLocalClassLists(localKey);
+    if (!isSupabaseConfigured) {
+      return localLists;
+    }
+
     const { data, error } = await supabase
       .from('class_lists')
       .select('*')
@@ -580,12 +633,28 @@ export const classListService = {
 
     if (error) {
       console.error('Error fetching class lists:', error);
-      return [];
+      return localLists;
     }
-    return data || [];
+    const merged = mergeClassLists(data || [], localLists);
+    writeLocalClassLists(localKey, merged);
+    return merged;
   },
 
   async create(classList: ClassList): Promise<ClassList | null> {
+    const localKey = await getLocalClassListKey();
+    const localLists = readLocalClassLists(localKey);
+    const localEntry: ClassList = {
+      ...classList,
+      id: classList.id ?? -Date.now(),
+      createdAt: classList.createdAt || new Date().toISOString(),
+      source: 'local'
+    };
+
+    if (!isSupabaseConfigured) {
+      writeLocalClassLists(localKey, [localEntry, ...localLists]);
+      return localEntry;
+    }
+
     const { data, error } = await supabase
       .from('class_lists')
       .insert(classList)
@@ -594,9 +663,33 @@ export const classListService = {
 
     if (error) {
       console.error('Error creating class list:', error);
-      return null;
+      writeLocalClassLists(localKey, [localEntry, ...localLists]);
+      return localEntry;
     }
-    return data;
+    const saved: ClassList = { ...data, source: 'supabase' };
+    writeLocalClassLists(localKey, mergeClassLists([saved], localLists));
+    return saved;
+  },
+
+  async delete(id: number): Promise<boolean> {
+    const localKey = await getLocalClassListKey();
+    const localLists = readLocalClassLists(localKey);
+    writeLocalClassLists(localKey, localLists.filter(item => item.id !== id));
+
+    if (!isSupabaseConfigured || id < 0) {
+      return true;
+    }
+
+    const { error } = await supabase
+      .from('class_lists')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting class list:', error);
+      return false;
+    }
+    return true;
   }
 };
 
