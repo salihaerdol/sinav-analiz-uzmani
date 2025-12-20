@@ -38,32 +38,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const checkSession = async (retries = 5) => {
             try {
                 console.log(`📡 Checking session... (retries left: ${retries})`);
-                const { data: { session }, error } = await supabase.auth.getSession();
 
-                if (error) {
-                    console.error('❌ getSession error:', error);
-                    if ((error.message.includes('future') || error.message.includes('skew')) && retries > 0) {
+                // Try to get session normally
+                const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+
+                if (sessionError) {
+                    console.error('❌ getSession error:', sessionError);
+
+                    // Handle clock skew
+                    if ((sessionError.message.includes('future') || sessionError.message.includes('skew')) && retries > 0) {
                         console.warn('⏰ Clock skew detected. Retrying in 3s...');
                         setTimeout(() => checkSession(retries - 1), 3000);
                         return;
                     }
-                    setError(error.message);
+                    setError(sessionError.message);
                 }
 
                 console.log('📡 getSession result:', {
-                    hasSession: !!session,
-                    user: session?.user?.email,
+                    hasSession: !!currentSession,
+                    user: currentSession?.user?.email,
                     url: window.location.href
                 });
 
-                if (session) {
-                    setSession(session);
-                    setUser(session.user);
-                    checkAdmin(session.user);
+                if (currentSession) {
+                    setSession(currentSession);
+                    setUser(currentSession.user);
+                    checkAdmin(currentSession.user);
                     setLoading(false);
                 } else {
-                    if ((window.location.hash.includes('access_token') || window.location.search.includes('code')) && retries > 0) {
-                        console.warn('🔑 Auth data found in URL but no session yet. Retrying in 2s...');
+                    // FALLBACK: Manual session recovery from URL hash/search
+                    const hasAuthParams = window.location.hash.includes('access_token') || window.location.search.includes('code');
+
+                    if (hasAuthParams && retries > 0) {
+                        console.warn('🔑 Auth data found in URL but no session yet. Attempting manual recovery...');
+
+                        // If we have a hash, try to set session manually
+                        if (window.location.hash.includes('access_token')) {
+                            const params = new URLSearchParams(window.location.hash.substring(1));
+                            const access_token = params.get('access_token');
+                            const refresh_token = params.get('refresh_token');
+
+                            if (access_token) {
+                                console.log('🛠 Attempting manual setSession...');
+                                const { data: manualData, error: manualError } = await supabase.auth.setSession({
+                                    access_token,
+                                    refresh_token: refresh_token || '',
+                                });
+
+                                if (manualData.session) {
+                                    console.log('✅ Manual session recovery successful!');
+                                    setSession(manualData.session);
+                                    setUser(manualData.session.user);
+                                    checkAdmin(manualData.session.user);
+                                    setLoading(false);
+                                    return;
+                                }
+
+                                if (manualError) {
+                                    console.error('❌ Manual recovery failed:', manualError);
+                                }
+                            }
+                        }
+
+                        console.warn('⏳ Retrying checkSession in 2s...');
                         setTimeout(() => checkSession(retries - 1), 2000);
                         return;
                     }
