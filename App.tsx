@@ -1077,13 +1077,13 @@ function MainApp() {
                 onClick={resetAnalysis}
                 className="ml-6 flex items-center px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors"
               >
-                <Plus className="w-4 h-4 mr-1" /> Yeni Analiz
+                <Plus className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Yeni Analiz</span>
               </button>
               <button
                 onClick={() => setShowProgressDashboard(true)}
                 className="ml-2 flex items-center px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors relative"
               >
-                <History className="w-4 h-4 mr-1" /> Geçmiş
+                <History className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Geçmiş</span>
                 {analysisCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-600 text-white text-[10px] rounded-full flex items-center justify-center">
                     {analysisCount}
@@ -1096,7 +1096,7 @@ function MainApp() {
                 <button
                   className="flex items-center px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors"
                 >
-                  <Sparkles className="w-4 h-4 mr-1" /> Demo Verileri
+                  <Sparkles className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Demo Verileri</span>
                 </button>
                 <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[60]">
                   {Object.keys(DEMO_CLASSES).map(key => (
@@ -1125,7 +1125,7 @@ function MainApp() {
                 className="ml-2 flex items-center px-3 py-1.5 bg-violet-50 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-100 transition-colors"
                 title="API Ayarları"
               >
-                <Key className="w-4 h-4 mr-1" /> API
+                <Key className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">API</span>
               </button>
             </div>
             <div className="flex items-center space-x-4">

@@ -9,7 +9,7 @@ import { generateAIAnalysis } from '../services/geminiService';
 import {
   FileText, Download, Bot, AlertTriangle, CheckCircle, TrendingUp, Users, Target,
   ClipboardList, Globe, Calculator, BarChart2, UserCheck, PieChart as PieChartIcon,
-  Activity, Brain, Signal, ChevronDown, FileCheck, GraduationCap, Building, Sparkles, Gauge, X, Upload, Layout
+  Activity, Brain, Signal, ChevronDown, FileCheck, GraduationCap, Building, Sparkles, Gauge, Upload, Layout
 } from 'lucide-react';
 // import { exportToWord } from '../services/exportService';
 import {
@@ -46,6 +46,8 @@ const scenarioIcons: Record<ExportScenario, React.ReactNode> = {
   student_cards: <GraduationCap className="w-4 h-4" />
 };
 
+type ModuleTab = 'psychometric' | 'risk' | 'bloom' | 'ocr' | 'report' | 'official';
+
 // Helper functions for statistics
 const calculateStandardDeviation = (scores: number[]) => {
   if (scores.length === 0) return 0;
@@ -67,15 +69,27 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
   const [exportingPdf, setExportingPdf] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('tr');
-  const [showPsychometric, setShowPsychometric] = useState(false);
-  const [showRisk, setShowRisk] = useState(false);
-  const [showBloom, setShowBloom] = useState(false);
-  const [showOCR, setShowOCR] = useState(false);
-  const [showReportEditor, setShowReportEditor] = useState(false);
-  const [showOfficialForm, setShowOfficialForm] = useState(false);
+  const [activeModuleTab, setActiveModuleTab] = useState<ModuleTab | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const exportScenarios = getExportScenarios(selectedLanguage);
+  const moduleTabs: { id: ModuleTab; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: 'psychometric', label: 'Psikometrik', description: 'Soru kalitesi ve test güvenilirliği', icon: Gauge },
+    { id: 'risk', label: 'Risk', description: 'Öğrenci risk dağılımı ve öneriler', icon: AlertTriangle },
+    { id: 'bloom', label: 'Bloom', description: 'Bilişsel düzey dağılımı', icon: Brain },
+    { id: 'ocr', label: 'OCR', description: 'Sınıf listesi ve not görselleri', icon: Upload },
+    { id: 'report', label: 'Rapor Editörü', description: 'Özel rapor şablonu tasarımı', icon: Layout },
+    { id: 'official', label: 'Resmi Form', description: 'MEB resmi sınav analiz formu', icon: FileText }
+  ];
+  const moduleTabStyles: Record<ModuleTab, string> = {
+    psychometric: 'bg-indigo-600 text-white border-indigo-600',
+    risk: 'bg-rose-600 text-white border-rose-600',
+    bloom: 'bg-sky-600 text-white border-sky-600',
+    ocr: 'bg-emerald-600 text-white border-emerald-600',
+    report: 'bg-indigo-600 text-white border-indigo-600',
+    official: 'bg-slate-700 text-white border-slate-700'
+  };
+  const activeModuleMeta = moduleTabs.find((tab) => tab.id === activeModuleTab) || null;
 
   // Close export menu when clicking outside
   useEffect(() => {
@@ -242,6 +256,66 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
     }
   };
 
+  const safeFileName = (value: string) =>
+    value
+      .replace(/[\\/:*?"<>|]/g, '')
+      .replace(/\s+/g, '_')
+      .trim() || 'rapor';
+
+  const getModuleExportConfig = (tab: ModuleTab) => {
+    const baseName = safeFileName(metadata.className || metadata.subject || 'rapor');
+    switch (tab) {
+      case 'psychometric':
+        return { id: 'module-psychometric', fileName: `${baseName}_Psikometrik_Analiz.pdf` };
+      case 'risk':
+        return { id: 'module-risk', fileName: `${baseName}_Risk_Analizi.pdf` };
+      case 'bloom':
+        return { id: 'module-bloom', fileName: `${baseName}_Bloom_Analizi.pdf` };
+      case 'ocr':
+        return { id: 'module-ocr', fileName: `${baseName}_OCR_Sonuclari.pdf` };
+      case 'report':
+        return { id: 'module-report-canvas', fileName: `${baseName}_Rapor_Sablonu.pdf` };
+      case 'official':
+        return { id: 'official-meb-form', fileName: `${baseName}_Resmi_Form.pdf` };
+      default:
+        return { id: '', fileName: `${baseName}_Rapor.pdf` };
+    }
+  };
+
+  const handleModulePdfExport = async (tab: ModuleTab) => {
+    const { id, fileName } = getModuleExportConfig(tab);
+    if (!id) return;
+    const element = document.getElementById(id);
+    if (!element) {
+      alert('PDF için içerik bulunamadı.');
+      return;
+    }
+
+    setExportingPdf(true);
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const orientation = canvas.width > canvas.height ? 'l' : 'p';
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({
+        orientation,
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.save(fileName);
+    } catch (error) {
+      console.error('Module PDF export failed:', error);
+      alert('PDF oluşturulurken bir hata oluştu.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   const outcomeData = analysis.outcomeStats.map(o => ({
     name: o.code,
     full: o.description,
@@ -255,294 +329,108 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
 
   return (
     <div className="space-y-8 animate-fade-in pb-24">
-      <div className="flex flex-wrap justify-end gap-2">
-        <button
-          onClick={() => {
-            setShowRisk(false);
-            setShowBloom(false);
-            setShowOCR(false);
-            setShowReportEditor(false);
-            setShowPsychometric(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors shadow-sm"
-        >
-          <Gauge className="w-4 h-4" />
-          Psikometrik Analiz
-        </button>
-        <button
-          onClick={() => {
-            setShowPsychometric(false);
-            setShowBloom(false);
-            setShowOCR(false);
-            setShowReportEditor(false);
-            setShowRisk(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-bold hover:bg-rose-500 transition-colors shadow-sm"
-        >
-          <AlertTriangle className="w-4 h-4" />
-          Risk Analizi
-        </button>
-        <button
-          onClick={() => {
-            setShowPsychometric(false);
-            setShowRisk(false);
-            setShowOCR(false);
-            setShowReportEditor(false);
-            setShowBloom(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-bold hover:bg-sky-500 transition-colors shadow-sm"
-        >
-          <Brain className="w-4 h-4" />
-          Bloom Analizi
-        </button>
-        <button
-          onClick={() => {
-            setShowPsychometric(false);
-            setShowRisk(false);
-            setShowBloom(false);
-            setShowReportEditor(false);
-            setShowOCR(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-500 transition-colors shadow-sm"
-        >
-          <Upload className="w-4 h-4" />
-          OCR Tarama
-        </button>
-        <button
-          onClick={() => {
-            setShowPsychometric(false);
-            setShowRisk(false);
-            setShowBloom(false);
-            setShowOCR(false);
-            setShowReportEditor(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-500 transition-colors shadow-sm"
-        >
-          <Layout className="w-4 h-4" />
-          Rapor Editörü
-        </button>
-        <button
-          onClick={() => {
-            setShowPsychometric(false);
-            setShowRisk(false);
-            setShowBloom(false);
-            setShowOCR(false);
-            setShowReportEditor(false);
-            setShowOfficialForm(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg text-sm font-bold hover:bg-slate-600 transition-colors shadow-sm"
-        >
-          <FileText className="w-4 h-4" />
-          Resmi Form
-        </button>
-      </div>
-
-      {showPsychometric && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <Gauge className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold">Psikometrik Analiz</h2>
-                  <p className="text-xs text-indigo-100">Soru kalitesi ve test güvenilirliği</p>
-                </div>
-              </div>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+        <div className="flex flex-wrap gap-2">
+          {moduleTabs.map((tab) => {
+            const isActive = activeModuleTab === tab.id;
+            const Icon = tab.icon;
+            return (
               <button
-                onClick={() => setShowPsychometric(false)}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                aria-label="Kapat"
+                key={tab.id}
+                onClick={() => setActiveModuleTab(isActive ? null : tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${isActive
+                  ? moduleTabStyles[tab.id]
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-800'
+                  }`}
+                aria-pressed={isActive}
               >
-                <X className="w-5 h-5" />
+                <Icon className="w-4 h-4" />
+                {tab.label}
               </button>
-            </div>
-            <div className="p-6 overflow-y-auto bg-slate-50">
-              <PsychometricAnalysis questions={questions} students={students} />
-            </div>
-          </div>
+            );
+          })}
         </div>
-      )}
-      {showRisk && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-rose-600 to-orange-500 text-white">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold">Risk Analizi</h2>
-                  <p className="text-xs text-orange-100">Öğrenci risk dağılımı ve öneriler</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowRisk(false)}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                aria-label="Kapat"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto bg-slate-50">
-              <RiskDashboard analysis={analysis} questions={questions} students={students} />
-            </div>
-          </div>
-        </div>
-      )}
-      {showBloom && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-600 to-sky-500 text-white">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <Brain className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold">Bloom Analizi</h2>
-                  <p className="text-xs text-sky-100">Bilişsel düzey dağılımı</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowBloom(false)}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                aria-label="Kapat"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto bg-slate-50">
-              <BloomAnalysis analysis={analysis} questions={questions} students={students} />
-            </div>
-          </div>
-        </div>
-      )}
-      {showOCR && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-600 to-teal-500 text-white">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <Upload className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold">OCR Tarama</h2>
-                  <p className="text-xs text-emerald-100">Sınıf listesi ve not görselleri</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowOCR(false)}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                aria-label="Kapat"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto bg-slate-50">
-              <OCRScanner
-                defaultClassName={metadata.className}
-                defaultGrade={metadata.grade}
-                defaultSubject={metadata.subject}
-                defaultAcademicYear={metadata.academicYear}
-                defaultSchoolName={metadata.schoolName}
-                defaultTeacherName={metadata.teacherName}
-                onApplyStudents={onApplyStudents}
-                onAppendStudents={onAppendStudents}
-                onClose={() => setShowOCR(false)}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-      {showReportEditor && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-600 to-indigo-800 text-white">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <Layout className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold">Gelişmiş Rapor Editörü</h2>
-                  <p className="text-xs text-indigo-100">Sürükle-bırak ile özel rapor tasarlayın</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowReportEditor(false)}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                aria-label="Kapat"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-0 overflow-hidden bg-slate-100 flex-1">
-              <ReportEditor />
-            </div>
-          </div>
-        </div>
-      )}
-      {showOfficialForm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[320mm] max-h-[95vh] overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-800 text-white">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold">MEB Resmi Sınav Analiz Formu</h2>
-                  <p className="text-xs text-slate-300">Yatay A4 formatında resmi çıktı örneği</p>
-                </div>
+        {activeModuleTab ? (
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">
+                  {activeModuleMeta?.label}
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  {activeModuleMeta?.description}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={async () => {
-                    const element = document.getElementById('official-meb-form');
-                    if (element) {
-                      setExportingPdf(true);
-                      try {
-                        const canvas = await html2canvas(element, { scale: 2, useCORS: true });
-                        const imgData = canvas.toDataURL('image/png');
-                        const { jsPDF } = await import('jspdf');
-                        const pdf = new jsPDF('l', 'mm', 'a4');
-                        pdf.addImage(imgData, 'PNG', 0, 0, 297, 210);
-                        pdf.save(`${metadata.className}_Resmi_Form.pdf`);
-                      } catch (err) {
-                        console.error('Export error:', err);
-                      } finally {
-                        setExportingPdf(false);
-                      }
-                    }
-                  }}
+                  onClick={() => handleModulePdfExport(activeModuleTab)}
                   disabled={exportingPdf}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors disabled:opacity-50"
                 >
                   <Download className="w-4 h-4" />
                   {exportingPdf ? 'Hazırlanıyor...' : 'PDF İndir'}
                 </button>
                 <button
-                  onClick={() => setShowOfficialForm(false)}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                  aria-label="Kapat"
+                  onClick={() => setActiveModuleTab(null)}
+                  className="flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-800 hover:border-slate-300 transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                  Kapat
                 </button>
               </div>
             </div>
-            <div className="p-8 overflow-auto bg-slate-200 flex-1 flex justify-center">
-              <div className="shadow-2xl">
-                <OfficialFormView
-                  analysis={analysis}
-                  metadata={metadata}
-                  questions={questions}
-                  students={students}
-                />
-              </div>
+            <div className="mt-4">
+              {activeModuleTab === 'psychometric' && (
+                <div id="module-psychometric" className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <PsychometricAnalysis questions={questions} students={students} />
+                </div>
+              )}
+              {activeModuleTab === 'risk' && (
+                <div id="module-risk" className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <RiskDashboard analysis={analysis} questions={questions} students={students} />
+                </div>
+              )}
+              {activeModuleTab === 'bloom' && (
+                <div id="module-bloom" className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <BloomAnalysis analysis={analysis} questions={questions} students={students} />
+                </div>
+              )}
+              {activeModuleTab === 'ocr' && (
+                <div id="module-ocr" className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <OCRScanner
+                    defaultClassName={metadata.className}
+                    defaultGrade={metadata.grade}
+                    defaultSubject={metadata.subject}
+                    defaultAcademicYear={metadata.academicYear}
+                    defaultSchoolName={metadata.schoolName}
+                    defaultTeacherName={metadata.teacherName}
+                    onApplyStudents={onApplyStudents}
+                    onAppendStudents={onAppendStudents}
+                  />
+                </div>
+              )}
+              {activeModuleTab === 'report' && (
+                <div className="bg-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                  <ReportEditor exportCanvasId="module-report-canvas" />
+                </div>
+              )}
+              {activeModuleTab === 'official' && (
+                <div className="bg-slate-200 border border-slate-200 rounded-xl p-6 overflow-auto">
+                  <OfficialFormView
+                    analysis={analysis}
+                    metadata={metadata}
+                    questions={questions}
+                    students={students}
+                  />
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="mt-4 border-t border-slate-100 pt-4 text-sm text-slate-500">
+            Modül görmek için yukarıdan bir sekme seçin.
+          </div>
+        )}
+      </div>
       {/* Visual Report Container */}
       <div className="space-y-8 p-4 -m-4 bg-slate-50">
         {/* 1. Summary Dashboard */}
@@ -957,23 +845,6 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
                 ))}
               </tbody>
             </table>
-          </div>
-        </div>
-
-        {/* Psikometrik Analiz - YENİ MODÜL */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-violet-50">
-            <h3 className="text-lg font-bold text-slate-800 flex items-center">
-              <span className="mr-2">📊</span>
-              Psikometrik Analiz (PISA/TIMSS Standardı)
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">Soru güçlüğü, ayırt edicilik ve test güvenilirliği analizi.</p>
-          </div>
-          <div className="p-6">
-            <PsychometricAnalysis
-              questions={questions}
-              students={students}
-            />
           </div>
         </div>
 

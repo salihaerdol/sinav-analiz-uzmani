@@ -232,6 +232,158 @@ export const userProfileService = {
 // =====================================================
 
 export const studentListService = {
+  async seedDefaultListsForCurrentUser(options: {
+    targetFullName?: string;
+    targetEmail?: string;
+    force?: boolean;
+  }): Promise<{ created: number; skipped: number }> {
+    if (!isSupabaseConfigured) {
+      return { created: 0, skipped: 0 };
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) {
+      return { created: 0, skipped: 0 };
+    }
+
+    const normalizeName = (value: string) => value
+      .toLocaleLowerCase('tr-TR')
+      .replace(/[ğ]/g, 'g')
+      .replace(/[ü]/g, 'u')
+      .replace(/[ş]/g, 's')
+      .replace(/[ı]/g, 'i')
+      .replace(/[ö]/g, 'o')
+      .replace(/[ç]/g, 'c')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
+    let userFullName = user.user_metadata?.full_name || '';
+    let userEmail = user.email || '';
+    let preferences: Record<string, any> = {};
+
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('full_name, email, preferences')
+      .eq('id', user.id)
+      .single();
+
+    userFullName = userFullName || profile?.full_name || '';
+    userEmail = userEmail || profile?.email || '';
+    preferences = profile?.preferences || {};
+
+    const targetFullName = options.targetFullName || '';
+    const targetEmail = options.targetEmail || '';
+
+    if (targetEmail) {
+      if (normalizeEmail(userEmail) !== normalizeEmail(targetEmail)) {
+        return { created: 0, skipped: 0 };
+      }
+    } else if (targetFullName) {
+      if (normalizeName(userFullName) !== normalizeName(targetFullName)) {
+        return { created: 0, skipped: 0 };
+      }
+    } else {
+      return { created: 0, skipped: 0 };
+    }
+
+    if (preferences.default_class_lists_seeded && !options.force) {
+      return { created: 0, skipped: 0 };
+    }
+
+    const { data: templates, error: templateError } = await supabase
+      .from('student_lists')
+      .select('*')
+      .is('user_id', null)
+      .eq('is_archived', false);
+
+    if (templateError || !templates?.length) {
+      console.warn('Default sinif listeleri bulunamadi:', templateError);
+      return { created: 0, skipped: 0 };
+    }
+
+    const { data: existing } = await supabase
+      .from('student_lists')
+      .select('name, academic_year')
+      .eq('user_id', user.id);
+
+    const existingKeys = new Set(
+      (existing || []).map((item) => `${item.name}::${item.academic_year}`)
+    );
+
+    let created = 0;
+    let skipped = 0;
+
+    for (const template of templates) {
+      const key = `${template.name}::${template.academic_year}`;
+      if (existingKeys.has(key)) {
+        skipped += 1;
+        continue;
+      }
+
+      const { data: createdList, error: createError } = await supabase
+        .from('student_lists')
+        .insert({
+          user_id: user.id,
+          name: template.name,
+          grade: template.grade,
+          section: template.section,
+          academic_year: template.academic_year,
+          subject: template.subject,
+          school_name: template.school_name,
+          total_students: template.total_students || 0,
+          is_archived: template.is_archived || false
+        })
+        .select()
+        .single();
+
+      if (createError || !createdList?.id) {
+        console.warn('Sinif listesi kopyalanamadi:', createError);
+        continue;
+      }
+
+      const { data: roster } = await supabase
+        .from('students')
+        .select('*')
+        .eq('student_list_id', template.id);
+
+      if (roster?.length) {
+        const rosterPayload = roster.map((student) => ({
+          student_list_id: createdList.id,
+          student_number: student.student_number,
+          full_name: student.full_name,
+          gender: student.gender,
+          date_of_birth: student.date_of_birth,
+          contact_email: student.contact_email,
+          parent_phone: student.parent_phone,
+          notes: student.notes,
+          is_active: student.is_active ?? true
+        }));
+        await supabase.from('students').insert(rosterPayload);
+        await supabase
+          .from('student_lists')
+          .update({ total_students: rosterPayload.length })
+          .eq('id', createdList.id);
+      }
+
+      created += 1;
+    }
+
+    const updatedPreferences = {
+      ...preferences,
+      default_class_lists_seeded: true,
+      default_class_lists_seeded_at: new Date().toISOString()
+    };
+
+    await supabase
+      .from('user_profiles')
+      .update({ preferences: updatedPreferences })
+      .eq('id', user.id);
+
+    return { created, skipped };
+  },
+
   async getCurrentUserId(): Promise<string | null> {
     const { data: { user } } = await supabase.auth.getUser();
     return user?.id || null;

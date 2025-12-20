@@ -90,6 +90,7 @@ const DraggableComponent: React.FC<DraggableComponentProps> = ({
 };
 
 interface ReportCanvasProps {
+    exportId?: string;
     layout: ReportComponent[];
     onAddComponent: (type: any) => void;
     onRemoveComponent: (id: string) => void;
@@ -98,6 +99,7 @@ interface ReportCanvasProps {
 }
 
 export const ReportCanvas: React.FC<ReportCanvasProps> = ({
+    exportId,
     layout,
     onAddComponent,
     onRemoveComponent,
@@ -114,9 +116,10 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
 
     return (
         <div
+            id={exportId}
             ref={drop}
             className={`
-        flex-1 p-8 overflow-y-auto bg-slate-100 min-h-full transition-colors
+        flex-1 p-8 overflow-auto bg-slate-100 min-h-full transition-colors
         ${isOver ? 'bg-indigo-50/50' : ''}
       `}
         >

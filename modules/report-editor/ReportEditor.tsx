@@ -19,7 +19,11 @@ import { ReportCanvas } from './ReportCanvas';
 import { ReportComponent, ReportTemplate, ReportComponentType } from './types';
 import { reportService } from './reportService';
 
-export const ReportEditor: React.FC = () => {
+interface ReportEditorProps {
+    exportCanvasId?: string;
+}
+
+export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) => {
     const [layout, setLayout] = useState<ReportComponent[]>([]);
     const [templateName, setTemplateName] = useState('Yeni Rapor Şablonu');
     const [isSaving, setIsSaving] = useState(false);
@@ -97,7 +101,7 @@ export const ReportEditor: React.FC = () => {
     };
 
     const loadTemplate = (template: ReportTemplate) => {
-        setLayout(template.layout);
+        setLayout(Array.isArray(template.layout) ? template.layout : []);
         setTemplateName(template.name);
         setShowTemplates(false);
     };
@@ -106,8 +110,8 @@ export const ReportEditor: React.FC = () => {
         <DndProvider backend={HTML5Backend}>
             <div className="flex flex-col h-[80vh] bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
                 {/* Toolbar */}
-                <div className="h-16 border-b border-slate-200 bg-white px-6 flex items-center justify-between z-10">
-                    <div className="flex items-center gap-4">
+                <div className="min-h-16 border-b border-slate-200 bg-white px-4 py-2 flex flex-wrap items-center justify-between gap-4 z-10">
+                    <div className="flex items-center gap-3 flex-1 min-w-[200px]">
                         <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
                             <FileText className="w-5 h-5" />
                         </div>
@@ -115,30 +119,30 @@ export const ReportEditor: React.FC = () => {
                             type="text"
                             value={templateName}
                             onChange={(e) => setTemplateName(e.target.value)}
-                            className="text-lg font-bold text-slate-800 border-none focus:ring-0 p-0 w-64"
+                            className="text-lg font-bold text-slate-800 border-none focus:ring-0 p-0 w-full min-w-[150px]"
                             placeholder="Şablon Adı..."
                         />
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 sm:pb-0">
                         <button
                             onClick={() => setShowTemplates(!showTemplates)}
-                            className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium"
+                            className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium whitespace-nowrap"
                         >
                             <Layout className="w-4 h-4" />
-                            Şablonlarım
+                            <span className="hidden sm:inline">Şablonlarım</span>
                         </button>
                         <div className="w-px h-6 bg-slate-200 mx-2"></div>
                         <button
-                            className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium"
+                            className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium whitespace-nowrap"
                         >
                             <Eye className="w-4 h-4" />
-                            Önizle
+                            <span className="hidden sm:inline">Önizle</span>
                         </button>
                         <button
                             onClick={handleSave}
                             disabled={isSaving}
-                            className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg transition-all text-sm font-bold shadow-md hover:shadow-indigo-500/30 disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg transition-all text-sm font-bold shadow-md hover:shadow-indigo-500/30 disabled:opacity-50 whitespace-nowrap"
                         >
                             {isSaving ? (
                                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -175,7 +179,7 @@ export const ReportEditor: React.FC = () => {
                                             >
                                                 <div className="font-medium text-slate-700">{t.name}</div>
                                                 <div className="text-[10px] text-slate-400 mt-1">
-                                                    {t.layout.length} bileşen • {new Date(t.updated_at!).toLocaleDateString('tr-TR')}
+                                                    {(Array.isArray(t.layout) ? t.layout.length : 0)} bileşen • {new Date(t.updated_at!).toLocaleDateString('tr-TR')}
                                                 </div>
                                             </button>
                                         ))
@@ -188,6 +192,7 @@ export const ReportEditor: React.FC = () => {
                     <ComponentPalette />
 
                     <ReportCanvas
+                        exportId={exportCanvasId}
                         layout={layout}
                         onAddComponent={handleAddComponent}
                         onRemoveComponent={handleRemoveComponent}

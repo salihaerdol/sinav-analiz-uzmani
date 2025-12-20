@@ -149,8 +149,8 @@ export default function OCRScanner({
 
   const isPdf = file?.type === 'application/pdf' || file?.name?.toLowerCase().endsWith('.pdf');
   const canAnalyze = useMemo(
-    () => Boolean(file) && (!isPdf || !loadingPdfInfo),
-    [file, isPdf, loadingPdfInfo]
+    () => Boolean(file) && (!isPdf || !loadingPdfInfo) && hasApiKey !== false,
+    [file, isPdf, loadingPdfInfo, hasApiKey]
   );
   const rows = editableRows;
   const currentConfidence = useMemo(() => {
@@ -254,6 +254,11 @@ export default function OCRScanner({
 
   const handleAnalyze = async () => {
     if (!file) return;
+    if (hasApiKey === false) {
+      setError('Gemini API anahtarı bulunamadı. Lütfen ayarlardan ekleyin.');
+      setStatus('failed');
+      return;
+    }
     setStatus('processing');
     setError(null);
     setResult(null);
@@ -616,6 +621,11 @@ export default function OCRScanner({
             </p>
           )}
         </div>
+        {hasApiKey === false && (
+          <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Gemini API anahtarı bulunamadı. OCR için Ayarlar bölümünden anahtar ekleyin.
+          </div>
+        )}
 
         {previewUrl && (
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -689,7 +699,7 @@ export default function OCRScanner({
                 disabled={!canAnalyze || status === 'processing'}
                 className="mt-6 w-full flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {status === 'processing' ? 'Analiz Ediliyor...' : 'OCR Analizi Başlat'}
+                {status === 'processing' ? 'Analiz Ediliyor...' : status === 'failed' ? 'Tekrar Dene' : 'OCR Analizi Başlat'}
               </button>
             </div>
           </div>
@@ -751,8 +761,8 @@ export default function OCRScanner({
           {applyNotice && (
             <div
               className={`mt-3 text-xs font-semibold px-3 py-2 rounded-lg border ${applyNotice.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-red-50 text-red-700 border-red-200'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-red-50 text-red-700 border-red-200'
                 }`}
             >
               {applyNotice.message}
@@ -1042,8 +1052,8 @@ export default function OCRScanner({
             {saveNotice && (
               <div
                 className={`text-xs font-semibold px-3 py-2 rounded-lg border ${saveNotice.type === 'success'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-red-50 text-red-700 border-red-200'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-red-50 text-red-700 border-red-200'
                   }`}
               >
                 {saveNotice.message}
