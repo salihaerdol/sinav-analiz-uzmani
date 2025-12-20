@@ -1,7 +1,7 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
 import { AnalysisResult, ExamMetadata, QuestionConfig, Student } from '../types';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LabelList,
   PieChart, Pie, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   RadialBarChart, RadialBar
 } from 'recharts';
@@ -623,6 +623,13 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
                     formatter={(value: number) => [`%${value.toFixed(1)}`, 'Başarı']}
                   />
                   <Bar dataKey="success" radius={[4, 4, 0, 0]}>
+                    <LabelList
+                      dataKey="success"
+                      position="top"
+                      fontSize={11}
+                      fill="#64748b"
+                      formatter={(value: number) => `%${Number(value).toFixed(0)}`}
+                    />
                     {outcomeData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.success < 50 ? '#ef4444' : entry.success < 75 ? '#f59e0b' : '#22c55e'} />
                     ))}
@@ -713,7 +720,14 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
                     cursor={{ fill: '#f1f5f9' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />
-                  <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} name="Öğrenci Sayısı" />
+                  <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} name="Öğrenci Sayısı">
+                    <LabelList
+                      dataKey="count"
+                      position="top"
+                      fontSize={11}
+                      fill="#64748b"
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -738,6 +752,13 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
                   formatter={(value: number, name: string, props: any) => [`%${value.toFixed(1)}`, props.payload.full]}
                 />
                 <Bar dataKey="success" radius={[4, 4, 0, 0]}>
+                  <LabelList
+                    dataKey="success"
+                    position="top"
+                    fontSize={11}
+                    fill="#64748b"
+                    formatter={(value: number) => `%${Number(value).toFixed(0)}`}
+                  />
                   {questionSuccessData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.success < 50 ? '#ef4444' : entry.success < 75 ? '#f59e0b' : '#22c55e'} />
                   ))}

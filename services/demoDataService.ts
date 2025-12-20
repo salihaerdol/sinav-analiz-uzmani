@@ -6,13 +6,40 @@ export interface DemoClass {
     students: Student[];
 }
 
-const DEFAULT_QUESTIONS: QuestionConfig[] = [
-    { id: 1, order: 1, maxScore: 15, outcome: { code: 'M.6.1.2', description: 'İşlem önceliğini dikkate alarak doğal sayılarla dört işlem yapar.' } },
-    { id: 2, order: 2, maxScore: 15, outcome: { code: 'M.6.1.3', description: 'Doğal sayıların çarpanlarını ve katlarını belirler.' } },
-    { id: 3, order: 3, maxScore: 15, outcome: { code: 'M.6.1.4', description: 'Bölünebilme kurallarını anlar ve kullanır.' } },
-    { id: 4, order: 4, maxScore: 20, outcome: { code: 'M.6.1.1', description: 'Üslü ifadeleri anlar ve değerini hesaplar.' } },
-    { id: 5, order: 5, maxScore: 15, outcome: { code: 'M.6.1.1', description: 'Üslü ifadeleri anlar ve değerini hesaplar.' } },
-    { id: 6, order: 6, maxScore: 20, outcome: { code: 'M.6.5.1', description: 'Veri toplamayı gerektiren araştırma soruları oluşturur.' } },
+const QUESTIONS_5: QuestionConfig[] = [
+    { id: 1, order: 1, maxScore: 10, outcome: { code: 'M.5.1.1', description: 'En çok dokuz basamaklı doğal sayıları okur ve yazar.' } },
+    { id: 2, order: 2, maxScore: 15, outcome: { code: 'M.5.1.2', description: 'En çok dokuz basamaklı doğal sayıların bölüklerini, basamaklarını ve rakamların basamak değerlerini belirtir.' } },
+    { id: 3, order: 3, maxScore: 15, outcome: { code: 'M.5.1.3', description: 'Kuralı verilen sayı ve şekil örüntülerinin istenen adımlarını oluşturur.' } },
+    { id: 4, order: 4, maxScore: 20, outcome: { code: 'M.5.1.4', description: 'En çok beş basamaklı doğal sayılarla toplama ve çıkarma işlemi yapar.' } },
+    { id: 5, order: 5, maxScore: 20, outcome: { code: 'M.5.1.5', description: 'Doğal sayılarla toplama ve çıkarma işlemlerinin sonuçlarını tahmin eder.' } },
+    { id: 6, order: 6, maxScore: 20, outcome: { code: 'M.5.1.6', description: 'Zihinden toplama ve çıkarma işlemleri yapar.' } },
+];
+
+const QUESTIONS_6: QuestionConfig[] = [
+    { id: 1, order: 1, maxScore: 15, outcome: { code: 'M.6.1.1', description: 'Üslü ifadeleri anlar ve değerini hesaplar.' } },
+    { id: 2, order: 2, maxScore: 15, outcome: { code: 'M.6.1.2', description: 'İşlem önceliğini dikkate alarak doğal sayılarla dört işlem yapar.' } },
+    { id: 3, order: 3, maxScore: 15, outcome: { code: 'M.6.1.3', description: 'Doğal sayıların çarpanlarını ve katlarını belirler.' } },
+    { id: 4, order: 4, maxScore: 20, outcome: { code: 'M.6.1.4', description: 'Bölünebilme kurallarını anlar ve kullanır.' } },
+    { id: 5, order: 5, maxScore: 15, outcome: { code: 'M.6.1.5', description: 'Asal sayıları özellikleriyle belirler.' } },
+    { id: 6, order: 6, maxScore: 20, outcome: { code: 'M.6.1.6', description: 'Doğal sayıların ortak çarpanlarını ve ortak katlarını belirler.' } },
+];
+
+const QUESTIONS_7: QuestionConfig[] = [
+    { id: 1, order: 1, maxScore: 15, outcome: { code: 'M.7.1.1', description: 'Tam sayılarla toplama ve çıkarma işlemlerini yapar.' } },
+    { id: 2, order: 2, maxScore: 15, outcome: { code: 'M.7.1.2', description: 'Tam sayılarla çarpma ve bölme işlemlerini yapar.' } },
+    { id: 3, order: 3, maxScore: 20, outcome: { code: 'M.7.1.3', description: 'Tam sayıların kendileri ile tekrarlı çarpımını üslü nicelik olarak ifade eder.' } },
+    { id: 4, order: 4, maxScore: 15, outcome: { code: 'M.7.1.4', description: 'Rasyonel sayıları tanır ve sayı doğrusunda gösterir.' } },
+    { id: 5, order: 5, maxScore: 15, outcome: { code: 'M.7.1.5', description: 'Rasyonel sayıları ondalık gösterimle ifade eder.' } },
+    { id: 6, order: 6, maxScore: 20, outcome: { code: 'M.7.2.1', description: 'Birinci dereceden bir bilinmeyenli denklemleri çözer.' } },
+];
+
+const QUESTIONS_8: QuestionConfig[] = [
+    { id: 1, order: 1, maxScore: 15, outcome: { code: 'M.8.1.1', description: 'Verilen pozitif tam sayıların pozitif tam sayı çarpanlarını bulur.' } },
+    { id: 2, order: 2, maxScore: 15, outcome: { code: 'M.8.1.2', description: 'Tam sayıların, tam sayı kuvvetlerini hesaplar.' } },
+    { id: 3, order: 3, maxScore: 20, outcome: { code: 'M.8.1.3', description: 'Üslü ifadelerle ilgili temel kuralları anlar ve işlemler yapar.' } },
+    { id: 4, order: 4, maxScore: 15, outcome: { code: 'M.8.1.4', description: 'Tam kare pozitif tam sayılarla bu sayıların karekökleri arasındaki ilişkiyi belirler.' } },
+    { id: 5, order: 5, maxScore: 15, outcome: { code: 'M.8.1.5', description: 'Tam kare olmayan kareköklü bir sayının hangi iki doğal sayı arasında olduğunu belirler.' } },
+    { id: 6, order: 6, maxScore: 20, outcome: { code: 'M.8.2.1', description: 'Cebirsel ifadeleri çarpanlara ayırır.' } },
 ];
 
 function generateScores(questions: QuestionConfig[], successBase: number): Record<number, number> {
@@ -25,99 +52,80 @@ function generateScores(questions: QuestionConfig[], successBase: number): Recor
     return scores;
 }
 
+const FIRST_NAMES = [
+    'Ahmet', 'Mehmet', 'Ali', 'Ayşe', 'Fatma', 'Zeynep', 'Mustafa', 'Emine', 'Hüseyin', 'Hatice',
+    'Can', 'Ece', 'Burak', 'Selin', 'Mert', 'Derya', 'Deniz', 'Ömer', 'Elif', 'Yusuf',
+    'Arda', 'Buse', 'Cem', 'Damla', 'Enes', 'Gizem', 'Hakan', 'İrem', 'Kaan', 'Lale'
+];
+
+const LAST_NAMES = [
+    'Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Yıldız', 'Öztürk', 'Aydın', 'Özdemir', 'Arslan',
+    'Doğan', 'Kılıç', 'Aslan', 'Çetin', 'Kara', 'Koç', 'Kurt', 'Özkan', 'Şimşek', 'Polat',
+    'Özcan', 'Korkmaz', 'Çakır', 'Erdoğan', 'Yavuz', 'Aksoy', 'Sarı', 'Avcı', 'Güler', 'Güneş'
+];
+
+function getRandomName() {
+    const fn = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+    const ln = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
+    return `${fn} ${ln}`;
+}
+
 export const DEMO_CLASSES: Record<string, DemoClass> = {
     '5A': {
         metadata: {
-            grade: '5', subject: 'Matematik', scenario: '1', schoolName: 'Kalekaya Ortaokulu',
+            grade: '5', subject: 'Matematik', scenario: '1', schoolName: 'Cumhuriyet Ortaokulu',
             teacherName: 'Saliha Erdöl', academicYear: '2025-2026', className: '5A',
             date: '2025-12-15', term: '1', examNumber: '1', examType: 'Yazılı'
         },
-        questions: DEFAULT_QUESTIONS,
-        students: [
-            { id: '5a1', student_number: '9', name: 'Bayram Can', scores: generateScores(DEFAULT_QUESTIONS, 0.7) },
-            { id: '5a2', student_number: '15', name: 'Ahmet Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.8) },
-            { id: '5a3', student_number: '16', name: 'Ahmet Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.6) },
-            { id: '5a4', student_number: '17', name: 'Can Berkan Avcı', scores: generateScores(DEFAULT_QUESTIONS, 0.9) },
-            { id: '5a5', student_number: '18', name: 'Cansu Poyraz', scores: generateScores(DEFAULT_QUESTIONS, 0.75) },
-            { id: '5a6', student_number: '19', name: 'Hacı Aksu', scores: generateScores(DEFAULT_QUESTIONS, 0.5) },
-            { id: '5a7', student_number: '20', name: 'Hatice Torun', scores: generateScores(DEFAULT_QUESTIONS, 0.85) },
-            { id: '5a8', student_number: '22', name: 'Durdu Aksu', scores: generateScores(DEFAULT_QUESTIONS, 0.4) },
-            { id: '5a9', student_number: '23', name: 'Havvanur Avcı', scores: generateScores(DEFAULT_QUESTIONS, 0.65) },
-            { id: '5a10', student_number: '24', name: 'Hüseyin Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.7) },
-            { id: '5a11', student_number: '26', name: 'Nuri Çağlar Poyraz', scores: generateScores(DEFAULT_QUESTIONS, 0.95) },
-            { id: '5a12', student_number: '27', name: 'Ömer Biricik', scores: generateScores(DEFAULT_QUESTIONS, 0.8) },
-            { id: '5a13', student_number: '29', name: 'Rahime Nur Kelleşibüyük', scores: generateScores(DEFAULT_QUESTIONS, 0.7) },
-            { id: '5a14', student_number: '30', name: 'Sait Torun', scores: generateScores(DEFAULT_QUESTIONS, 0.55) },
-            { id: '5a15', student_number: '32', name: 'Umutcan Poyraz', scores: generateScores(DEFAULT_QUESTIONS, 0.6) },
-            { id: '5a16', student_number: '33', name: 'Yasin Gümüş', scores: generateScores(DEFAULT_QUESTIONS, 0.75) },
-            { id: '5a17', student_number: '34', name: 'Yılmaz Poyraz', scores: generateScores(DEFAULT_QUESTIONS, 0.8) },
-            { id: '5a18', student_number: '65', name: 'Battal Hacı Canik', scores: generateScores(DEFAULT_QUESTIONS, 0.45) },
-            { id: '5a19', student_number: '66', name: 'Dede Canik', scores: generateScores(DEFAULT_QUESTIONS, 0.5) },
-            { id: '5a20', student_number: '69', name: 'Ertuğrul Canik', scores: generateScores(DEFAULT_QUESTIONS, 0.9) },
-            { id: '5a21', student_number: '78', name: 'Mehmet Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.3) },
-            { id: '5a22', student_number: '83', name: 'Durdiye Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.6) },
-            { id: '5a23', student_number: '87', name: 'Gamze Biricik', scores: generateScores(DEFAULT_QUESTIONS, 0.85) },
-            { id: '5a24', student_number: '89', name: 'Hasan Poyraz', scores: generateScores(DEFAULT_QUESTIONS, 0.7) },
-            { id: '5a25', student_number: '92', name: 'Kenan Aksu', scores: generateScores(DEFAULT_QUESTIONS, 0.5) },
-        ]
+        questions: QUESTIONS_5,
+        students: Array.from({ length: 25 }, (_, i) => ({
+            id: `5a${i + 1}`,
+            student_number: `${100 + i}`,
+            name: getRandomName(),
+            scores: generateScores(QUESTIONS_5, 0.4 + Math.random() * 0.5)
+        }))
     },
     '6A': {
         metadata: {
-            grade: '6', subject: 'Matematik', scenario: '1', schoolName: 'Kalekaya Ortaokulu',
+            grade: '6', subject: 'Matematik', scenario: '1', schoolName: 'Atatürk Ortaokulu',
             teacherName: 'Ertuğrul Gülter', academicYear: '2025-2026', className: '6A',
             date: '2025-12-10', term: '1', examNumber: '1', examType: 'Yazılı'
         },
-        questions: DEFAULT_QUESTIONS,
-        students: [
-            { id: '6a1', student_number: '28', name: 'Kevser Fatma Biricik', scores: { 1: 15, 2: 11, 3: 15, 4: 20, 5: 15, 6: 20 } },
-            { id: '6a2', student_number: '36', name: 'Cennet Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.65) },
-            { id: '6a3', student_number: '42', name: 'Hatice Canik', scores: generateScores(DEFAULT_QUESTIONS, 0.7) },
-            { id: '6a4', student_number: '55', name: 'Suna Keçikiçli', scores: generateScores(DEFAULT_QUESTIONS, 0.8) },
-            { id: '6a5', student_number: '60', name: 'Yunus Çolak', scores: generateScores(DEFAULT_QUESTIONS, 0.5) },
-            { id: '6a6', student_number: '73', name: 'Mehmet Şahan', scores: { 1: 0, 2: 6, 3: 0, 4: 0, 5: 0, 6: 10 } },
-            { id: '6a7', student_number: '94', name: 'Tayyibe Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.6) },
-        ]
+        questions: QUESTIONS_6,
+        students: Array.from({ length: 20 }, (_, i) => ({
+            id: `6a${i + 1}`,
+            student_number: `${200 + i}`,
+            name: getRandomName(),
+            scores: generateScores(QUESTIONS_6, 0.5 + Math.random() * 0.4)
+        }))
     },
     '7A': {
         metadata: {
-            grade: '7', subject: 'Matematik', scenario: '1', schoolName: 'Kalekaya Ortaokulu',
+            grade: '7', subject: 'Matematik', scenario: '1', schoolName: 'Fatih Ortaokulu',
             teacherName: 'Ali Yaltoğil', academicYear: '2025-2026', className: '7A',
             date: '2025-12-12', term: '1', examNumber: '1', examType: 'Yazılı'
         },
-        questions: DEFAULT_QUESTIONS,
-        students: [
-            { id: '7a1', student_number: '11', name: 'Gül Bahar Poyraz', scores: generateScores(DEFAULT_QUESTIONS, 0.85) },
-            { id: '7a2', student_number: '12', name: 'Feride Aksu', scores: generateScores(DEFAULT_QUESTIONS, 0.7) },
-            { id: '7a3', student_number: '43', name: 'Rabia Aksu', scores: generateScores(DEFAULT_QUESTIONS, 0.6) },
-            { id: '7a4', student_number: '45', name: 'Döndü Canik', scores: generateScores(DEFAULT_QUESTIONS, 0.75) },
-            { id: '7a5', student_number: '46', name: 'Döndü Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.8) },
-            { id: '7a6', student_number: '51', name: 'Ömer Samet Çapar', scores: generateScores(DEFAULT_QUESTIONS, 0.55) },
-            { id: '7a7', student_number: '62', name: 'Ayşenur Biricik', scores: generateScores(DEFAULT_QUESTIONS, 0.9) },
-            { id: '7a8', student_number: '68', name: 'Eda Biricik', scores: generateScores(DEFAULT_QUESTIONS, 0.85) },
-            { id: '7a9', student_number: '71', name: 'Gülüzar Gümüş', scores: generateScores(DEFAULT_QUESTIONS, 0.65) },
-            { id: '7a10', student_number: '72', name: 'Hasan Hüseyin Çapar', scores: generateScores(DEFAULT_QUESTIONS, 0.7) },
-            { id: '7a11', student_number: '77', name: 'Barış Biricik', scores: generateScores(DEFAULT_QUESTIONS, 0.5) },
-            { id: '7a12', student_number: '80', name: 'Bünyamin Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.6) },
-            { id: '7a13', student_number: '85', name: 'Emine Canik', scores: generateScores(DEFAULT_QUESTIONS, 0.8) },
-            { id: '7a14', student_number: '90', name: 'Hüsne Türk', scores: generateScores(DEFAULT_QUESTIONS, 0.75) },
-            { id: '7a15', student_number: '96', name: 'Musa Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.4) },
-        ]
+        questions: QUESTIONS_7,
+        students: Array.from({ length: 22 }, (_, i) => ({
+            id: `7a${i + 1}`,
+            student_number: `${300 + i}`,
+            name: getRandomName(),
+            scores: generateScores(QUESTIONS_7, 0.3 + Math.random() * 0.6)
+        }))
     },
     '8A': {
         metadata: {
-            grade: '8', subject: 'Matematik', scenario: '1', schoolName: 'Kalekaya Ortaokulu',
+            grade: '8', subject: 'Matematik', scenario: '1', schoolName: 'Mevlana Ortaokulu',
             teacherName: 'Mine Taş', academicYear: '2025-2026', className: '8A',
             date: '2025-12-14', term: '1', examNumber: '1', examType: 'Yazılı'
         },
-        questions: DEFAULT_QUESTIONS,
-        students: [
-            { id: '8a1', student_number: '8', name: 'Ahmet Kelleşibüyük', scores: generateScores(DEFAULT_QUESTIONS, 0.9) },
-            { id: '8a2', student_number: '13', name: 'Halime Gümüş', scores: generateScores(DEFAULT_QUESTIONS, 0.8) },
-            { id: '8a3', student_number: '14', name: 'Hacı Mehmet Biricik', scores: generateScores(DEFAULT_QUESTIONS, 0.7) },
-            { id: '8a4', student_number: '21', name: 'Melike Gümüş', scores: generateScores(DEFAULT_QUESTIONS, 0.85) },
-            { id: '8a5', student_number: '76', name: 'Aysel Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.6) },
-            { id: '8a6', student_number: '98', name: 'Uğur Şahan', scores: generateScores(DEFAULT_QUESTIONS, 0.5) },
-        ]
+        questions: QUESTIONS_8,
+        students: Array.from({ length: 18 }, (_, i) => ({
+            id: `8a${i + 1}`,
+            student_number: `${400 + i}`,
+            name: getRandomName(),
+            scores: generateScores(QUESTIONS_8, 0.6 + Math.random() * 0.3)
+        }))
     }
 };
 

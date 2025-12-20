@@ -5,7 +5,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-    ResponsiveContainer, Cell, PieChart, Pie, ScatterChart, Scatter, ZAxis
+    ResponsiveContainer, Cell, PieChart, Pie, ScatterChart, Scatter, ZAxis, LabelList
 } from 'recharts';
 import {
     AlertTriangle, CheckCircle, Info, TrendingUp, TrendingDown,
@@ -260,8 +260,22 @@ export default function PsychometricAnalysis({ questions, students, onExport }: 
                         <YAxis domain={[-20, 100]} tickFormatter={(v) => `${v}%`} />
                         <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
                         <Legend />
-                        <Bar dataKey="Güçlük" fill="#6366f1" name="Güçlük (P)" />
-                        <Bar dataKey="AyırtEdicilik" fill="#22c55e" name="Ayırt Edicilik (D)" />
+                        <Bar dataKey="Güçlük" fill="#6366f1" name="Güçlük (P)">
+                            <LabelList
+                                dataKey="Güçlük"
+                                position="top"
+                                fontSize={10}
+                                formatter={(value: number) => `${Number(value).toFixed(0)}%`}
+                            />
+                        </Bar>
+                        <Bar dataKey="AyırtEdicilik" fill="#22c55e" name="Ayırt Edicilik (D)">
+                            <LabelList
+                                dataKey="AyırtEdicilik"
+                                position="top"
+                                fontSize={10}
+                                formatter={(value: number) => `${Number(value).toFixed(0)}%`}
+                            />
+                        </Bar>
                     </BarChart>
                 </ResponsiveContainer>
             </div>

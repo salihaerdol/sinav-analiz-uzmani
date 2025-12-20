@@ -45,6 +45,72 @@ const INITIAL_METADATA: ExamMetadata = {
   schoolType: 'Ortaokul'
 };
 
+const BLOOM_KEYWORDS: Record<Exclude<QuestionConfig['cognitiveLevel'], undefined>, string[]> = {
+  Bilgi: ['tanim', 'hatirla', 'belirt', 'sirala', 'liste', 'say', 'adi', 'ezber', 'isaretle'],
+  Kavrama: ['acikla', 'ornek', 'ozet', 'yorumla', 'siniflandir', 'kendi cumle'],
+  Uygulama: ['uygula', 'kullan', 'hesapla', 'coz', 'uyarla', 'goster', 'gerceklestir'],
+  Analiz: ['analiz', 'karsilastir', 'ayir', 'iliskilendir', 'neden', 'sonuc', 'cikarim'],
+  Sentez: ['tasarla', 'olustur', 'yapilandir', 'planla', 'model', 'yaz', 'gelistir'],
+  Değerlendirme: ['degerlendir', 'elestir', 'savun', 'kanitla', 'sec', 'gerekcelendir']
+};
+
+const normalizeBloomText = (value: string) =>
+  value
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[ğ]/g, 'g')
+    .replace(/[ü]/g, 'u')
+    .replace(/[ş]/g, 's')
+    .replace(/[ı]/g, 'i')
+    .replace(/[ö]/g, 'o')
+    .replace(/[ç]/g, 'c')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const inferBloomLevel = (text: string): QuestionConfig['cognitiveLevel'] | undefined => {
+  const normalized = normalizeBloomText(text);
+  if (!normalized) return undefined;
+  let bestLevel: QuestionConfig['cognitiveLevel'] | undefined;
+  let bestScore = 0;
+
+  (Object.keys(BLOOM_KEYWORDS) as Array<Exclude<QuestionConfig['cognitiveLevel'], undefined>>).forEach((level) => {
+    const score = BLOOM_KEYWORDS[level].reduce((sum, keyword) => (
+      normalized.includes(keyword) ? sum + 1 : sum
+    ), 0);
+    if (score > bestScore) {
+      bestScore = score;
+      bestLevel = level;
+    }
+  });
+
+  return bestScore > 0 ? bestLevel : undefined;
+};
+
+const inferDifficulty = (level: QuestionConfig['cognitiveLevel'] | undefined): QuestionConfig['difficulty'] | undefined => {
+  if (!level) return undefined;
+  if (level === 'Bilgi') return 'Kolay';
+  if (level === 'Kavrama' || level === 'Uygulama') return 'Orta';
+  return 'Zor';
+};
+
+const applyAutoBloom = (question: QuestionConfig, description: string): QuestionConfig => {
+  const inferredLevel = question.cognitiveLevel ?? inferBloomLevel(description);
+  const inferredDifficulty = question.difficulty ?? inferDifficulty(inferredLevel);
+
+  if (inferredLevel === question.cognitiveLevel && inferredDifficulty === question.difficulty) {
+    return question;
+  }
+
+  return {
+    ...question,
+    cognitiveLevel: inferredLevel ?? question.cognitiveLevel,
+    difficulty: inferredDifficulty ?? question.difficulty
+  };
+};
+
+const applyAutoBloomToQuestions = (list: QuestionConfig[]) =>
+  list.map((question) => applyAutoBloom(question, question.outcome?.description || ''));
+
 function MainApp() {
   const { user, signOut, isAdmin } = useAuth();
   const [step, setStep] = useState<Step>(Step.METADATA);
@@ -310,24 +376,32 @@ function MainApp() {
     }
   };
 
-  const loadClass = async (cls: StudentList) => {
+  const loadClass = async (cls: StudentList, options?: { mode?: 'replace' | 'append' }) => {
     if (!cls.id) {
       alert('Seçilen sınıf bulunamadı.');
       return;
     }
-    if (!confirm(`${cls.name} sınıfı yüklenecek. Mevcut öğrenci listesi silinebilir. Devam edilsin mi?`)) {
+    const mode = options?.mode ?? 'replace';
+    if (mode === 'replace' && !confirm(`${cls.name} sınıfı yüklenecek. Mevcut öğrenci listesi silinebilir. Devam edilsin mi?`)) {
+      return;
+    }
+    if (mode === 'append' && students.length > 0 && !confirm(`${cls.name} sınıfı mevcut listeye eklenecek. Devam edilsin mi?`)) {
       return;
     }
 
-    setMetadata(prev => ({
-      ...prev,
-      schoolName: cls.school_name || prev.schoolName,
-      className: cls.name,
-      grade: cls.grade,
-      subject: cls.subject || prev.subject,
-      academicYear: cls.academic_year
-    }));
-    setCurrentStudentListId(cls.id);
+    if (mode === 'replace') {
+      setMetadata(prev => ({
+        ...prev,
+        schoolName: cls.school_name || prev.schoolName,
+        className: cls.name,
+        grade: cls.grade,
+        subject: cls.subject || prev.subject,
+        academicYear: cls.academic_year
+      }));
+      setCurrentStudentListId(cls.id);
+    } else if (currentStudentListId && currentStudentListId !== cls.id) {
+      setCurrentStudentListId(null);
+    }
 
     try {
       const roster = await studentService.getByList(cls.id);
@@ -338,9 +412,15 @@ function MainApp() {
           scores: {},
           student_number: student.student_number || undefined
         }));
-        setStudents(newStudents);
+        if (mode === 'append') {
+          setStudents(prev => mergeStudents(prev, newStudents, true));
+        } else {
+          setStudents(newStudents);
+        }
       } else {
-        setStudents([]);
+        if (mode === 'replace') {
+          setStudents([]);
+        }
         alert('Bu sınıfta kayıtlı öğrenci listesi bulunamadı.');
       }
     } catch (error) {
@@ -451,14 +531,14 @@ function MainApp() {
     } else {
       const template = getScenarioTemplate(metadata.grade, metadata.subject, metadata.scenario);
       if (template && template.length > 0) {
-        setQuestions(template);
+        setQuestions(applyAutoBloomToQuestions(template));
         setStep(Step.QUESTIONS);
         return;
       }
       defaults = getScenarioData(metadata.grade, metadata.subject, metadata.scenario);
     }
 
-    setQuestions(defaults);
+    setQuestions(applyAutoBloomToQuestions(defaults));
     setStep(Step.QUESTIONS);
   };
 
@@ -483,7 +563,7 @@ function MainApp() {
   const updateQuestionOutcome = (id: number, code: string) => {
     const description = getOutcomeDescription(code);
     setQuestions(prev => prev.map(q => q.id === id ? {
-      ...q,
+      ...applyAutoBloom(q, description || q.outcome.description),
       outcome: {
         code: code,
         description: description ? description : q.outcome.description
@@ -493,7 +573,7 @@ function MainApp() {
 
   const updateQuestionOutcomeDesc = (id: number, description: string) => {
     setQuestions(prev => prev.map(q => q.id === id ? {
-      ...q,
+      ...applyAutoBloom(q, description),
       outcome: { ...q.outcome, description }
     } : q));
   };
@@ -888,6 +968,13 @@ function MainApp() {
         <div className="flex items-center gap-2">
           <DataImport questions={questions} onImport={(newStudents) => setStudents(newStudents)} />
           <button
+            onClick={loadSavedClasses}
+            className="flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 text-sm font-bold transition-all"
+            title="Kayıtlı Sınıf Yükle"
+          >
+            <Download className="w-4 h-4 mr-1" /> Sınıf Yükle
+          </button>
+          <button
             onClick={() => setShowBulkAddModal(true)}
             className="flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 text-sm font-bold transition-all"
           >
@@ -1201,12 +1288,22 @@ function MainApp() {
                           <p className="text-sm text-slate-500">{cls.school_name || '-'} - {cls.academic_year}</p>
                           <p className="text-xs text-slate-400 mt-1">{cls.grade}. Sınıf {cls.subject || '-'}</p>
                         </div>
-                        <button
-                          onClick={() => loadClass(cls)}
-                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          Seç ve Yükle
-                        </button>
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {step === Step.SCORES && (
+                            <button
+                              onClick={() => loadClass(cls, { mode: 'append' })}
+                              className="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 text-xs font-bold"
+                            >
+                              Listeye Ekle
+                            </button>
+                          )}
+                          <button
+                            onClick={() => loadClass(cls, { mode: 'replace' })}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-bold"
+                          >
+                            Seç ve Yükle
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -29,6 +29,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
     const [isSaving, setIsSaving] = useState(false);
     const [templates, setTemplates] = useState<ReportTemplate[]>([]);
     const [showTemplates, setShowTemplates] = useState(false);
+    const [isPreview, setIsPreview] = useState(false);
 
     useEffect(() => {
         loadTemplates();
@@ -43,12 +44,28 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
         }
     };
 
+    const defaultComponentSettings: Record<ReportComponentType, { width: string; height: string }> = {
+        header: { width: 'full', height: 'sm' },
+        summary_stats: { width: 'full', height: 'sm' },
+        bar_chart: { width: 'full', height: 'lg' },
+        pie_chart: { width: 'half', height: 'md' },
+        radar_chart: { width: 'half', height: 'md' },
+        student_table: { width: 'full', height: 'xl' },
+        outcome_table: { width: 'full', height: 'lg' },
+        psychometric_table: { width: 'full', height: 'lg' },
+        risk_card: { width: 'half', height: 'sm' },
+        ai_comment: { width: 'full', height: 'sm' },
+        free_text: { width: 'full', height: 'md' },
+        signature: { width: 'half', height: 'sm' },
+        page_break: { width: 'full', height: 'xs' }
+    };
+
     const handleAddComponent = useCallback((type: ReportComponentType) => {
         const newComponent: ReportComponent = {
             id: uuidv4(),
             type,
             title: '',
-            settings: {},
+            settings: defaultComponentSettings[type] || { width: 'full', height: 'md' },
             order: layout.length
         };
         setLayout(prev => [...prev, newComponent]);
@@ -69,7 +86,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
     }, []);
 
     const handleUpdateSettings = useCallback((id: string, settings: any) => {
-        setLayout(prev => prev.map(c => c.id === id ? { ...c, settings } : c));
+        setLayout(prev => prev.map(c => c.id === id ? { ...c, settings: { ...c.settings, ...settings } } : c));
     }, []);
 
     const handleSave = async () => {
@@ -134,10 +151,11 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
                         </button>
                         <div className="w-px h-6 bg-slate-200 mx-2"></div>
                         <button
+                            onClick={() => setIsPreview((prev) => !prev)}
                             className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-sm font-medium whitespace-nowrap"
                         >
-                            <Eye className="w-4 h-4" />
-                            <span className="hidden sm:inline">Önizle</span>
+                            {isPreview ? <Check className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            <span className="hidden sm:inline">{isPreview ? 'Düzenle' : 'Önizle'}</span>
                         </button>
                         <button
                             onClick={handleSave}
@@ -189,11 +207,12 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
                         </div>
                     )}
 
-                    <ComponentPalette />
+                    {!isPreview && <ComponentPalette />}
 
                     <ReportCanvas
                         exportId={exportCanvasId}
                         layout={layout}
+                        isPreview={isPreview}
                         onAddComponent={handleAddComponent}
                         onRemoveComponent={handleRemoveComponent}
                         onMoveComponent={handleMoveComponent}

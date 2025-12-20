@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { Brain, CheckCircle, AlertTriangle, Target } from 'lucide-react';
 import { AnalysisResult, QuestionConfig, Student } from '../../types';
 import { BLOOM_COLORS, buildBloomSummary } from './bloomCalculations';
@@ -113,6 +113,7 @@ export default function BloomAnalysis({ analysis, questions, students }: Props) 
                 : [value, 'Soru Sayısı']}
             />
             <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+              <LabelList dataKey="count" position="top" fontSize={11} fill="#64748b" />
               {chartData.map(entry => (
                 <Cell key={entry.name} fill={BLOOM_COLORS[entry.name as keyof typeof BLOOM_COLORS]} />
               ))}
