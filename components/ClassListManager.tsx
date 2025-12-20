@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, List, AlertCircle, CheckCircle } from 'lucide-react';
-import { classListService, ClassList } from '../services/supabase';
+import { studentListService, StudentList } from '../services/supabase';
 
 export function ClassListManager() {
-    const [classLists, setClassLists] = useState<ClassList[]>([]);
+    const [classLists, setClassLists] = useState<StudentList[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>('');
     const [success, setSuccess] = useState<string>('');
-    const [newClass, setNewClass] = useState<ClassList>({
+    const [newClass, setNewClass] = useState<StudentList>({
+        name: '',
         grade: '5',
         subject: 'İngilizce',
-        className: '',
-        schoolName: '',
-        teacherName: '',
-        academicYear: '2025-2026'
+        academic_year: '2025-2026',
+        school_name: ''
     });
 
     useEffect(() => {
@@ -23,7 +22,7 @@ export function ClassListManager() {
     const loadClassLists = async () => {
         try {
             setLoading(true);
-            const data = await classListService.getAll();
+            const data = await studentListService.getAll();
             setClassLists(data);
         } catch (err) {
             setError('Sınıf listeleri yüklenirken hata oluştu.');
@@ -34,7 +33,7 @@ export function ClassListManager() {
     };
 
     const handleSaveClass = async () => {
-        if (!newClass.className || !newClass.schoolName) {
+        if (!newClass.name || !newClass.school_name) {
             setError('Sınıf adı ve okul adı zorunludur.');
             return;
         }
@@ -42,17 +41,16 @@ export function ClassListManager() {
         try {
             setError('');
             setSuccess('');
-            await classListService.create(newClass);
+            await studentListService.create(newClass);
             setSuccess('Sınıf başarıyla kaydedildi!');
 
             // Reset form
             setNewClass({
+                name: '',
                 grade: '5',
                 subject: 'İngilizce',
-                className: '',
-                schoolName: '',
-                teacherName: '',
-                academicYear: '2025-2026'
+                academic_year: '2025-2026',
+                school_name: ''
             });
 
             // Reload list
@@ -63,13 +61,13 @@ export function ClassListManager() {
         }
     };
 
-    const handleDeleteClass = async (id: number) => {
+    const handleDeleteClass = async (id: string) => {
         if (!confirm('Bu sınıfı silmek istediğinizden emin misiniz?')) {
             return;
         }
 
         try {
-            await classListService.delete(id);
+            await studentListService.delete(id);
             setSuccess('Sınıf başarıyla silindi!');
             loadClassLists();
         } catch (err) {
@@ -119,20 +117,9 @@ export function ClassListManager() {
                         <input
                             type="text"
                             className="w-full p-2.5 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 text-sm"
-                            value={newClass.schoolName}
-                            onChange={(e) => setNewClass({ ...newClass, schoolName: e.target.value })}
+                            value={newClass.school_name || ''}
+                            onChange={(e) => setNewClass({ ...newClass, school_name: e.target.value })}
                             placeholder="Örn: Atatürk Ortaokulu"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1.5">Öğretmen Adı</label>
-                        <input
-                            type="text"
-                            className="w-full p-2.5 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 text-sm"
-                            value={newClass.teacherName}
-                            onChange={(e) => setNewClass({ ...newClass, teacherName: e.target.value })}
-                            placeholder="Örn: Ayşe Yılmaz"
                         />
                     </div>
 
@@ -177,8 +164,8 @@ export function ClassListManager() {
                         <input
                             type="text"
                             className="w-full p-2.5 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 text-sm"
-                            value={newClass.className}
-                            onChange={(e) => setNewClass({ ...newClass, className: e.target.value })}
+                            value={newClass.name}
+                            onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
                             placeholder="Örn: 5/A"
                         />
                     </div>
@@ -188,8 +175,8 @@ export function ClassListManager() {
                         <input
                             type="text"
                             className="w-full p-2.5 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 text-sm"
-                            value={newClass.academicYear}
-                            onChange={(e) => setNewClass({ ...newClass, academicYear: e.target.value })}
+                            value={newClass.academic_year}
+                            onChange={(e) => setNewClass({ ...newClass, academic_year: e.target.value })}
                             placeholder="Örn: 2025-2026"
                         />
                     </div>
@@ -212,7 +199,6 @@ export function ClassListManager() {
                             <th className="px-4 py-3 text-left font-bold text-slate-700">Okul</th>
                             <th className="px-4 py-3 text-left font-bold text-slate-700">Sınıf</th>
                             <th className="px-4 py-3 text-left font-bold text-slate-700">Ders</th>
-                            <th className="px-4 py-3 text-left font-bold text-slate-700">Öğretmen</th>
                             <th className="px-4 py-3 text-left font-bold text-slate-700">Yıl</th>
                             <th className="px-4 py-3 text-center font-bold text-slate-700">İşlem</th>
                         </tr>
@@ -220,24 +206,23 @@ export function ClassListManager() {
                     <tbody className="divide-y divide-slate-200">
                         {loading ? (
                             <tr>
-                                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
                                     Yükleniyor...
                                 </td>
                             </tr>
                         ) : classLists.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
                                     Henüz kayıtlı sınıf bulunmuyor.
                                 </td>
                             </tr>
                         ) : (
                             classLists.map((cls) => (
                                 <tr key={cls.id} className="hover:bg-slate-50">
-                                    <td className="px-4 py-3 text-slate-800">{cls.schoolName}</td>
-                                    <td className="px-4 py-3 text-slate-800 font-medium">{cls.grade}/{cls.className}</td>
+                                    <td className="px-4 py-3 text-slate-800">{cls.school_name}</td>
+                                    <td className="px-4 py-3 text-slate-800 font-medium">{cls.grade}/{cls.name}</td>
                                     <td className="px-4 py-3 text-slate-800">{cls.subject}</td>
-                                    <td className="px-4 py-3 text-slate-800">{cls.teacherName}</td>
-                                    <td className="px-4 py-3 text-slate-800">{cls.academicYear}</td>
+                                    <td className="px-4 py-3 text-slate-800">{cls.academic_year}</td>
                                     <td className="px-4 py-3 text-center">
                                         <button
                                             onClick={() => handleDeleteClass(cls.id!)}

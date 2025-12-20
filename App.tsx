@@ -9,7 +9,7 @@ import { getScenarioTemplate, saveScenarioTemplate } from './services/mebScenari
 import { isSupabaseConfigured } from './services/supabase';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
-import { classListService, ClassList } from './services/supabase';
+import { studentListService, studentService, StudentList } from './services/supabase';
 import { supabase } from './services/supabase';
 import { DataImport } from './components/DataImport';
 import { ProgressDashboard } from './components/ProgressDashboard';
@@ -58,13 +58,14 @@ function MainApp() {
   // New States for Features
   const [showClassModal, setShowClassModal] = useState(false);
   const [showBulkAddModal, setShowBulkAddModal] = useState(false);
-  const [savedClasses, setSavedClasses] = useState<ClassList[]>([]);
+  const [savedClasses, setSavedClasses] = useState<StudentList[]>([]);
   const [bulkStudentText, setBulkStudentText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showProgressDashboard, setShowProgressDashboard] = useState(false);
   const [analysisCount, setAnalysisCount] = useState(0);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
+  const [currentStudentListId, setCurrentStudentListId] = useState<string | null>(null);
   const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   // --- PERSISTENCE LOGIC ---
@@ -182,6 +183,7 @@ function MainApp() {
     setQuestions(savedAnalysis.questions);
     setStudents(savedAnalysis.students);
     setCurrentAnalysisId(savedAnalysis.id);
+    setCurrentStudentListId(null);
     setStep(Step.ANALYSIS);
     setShowProgressDashboard(false);
   };
@@ -291,6 +293,7 @@ function MainApp() {
       setQuestions([]);
       setStudents([]);
       setCurrentAnalysisId(null);
+      setCurrentStudentListId(null);
       setStep(Step.METADATA);
       localStorage.removeItem(STORAGE_KEY);
     }
@@ -298,7 +301,7 @@ function MainApp() {
 
   const loadSavedClasses = async () => {
     try {
-      const classes = await classListService.getAll();
+      const classes = await studentListService.getAll();
       setSavedClasses(classes);
       setShowClassModal(true);
     } catch (error) {
@@ -307,30 +310,43 @@ function MainApp() {
     }
   };
 
-  const loadClass = (cls: ClassList) => {
-    if (confirm(`${cls.className} sınıfı yüklenecek. Mevcut öğrenci listesi silinebilir. Devam edilsin mi?`)) {
-      setMetadata(prev => ({
-        ...prev,
-        schoolName: cls.schoolName || prev.schoolName,
-        teacherName: cls.teacherName || prev.teacherName,
-        className: cls.className,
-        grade: cls.grade,
-        subject: cls.subject,
-        academicYear: cls.academicYear
-      }));
+  const loadClass = async (cls: StudentList) => {
+    if (!cls.id) {
+      alert('Seçilen sınıf bulunamadı.');
+      return;
+    }
+    if (!confirm(`${cls.name} sınıfı yüklenecek. Mevcut öğrenci listesi silinebilir. Devam edilsin mi?`)) {
+      return;
+    }
 
-      if (cls.students && cls.students.length > 0) {
-        const newStudents = cls.students.map((name, idx) => ({
-          id: (idx + 1).toString(),
-          name,
-          scores: {}
+    setMetadata(prev => ({
+      ...prev,
+      schoolName: cls.school_name || prev.schoolName,
+      className: cls.name,
+      grade: cls.grade,
+      subject: cls.subject || prev.subject,
+      academicYear: cls.academic_year
+    }));
+    setCurrentStudentListId(cls.id);
+
+    try {
+      const roster = await studentService.getByList(cls.id);
+      if (roster.length > 0) {
+        const newStudents = roster.map((student) => ({
+          id: student.id || `${Date.now()}-${Math.random()}`,
+          name: student.full_name,
+          scores: {},
+          student_number: student.student_number || undefined
         }));
         setStudents(newStudents);
       } else {
         setStudents([]);
         alert('Bu sınıfta kayıtlı öğrenci listesi bulunamadı.');
       }
-
+    } catch (error) {
+      console.error('Öğrenciler yüklenirken hata:', error);
+      alert('Öğrenci listesi yüklenemedi.');
+    } finally {
       setShowClassModal(false);
     }
   };
@@ -347,23 +363,45 @@ function MainApp() {
 
     setIsSaving(true);
     try {
-      const studentNames = students.map(s => s.name);
-      const saved = await classListService.create({
+      const listPayload = {
+        name: metadata.className,
         grade: metadata.grade,
+        academic_year: metadata.academicYear,
         subject: metadata.subject,
-        className: metadata.className,
-        schoolName: metadata.schoolName,
-        teacherName: metadata.teacherName,
-        academicYear: metadata.academicYear,
-        students: studentNames
-      });
-      if (saved?.source === 'local') {
-        alert('Sınıf ve öğrenci listesi tarayıcıya kaydedildi. Bağlantı tekrar sağlandığında veritabanına aktarılabilir.');
-      } else if (saved) {
-        alert('Sınıf ve öğrenci listesi başarıyla veritabanına kaydedildi.');
+        school_name: metadata.schoolName,
+        total_students: students.length
+      };
+
+      let listId = currentStudentListId;
+
+      if (listId) {
+        const updated = await studentListService.update(listId, listPayload);
+        if (!updated) {
+          alert('Sınıf güncellenemedi. Lütfen veritabanı ayarlarını kontrol edin.');
+          return;
+        }
+        await studentService.deleteByList(listId);
       } else {
-        alert('Sınıf kaydedilirken bir hata oluştu. Lütfen veritabanı ayarlarını kontrol edin.');
+        const created = await studentListService.create(listPayload);
+        if (!created?.id) {
+          alert('Sınıf kaydedilirken bir hata oluştu. Lütfen veritabanı ayarlarını kontrol edin.');
+          return;
+        }
+        listId = created.id;
+        setCurrentStudentListId(listId);
       }
+
+      const rosterPayload = students.map((student) => ({
+        student_list_id: listId!,
+        full_name: student.name,
+        student_number: student.student_number || null,
+        is_active: true
+      }));
+
+      const savedStudents = await studentService.bulkCreate(rosterPayload);
+      await studentListService.update(listId!, { total_students: savedStudents.length });
+
+      alert(currentStudentListId ? 'Sınıf listesi güncellendi.' : 'Sınıf ve öğrenci listesi başarıyla kaydedildi.');
     } catch (error) {
       console.error('Sınıf kaydedilirken hata:', error);
       alert('Sınıf kaydedilirken bir hata oluştu. Lütfen veritabanı ayarlarını kontrol edin.');
@@ -982,6 +1020,7 @@ function MainApp() {
     setMetadata(demo.metadata);
     setQuestions(demo.questions);
     setStudents(demo.students);
+    setCurrentStudentListId(null);
     setStep(Step.ANALYSIS);
   };
 
@@ -990,16 +1029,24 @@ function MainApp() {
     try {
       for (const key of Object.keys(DEMO_CLASSES)) {
         const demo = DEMO_CLASSES[key];
-        await classListService.create({
-          schoolName: demo.metadata.schoolName,
-          teacherName: demo.metadata.teacherName,
-          academicYear: demo.metadata.academicYear,
+        const list = await studentListService.create({
+          name: demo.metadata.className,
           grade: demo.metadata.grade,
+          academic_year: demo.metadata.academicYear,
           subject: demo.metadata.subject,
-          className: demo.metadata.className,
-          // Convert students and questions to JSON strings for the legacy schema
-          students: [JSON.stringify(demo.students)],
+          school_name: demo.metadata.schoolName,
+          total_students: demo.students.length
         });
+
+        if (list?.id) {
+          const rosterPayload = demo.students.map((student) => ({
+            student_list_id: list.id as string,
+            full_name: student.name,
+            student_number: student.student_number || null,
+            is_active: true
+          }));
+          await studentService.bulkCreate(rosterPayload);
+        }
       }
       alert('Tüm demo sınıflar başarıyla kaydedildi!');
       loadSavedClasses();
@@ -1150,9 +1197,9 @@ function MainApp() {
                     {savedClasses.map((cls) => (
                       <div key={cls.id} className="border border-slate-200 rounded-lg p-4 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all flex justify-between items-center group">
                         <div>
-                          <h4 className="font-bold text-slate-800">{cls.className}</h4>
-                          <p className="text-sm text-slate-500">{cls.schoolName} - {cls.academicYear}</p>
-                          <p className="text-xs text-slate-400 mt-1">{cls.grade}. Sınıf {cls.subject}</p>
+                          <h4 className="font-bold text-slate-800">{cls.name}</h4>
+                          <p className="text-sm text-slate-500">{cls.school_name || '-'} - {cls.academic_year}</p>
+                          <p className="text-xs text-slate-400 mt-1">{cls.grade}. Sınıf {cls.subject || '-'}</p>
                         </div>
                         <button
                           onClick={() => loadClass(cls)}

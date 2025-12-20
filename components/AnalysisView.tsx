@@ -36,8 +36,8 @@ interface Props {
   metadata: ExamMetadata;
   questions: QuestionConfig[];
   students: Student[];
-  onApplyStudents?: (students: Student[]) => void;
-  onAppendStudents?: (students: Student[]) => void;
+  onApplyStudents?: (students: Student[], options?: { preserveScores?: boolean }) => void;
+  onAppendStudents?: (students: Student[], options?: { preserveScores?: boolean }) => void;
 }
 
 // Export scenario icons mapping

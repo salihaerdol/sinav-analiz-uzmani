@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle, Download, FileImage, Loader2, Save, Trash2, U
 import { analyzeImageWithOCR } from './ocrService';
 import { getApiKey } from '../../services/geminiService';
 import { OCRScanResult, OCRStatus, OCRStudentRow } from './types';
-import { classListService } from '../../services/supabase';
+import { studentListService, studentService, supabase } from '../../services/supabase';
 import { Student } from '../../types';
 import { getPdfPageCount } from './pdfUtils';
 
@@ -21,6 +21,11 @@ interface OCRScannerProps {
 
 type SaveNotice = { type: 'success' | 'error'; message: string } | null;
 type ApplyNotice = { type: 'success' | 'error'; message: string } | null;
+type UndoState = {
+  rows: OCRStudentRow[];
+  selectedRows: Set<number>;
+  message: string;
+} | null;
 
 const getDefaultAcademicYear = () => {
   const year = new Date().getFullYear();
@@ -102,6 +107,8 @@ export default function OCRScanner({
   const [preserveScores, setPreserveScores] = useState(true);
   const [confidenceThreshold, setConfidenceThreshold] = useState(70);
   const [editableRows, setEditableRows] = useState<OCRStudentRow[]>([]);
+  const [autoSelectLowConfidence, setAutoSelectLowConfidence] = useState(false);
+  const [undoState, setUndoState] = useState<UndoState>(null);
 
   useEffect(() => {
     if (!file) {
@@ -140,18 +147,27 @@ export default function OCRScanner({
     setTeacherName((prev) => prev || defaultTeacherName || '');
   }, [defaultClassName, defaultGrade, defaultSubject, defaultAcademicYear, defaultSchoolName, defaultTeacherName]);
 
+  const isPdf = file?.type === 'application/pdf' || file?.name?.toLowerCase().endsWith('.pdf');
   const canAnalyze = useMemo(
     () => Boolean(file) && (!isPdf || !loadingPdfInfo),
     [file, isPdf, loadingPdfInfo]
   );
   const rows = editableRows;
-  const isPdf = file?.type === 'application/pdf' || file?.name?.toLowerCase().endsWith('.pdf');
+  const currentConfidence = useMemo(() => {
+    if (!rows.length) return 0;
+    const total = rows.reduce((sum, row) => sum + row.confidence, 0);
+    return total / rows.length;
+  }, [rows]);
   const visibleRows = useMemo(
     () =>
       rows
         .map((row, index) => ({ row, index }))
         .filter((item) => (showSelectedOnly ? selectedRows.has(item.index) : true)),
     [rows, selectedRows, showSelectedOnly]
+  );
+  const selectedRowList = useMemo(
+    () => rows.filter((_, index) => selectedRows.has(index)),
+    [rows, selectedRows]
   );
 
   useEffect(() => {
@@ -185,42 +201,56 @@ export default function OCRScanner({
   }, [file, isPdf]);
 
   useEffect(() => {
-    if (!rows.length) {
-      setSelectedRows(new Set());
-      return;
-    }
-    const all = new Set<number>();
-    rows.forEach((_, index) => all.add(index));
-    setSelectedRows(all);
-  }, [rows]);
-
-  useEffect(() => {
     if (!result) {
       setEditableRows([]);
+      setSelectedRows(new Set());
+      setUndoState(null);
       return;
     }
-    setEditableRows(result.extractedData.students);
+    const initialRows = result.extractedData.students;
+    setEditableRows(initialRows);
+    if (autoSelectLowConfidence) {
+      const lowConfidence = new Set<number>();
+      initialRows.forEach((row, index) => {
+        if (row.confidence < confidenceThreshold) {
+          lowConfidence.add(index);
+        }
+      });
+      setSelectedRows(lowConfidence);
+    } else {
+      const all = new Set<number>();
+      initialRows.forEach((_, index) => all.add(index));
+      setSelectedRows(all);
+    }
+    setUndoState(null);
   }, [result]);
 
   const csvData = useMemo(() => {
-    if (!rows.length) return '';
-    const header = ['Row', 'StudentNumber', 'FirstName', 'LastName', 'Confidence'];
-    const escapeCsv = (value: string | number | undefined) => {
-      const text = value === undefined ? '' : String(value);
-      if (/[",\n]/.test(text)) {
-        return `"${text.replace(/"/g, '""')}"`;
-      }
-      return text;
+    const buildCsv = (data: OCRStudentRow[]) => {
+      if (!data.length) return '';
+      const header = ['Row', 'StudentNumber', 'FirstName', 'LastName', 'Confidence'];
+      const escapeCsv = (value: string | number | undefined) => {
+        const text = value === undefined ? '' : String(value);
+        if (/[",\n]/.test(text)) {
+          return `"${text.replace(/"/g, '""')}"`;
+        }
+        return text;
+      };
+      const lines = data.map((row) => [
+        escapeCsv(row.rowNumber),
+        escapeCsv(row.studentNumber),
+        escapeCsv(row.firstName),
+        escapeCsv(row.lastName),
+        escapeCsv(row.confidence.toFixed(1))
+      ]);
+      return [header, ...lines].map((line) => line.join(',')).join('\n');
     };
-    const lines = rows.map((row) => [
-      escapeCsv(row.rowNumber),
-      escapeCsv(row.studentNumber),
-      escapeCsv(row.firstName),
-      escapeCsv(row.lastName),
-      escapeCsv(row.confidence.toFixed(1))
-    ]);
-    return [header, ...lines].map((line) => line.join(',')).join('\n');
-  }, [rows]);
+
+    return {
+      all: buildCsv(rows),
+      selected: buildCsv(selectedRowList)
+    };
+  }, [rows, selectedRowList]);
 
   const handleAnalyze = async () => {
     if (!file) return;
@@ -229,6 +259,7 @@ export default function OCRScanner({
     setResult(null);
     setEditableRows([]);
     setApplyNotice(null);
+    setUndoState(null);
 
     const response = await analyzeImageWithOCR(file, isPdf ? { pdfPage } : undefined);
     if (!response.success || !response.data) {
@@ -287,6 +318,19 @@ export default function OCRScanner({
     );
   };
 
+  const createUndoState = (message: string): UndoState => ({
+    rows: rows.map((row) => ({ ...row })),
+    selectedRows: new Set(selectedRows),
+    message
+  });
+
+  const handleUndo = () => {
+    if (!undoState) return;
+    setEditableRows(undoState.rows.map((row) => ({ ...row })));
+    setSelectedRows(new Set(undoState.selectedRows));
+    setUndoState(null);
+  };
+
   const handleClearSelection = () => {
     setSelectedRows(new Set());
   };
@@ -303,6 +347,7 @@ export default function OCRScanner({
   };
 
   const removeRow = (index: number) => {
+    setUndoState(createUndoState('Satır silindi.'));
     setEditableRows((prev) => prev.filter((_, idx) => idx !== index));
     setSelectedRows((prev) => {
       const next = new Set<number>();
@@ -316,6 +361,7 @@ export default function OCRScanner({
 
   const removeSelectedRows = () => {
     if (selectedRows.size === 0) return;
+    setUndoState(createUndoState('Seçili satırlar silindi.'));
     const snapshot = new Set(selectedRows);
     setEditableRows((prev) => prev.filter((_, idx) => !snapshot.has(idx)));
     setSelectedRows(new Set());
@@ -323,6 +369,7 @@ export default function OCRScanner({
 
   const keepSelectedRows = () => {
     if (selectedRows.size === 0) return;
+    setUndoState(createUndoState('Seçili olmayanlar temizlendi.'));
     const snapshot = new Set(selectedRows);
     setEditableRows((prev) => prev.filter((_, idx) => snapshot.has(idx)));
     setSelectedRows(() => {
@@ -337,7 +384,7 @@ export default function OCRScanner({
   const handleSaveClass = async () => {
     if (!result) return;
     const selected = getSelectedRows();
-    const students = buildStudentsFromRows(selected).map((student) => student.name);
+    const students = buildStudentsFromRows(selected);
 
     if (!className.trim()) {
       setSaveNotice({ type: 'error', message: 'Sınıf adı boş olamaz.' });
@@ -359,26 +406,69 @@ export default function OCRScanner({
     setSavingClass(true);
     setSaveNotice(null);
     try {
-      const saved = await classListService.create({
+      const list = await studentListService.create({
+        name: className.trim(),
         grade: grade.trim(),
+        academic_year: academicYear.trim() || getDefaultAcademicYear(),
         subject: subject.trim(),
-        className: className.trim(),
-        schoolName: schoolName.trim(),
-        teacherName: teacherName.trim(),
-        academicYear: academicYear.trim() || getDefaultAcademicYear(),
-        students
+        school_name: schoolName.trim(),
+        total_students: students.length
       });
 
-      if (saved?.source === 'local') {
-        setSaveNotice({
-          type: 'success',
-          message: 'Sınıf listesi tarayıcıya kaydedildi. İnternet geldiğinde veritabanına aktarılabilir.'
-        });
-      } else if (saved) {
-        setSaveNotice({ type: 'success', message: 'Sınıf listesi başarıyla kaydedildi.' });
-      } else {
+      if (!list?.id) {
         setSaveNotice({ type: 'error', message: 'Sınıf listesi kaydedilemedi.' });
+        return;
       }
+
+      const rosterPayload = students.map((student) => ({
+        student_list_id: list.id as string,
+        full_name: student.name,
+        student_number: student.student_number || null,
+        is_active: true
+      }));
+
+      await studentService.bulkCreate(rosterPayload);
+      await studentListService.update(list.id, { total_students: students.length });
+
+      // Upload file and save OCR scan record
+      if (file) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from('ocr_scans')
+              .upload(fileName, file);
+
+            if (!uploadError) {
+              const { data: { publicUrl } } = supabase.storage
+                .from('ocr_scans')
+                .getPublicUrl(fileName);
+
+              await supabase.from('ocr_scans').insert({
+                user_id: user.id,
+                student_list_id: list.id,
+                original_filename: file.name,
+                file_url: publicUrl,
+                file_type: file.type,
+                raw_text: result.rawText,
+                extracted_data: result.extractedData,
+                confidence_score: currentConfidence,
+                status: 'completed',
+                is_verified: true,
+                verified_at: new Date().toISOString()
+              });
+            }
+          }
+        } catch (uploadErr) {
+          console.error('OCR dosya yükleme hatası (kritik değil):', uploadErr);
+          // Don't fail the whole operation if image upload fails
+        }
+      }
+
+      setSaveNotice({ type: 'success', message: 'Sınıf listesi ve tarama görseli başarıyla kaydedildi.' });
     } catch (saveError) {
       console.error('OCR sınıf kaydetme hatası:', saveError);
       setSaveNotice({ type: 'error', message: 'Sınıf listesi kaydedilirken hata oluştu.' });
@@ -420,8 +510,8 @@ export default function OCRScanner({
   };
 
   const handleDownloadCsv = () => {
-    if (!csvData) return;
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    if (!csvData.all) return;
+    const blob = new Blob([csvData.all], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -430,6 +520,39 @@ export default function OCRScanner({
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadSelectedCsv = () => {
+    if (!csvData.selected) return;
+    const blob = new Blob([csvData.selected], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ocr-selected-${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const normalizeName = (value: string) => value.trim().replace(/\s+/g, ' ');
+
+  const toTitleCase = (value: string) =>
+    normalizeName(value)
+      .split(' ')
+      .map((word) =>
+        word ? word.charAt(0).toLocaleUpperCase('tr-TR') + word.slice(1).toLocaleLowerCase('tr-TR') : ''
+      )
+      .join(' ');
+
+  const toUpperCase = (value: string) => normalizeName(value).toLocaleUpperCase('tr-TR');
+
+  const applyToSelectedRows = (transform: (row: OCRStudentRow) => OCRStudentRow) => {
+    if (selectedRows.size === 0) return;
+    setUndoState(createUndoState('Seçili satırlar güncellendi.'));
+    setEditableRows((prev) =>
+      prev.map((row, index) => (selectedRows.has(index) ? transform(row) : row))
+    );
   };
 
   return (
@@ -479,6 +602,7 @@ export default function OCRScanner({
                   setResult(null);
                   setSaveNotice(null);
                   setApplyNotice(null);
+                  setUndoState(null);
                 }}
               />
             </label>
@@ -497,12 +621,12 @@ export default function OCRScanner({
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
               <p className="text-xs font-semibold text-slate-500 mb-3">Önizleme</p>
-                <div className="aspect-video rounded-lg overflow-hidden bg-white border border-slate-200 flex items-center justify-center">
-                  {isPdf ? (
-                    <object data={previewUrl} type="application/pdf" className="w-full h-full">
-                      <p className="text-xs text-slate-500">PDF önizleme desteklenmiyor.</p>
-                    </object>
-                  ) : (
+              <div className="aspect-video rounded-lg overflow-hidden bg-white border border-slate-200 flex items-center justify-center">
+                {isPdf ? (
+                  <object data={previewUrl} type="application/pdf" className="w-full h-full">
+                    <p className="text-xs text-slate-500">PDF önizleme desteklenmiyor.</p>
+                  </object>
+                ) : (
                   <img src={previewUrl} alt="OCR preview" className="max-h-full object-contain" />
                 )}
               </div>
@@ -585,7 +709,7 @@ export default function OCRScanner({
             <div>
               <h4 className="text-md font-bold text-slate-800">Çıktı Özeti</h4>
               <p className="text-sm text-slate-500">
-                {rows.length} satır tespit edildi. Seçili: {selectedRows.size}. Güven skoru: %{result.confidenceScore.toFixed(1)}
+                {rows.length} satır tespit edildi. Seçili: {selectedRows.size}. Güven skoru: %{currentConfidence.toFixed(1)}
               </p>
               <p className="text-xs text-slate-400 mt-1">Yeni eklenen öğrencilerin notları boş kalır.</p>
             </div>
@@ -614,15 +738,22 @@ export default function OCRScanner({
                 <Download className="w-4 h-4" />
                 CSV İndir
               </button>
+              <button
+                onClick={handleDownloadSelectedCsv}
+                disabled={selectedRows.size === 0 || !csvData.selected}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="w-4 h-4" />
+                Seçileni CSV İndir
+              </button>
             </div>
           </div>
           {applyNotice && (
             <div
-              className={`mt-3 text-xs font-semibold px-3 py-2 rounded-lg border ${
-                applyNotice.type === 'success'
+              className={`mt-3 text-xs font-semibold px-3 py-2 rounded-lg border ${applyNotice.type === 'success'
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : 'bg-red-50 text-red-700 border-red-200'
-              }`}
+                }`}
             >
               {applyNotice.message}
             </div>
@@ -645,6 +776,15 @@ export default function OCRScanner({
                 className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
               />
               Sadece seçilenleri göster
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={autoSelectLowConfidence}
+                onChange={(e) => setAutoSelectLowConfidence(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              Yeni OCR sonucunda düşük güvenlileri otomatik seç
             </label>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-600">
@@ -671,6 +811,46 @@ export default function OCRScanner({
             >
               Seçili Olanları Bırak
             </button>
+            <button
+              type="button"
+              onClick={() =>
+                applyToSelectedRows((row) => ({
+                  ...row,
+                  firstName: toTitleCase(row.firstName || ''),
+                  lastName: toTitleCase(row.lastName || '')
+                }))
+              }
+              disabled={selectedRows.size === 0}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              Seçilileri Baş Harf
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                applyToSelectedRows((row) => ({
+                  ...row,
+                  firstName: toUpperCase(row.firstName || ''),
+                  lastName: toUpperCase(row.lastName || '')
+                }))
+              }
+              disabled={selectedRows.size === 0}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              Seçilileri BÜYÜK Harf
+            </button>
+            {undoState && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  className="px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors"
+                >
+                  Geri Al
+                </button>
+                <span className="text-slate-400">{undoState.message}</span>
+              </>
+            )}
             <div className="flex items-center gap-2">
               <span>Düşük güven &lt;</span>
               <input
@@ -861,11 +1041,10 @@ export default function OCRScanner({
             </div>
             {saveNotice && (
               <div
-                className={`text-xs font-semibold px-3 py-2 rounded-lg border ${
-                  saveNotice.type === 'success'
+                className={`text-xs font-semibold px-3 py-2 rounded-lg border ${saveNotice.type === 'success'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : 'bg-red-50 text-red-700 border-red-200'
-                }`}
+                  }`}
               >
                 {saveNotice.message}
               </div>

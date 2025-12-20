@@ -171,24 +171,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    // Guest user fallback
-    const guestUser: User = {
-        id: 'guest-user',
-        email: 'misafir@sinavanaliz.com',
-        app_metadata: {},
-        user_metadata: { full_name: 'Misafir Kullanıcı' },
-        aud: 'authenticated',
-        created_at: new Date().toISOString()
-    } as User;
-
     return (
         <AuthContext.Provider value={{
-            user: user || guestUser,
+            user,
             session,
-            isAdmin: isAdmin || (user?.email === 'salihaerdol11@gmail.com'),
+            isAdmin,
             signInWithGoogle,
             signOut,
-            loading: false, // Force loading to false to show the app
+            loading,
             error
         }}>
             {children}

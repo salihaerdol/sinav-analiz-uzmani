@@ -232,10 +232,22 @@ export const userProfileService = {
 // =====================================================
 
 export const studentListService = {
+  async getCurrentUserId(): Promise<string | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id || null;
+  },
+
   async getAll(): Promise<StudentList[]> {
+    if (!isSupabaseConfigured) {
+      return [];
+    }
+    const userId = await this.getCurrentUserId();
+    if (!userId) return [];
+
     const { data, error } = await supabase
       .from('student_lists')
       .select('*')
+      .eq('user_id', userId)
       .eq('is_archived', false)
       .order('created_at', { ascending: false });
 
@@ -247,9 +259,16 @@ export const studentListService = {
   },
 
   async getByGrade(grade: string): Promise<StudentList[]> {
+    if (!isSupabaseConfigured) {
+      return [];
+    }
+    const userId = await this.getCurrentUserId();
+    if (!userId) return [];
+
     const { data, error } = await supabase
       .from('student_lists')
       .select('*')
+      .eq('user_id', userId)
       .eq('grade', grade)
       .eq('is_archived', false)
       .order('name');
@@ -262,9 +281,15 @@ export const studentListService = {
   },
 
   async create(list: StudentList): Promise<StudentList | null> {
+    if (!isSupabaseConfigured) {
+      return null;
+    }
+    const userId = await this.getCurrentUserId();
+    if (!userId) return null;
+
     const { data, error } = await supabase
       .from('student_lists')
-      .insert(list)
+      .insert({ ...list, user_id: userId })
       .select()
       .single();
 
@@ -276,10 +301,17 @@ export const studentListService = {
   },
 
   async update(id: string, updates: Partial<StudentList>): Promise<boolean> {
+    if (!isSupabaseConfigured) {
+      return false;
+    }
+    const userId = await this.getCurrentUserId();
+    if (!userId) return false;
+
     const { error } = await supabase
       .from('student_lists')
       .update(updates)
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (error) {
       console.error('Error updating student list:', error);
@@ -289,10 +321,17 @@ export const studentListService = {
   },
 
   async delete(id: string): Promise<boolean> {
+    if (!isSupabaseConfigured) {
+      return false;
+    }
+    const userId = await this.getCurrentUserId();
+    if (!userId) return false;
+
     const { error } = await supabase
       .from('student_lists')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (error) {
       console.error('Error deleting student list:', error);
@@ -351,6 +390,19 @@ export const studentService = {
       return [];
     }
     return data || [];
+  },
+
+  async deleteByList(listId: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('students')
+      .delete()
+      .eq('student_list_id', listId);
+
+    if (error) {
+      console.error('Error deleting students by list:', error);
+      return false;
+    }
+    return true;
   },
 
   async update(id: string, updates: Partial<Student>): Promise<boolean> {
