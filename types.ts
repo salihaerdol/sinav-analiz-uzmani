@@ -161,3 +161,26 @@ export interface DashboardSummary {
     frequency: number;
   }[];
 }
+
+// ==================== RİSK ANALİZİ ====================
+
+export type RiskLevel = 'Düşük' | 'Orta' | 'Yüksek' | 'Kritik';
+
+export interface StudentRisk {
+  studentId: string;
+  studentName: string;
+  score: number;
+  percentage: number;
+  riskScore: number;
+  riskLevel: RiskLevel;
+  classAverage: number;
+}
+
+export interface RiskSummary {
+  totalStudents: number;
+  classAverage: number;
+  averageRiskScore: number;
+  riskCounts: Record<RiskLevel, number>;
+  criticalStudents: StudentRisk[];
+  highRiskStudents: StudentRisk[];
+}

@@ -660,6 +660,35 @@ function MainApp() {
                     onChange={(e) => updateQuestionOutcomeDesc(q.id, e.target.value)}
                   />
                 </div>
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">BİLİŞSEL DÜZEY (Bloom)</label>
+                  <select
+                    className="w-full p-3 border-2 border-slate-300 rounded-lg text-sm text-slate-800 font-medium focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 bg-white shadow-sm"
+                    value={q.cognitiveLevel || ''}
+                    onChange={(e) => updateQuestion(q.id, 'cognitiveLevel', e.target.value || undefined)}
+                  >
+                    <option value="">Seçiniz</option>
+                    <option value="Bilgi">Bilgi</option>
+                    <option value="Kavrama">Kavrama</option>
+                    <option value="Uygulama">Uygulama</option>
+                    <option value="Analiz">Analiz</option>
+                    <option value="Sentez">Sentez</option>
+                    <option value="Değerlendirme">Değerlendirme</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">ZORLUK DÜZEYİ</label>
+                  <select
+                    className="w-full p-3 border-2 border-slate-300 rounded-lg text-sm text-slate-800 font-medium focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 bg-white shadow-sm"
+                    value={q.difficulty || ''}
+                    onChange={(e) => updateQuestion(q.id, 'difficulty', e.target.value || undefined)}
+                  >
+                    <option value="">Seçiniz</option>
+                    <option value="Kolay">Kolay</option>
+                    <option value="Orta">Orta</option>
+                    <option value="Zor">Zor</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>

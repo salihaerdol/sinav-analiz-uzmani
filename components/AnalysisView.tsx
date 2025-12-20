@@ -10,7 +10,7 @@ import { generateAIAnalysis } from '../services/geminiService';
 import {
   FileText, Download, Bot, AlertTriangle, CheckCircle, TrendingUp, Users, Target,
   ClipboardList, Globe, Calculator, BarChart2, UserCheck, PieChart as PieChartIcon,
-  Activity, Brain, Signal, ChevronDown, FileCheck, GraduationCap, Building, Sparkles
+  Activity, Brain, Signal, ChevronDown, FileCheck, GraduationCap, Building, Sparkles, Gauge, X
 } from 'lucide-react';
 // import { exportToWord } from '../services/exportService';
 import {
@@ -25,6 +25,9 @@ import {
   Language
 } from '../services/exportServiceAdvanced';
 import html2canvas from 'html2canvas';
+import { PsychometricAnalysis } from '../modules/psychometric';
+import { RiskDashboard } from '../modules/risk-analysis';
+import { BloomAnalysis } from '../modules/bloom-taxonomy';
 
 interface Props {
   analysis: AnalysisResult;
@@ -60,6 +63,9 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
   const [exportingPdf, setExportingPdf] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('tr');
+  const [showPsychometric, setShowPsychometric] = useState(false);
+  const [showRisk, setShowRisk] = useState(false);
+  const [showBloom, setShowBloom] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const exportScenarios = getExportScenarios(selectedLanguage);
@@ -242,6 +248,123 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
 
   return (
     <div className="space-y-8 animate-fade-in pb-24">
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={() => {
+            setShowRisk(false);
+            setShowBloom(false);
+            setShowPsychometric(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors shadow-sm"
+        >
+          <Gauge className="w-4 h-4" />
+          Psikometrik Analiz
+        </button>
+        <button
+          onClick={() => {
+            setShowPsychometric(false);
+            setShowBloom(false);
+            setShowRisk(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-bold hover:bg-rose-500 transition-colors shadow-sm"
+        >
+          <AlertTriangle className="w-4 h-4" />
+          Risk Analizi
+        </button>
+        <button
+          onClick={() => {
+            setShowPsychometric(false);
+            setShowRisk(false);
+            setShowBloom(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-bold hover:bg-sky-500 transition-colors shadow-sm"
+        >
+          <Brain className="w-4 h-4" />
+          Bloom Analizi
+        </button>
+      </div>
+
+      {showPsychometric && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Gauge className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Psikometrik Analiz</h2>
+                  <p className="text-xs text-indigo-100">Soru kalitesi ve test güvenilirliği</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPsychometric(false)}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                aria-label="Kapat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto bg-slate-50">
+              <PsychometricAnalysis questions={questions} students={students} />
+            </div>
+          </div>
+        </div>
+      )}
+      {showRisk && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-rose-600 to-orange-500 text-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Risk Analizi</h2>
+                  <p className="text-xs text-orange-100">Öğrenci risk dağılımı ve öneriler</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRisk(false)}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                aria-label="Kapat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto bg-slate-50">
+              <RiskDashboard analysis={analysis} questions={questions} students={students} />
+            </div>
+          </div>
+        </div>
+      )}
+      {showBloom && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-600 to-sky-500 text-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Brain className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Bloom Analizi</h2>
+                  <p className="text-xs text-sky-100">Bilişsel düzey dağılımı</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBloom(false)}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                aria-label="Kapat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto bg-slate-50">
+              <BloomAnalysis analysis={analysis} questions={questions} students={students} />
+            </div>
+          </div>
+        </div>
+      )}
       {/* Visual Report Container */}
       <div className="space-y-8 p-4 -m-4 bg-slate-50">
         {/* 1. Summary Dashboard */}
