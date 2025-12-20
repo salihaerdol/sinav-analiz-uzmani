@@ -5,6 +5,7 @@ import { AnalysisView } from './components/AnalysisView';
 import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X, History, TrendingUp, Key, Sparkles } from 'lucide-react';
 import { ScenarioVisualSelector } from './components/ScenarioVisualSelector';
 import { MEB_SCENARIOS } from './services/mebScraperAdvanced';
+import { getScenarioTemplate, saveScenarioTemplate } from './services/mebScenarioService';
 import { isSupabaseConfigured } from './services/supabase';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
@@ -165,6 +166,9 @@ function MainApp() {
           alert('Analiz kaydedilirken bir hata oluştu.');
         }
       }
+      if (metadata.scenario !== 'custom' && questions.length > 0) {
+        saveScenarioTemplate(metadata.grade, metadata.subject, metadata.scenario, questions);
+      }
     } catch (error) {
       console.error('Kaydetme hatası:', error);
       alert('İşlem sırasında bir hata oluştu.');
@@ -245,7 +249,7 @@ function MainApp() {
     setIsSaving(true);
     try {
       const studentNames = students.map(s => s.name);
-      await classListService.create({
+      const saved = await classListService.create({
         grade: metadata.grade,
         subject: metadata.subject,
         className: metadata.className,
@@ -254,7 +258,13 @@ function MainApp() {
         academicYear: metadata.academicYear,
         students: studentNames
       });
-      alert('Sınıf ve öğrenci listesi başarıyla veritabanına kaydedildi.');
+      if (saved?.source === 'local') {
+        alert('Sınıf ve öğrenci listesi tarayıcıya kaydedildi. Bağlantı tekrar sağlandığında veritabanına aktarılabilir.');
+      } else if (saved) {
+        alert('Sınıf ve öğrenci listesi başarıyla veritabanına kaydedildi.');
+      } else {
+        alert('Sınıf kaydedilirken bir hata oluştu. Lütfen veritabanı ayarlarını kontrol edin.');
+      }
     } catch (error) {
       console.error('Sınıf kaydedilirken hata:', error);
       alert('Sınıf kaydedilirken bir hata oluştu. Lütfen veritabanı ayarlarını kontrol edin.');
@@ -302,6 +312,12 @@ function MainApp() {
         outcome: { code: "", description: "" }
       }));
     } else {
+      const template = getScenarioTemplate(metadata.grade, metadata.subject, metadata.scenario);
+      if (template && template.length > 0) {
+        setQuestions(template);
+        setStep(Step.QUESTIONS);
+        return;
+      }
       defaults = getScenarioData(metadata.grade, metadata.subject, metadata.scenario);
     }
 

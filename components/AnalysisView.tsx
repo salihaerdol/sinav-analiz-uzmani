@@ -1,4 +1,5 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
+import { PsychometricAnalysis } from '../modules/psychometric';
 import { AnalysisResult, ExamMetadata, QuestionConfig, Student } from '../types';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -75,27 +76,27 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
   }, []);
 
   // Statistics Calculation
-  const studentScores = students.map(s => Object.values(s.scores).reduce((a: number, b: number) => a + b, 0));
-  const stdDev = calculateStandardDeviation(studentScores);
-  const median = calculateMedian(studentScores);
-  const maxScore = studentScores.length > 0 ? Math.max(...studentScores) : 0;
-  const minScore = studentScores.length > 0 ? Math.min(...studentScores) : 0;
+  const studentPercentages = analysis.studentStats.map(s => s.percentage);
+  const stdDev = calculateStandardDeviation(studentPercentages);
+  const median = calculateMedian(studentPercentages);
+  const maxScore = studentPercentages.length > 0 ? Math.max(...studentPercentages) : 0;
+  const minScore = studentPercentages.length > 0 ? Math.min(...studentPercentages) : 0;
 
   // Histogram Data
   const histogramData = Array.from({ length: 10 }, (_, i) => {
     const min = i * 10;
     const max = (i + 1) * 10;
-    const count = studentScores.filter(s => s >= min && (i === 9 ? s <= 100 : s < max)).length;
+    const count = studentPercentages.filter(s => s >= min && (i === 9 ? s <= 100 : s < max)).length;
     return { name: `${min}-${i === 9 ? 100 : max}`, count };
   });
 
   // Grade Distribution Data (5-point scale)
   const gradeDistribution = [
-    { name: 'Pekiyi (85-100)', value: studentScores.filter(s => s >= 85).length, color: '#22c55e' },
-    { name: 'İyi (70-84)', value: studentScores.filter(s => s >= 70 && s < 85).length, color: '#3b82f6' },
-    { name: 'Orta (55-69)', value: studentScores.filter(s => s >= 55 && s < 70).length, color: '#eab308' },
-    { name: 'Geçer (45-54)', value: studentScores.filter(s => s >= 45 && s < 55).length, color: '#f97316' },
-    { name: 'Başarısız (0-44)', value: studentScores.filter(s => s < 45).length, color: '#ef4444' },
+    { name: 'Pekiyi (85-100)', value: studentPercentages.filter(s => s >= 85).length, color: '#22c55e' },
+    { name: 'İyi (70-84)', value: studentPercentages.filter(s => s >= 70 && s < 85).length, color: '#3b82f6' },
+    { name: 'Orta (55-69)', value: studentPercentages.filter(s => s >= 55 && s < 70).length, color: '#eab308' },
+    { name: 'Geçer (45-54)', value: studentPercentages.filter(s => s >= 45 && s < 55).length, color: '#f97316' },
+    { name: 'Başarısız (0-44)', value: studentPercentages.filter(s => s < 45).length, color: '#ef4444' },
   ].filter(d => d.value > 0);
 
   // Question Success Data
@@ -114,22 +115,21 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
 
   // Cognitive Level Data
   const cognitiveLevels = ['Bilgi', 'Kavrama', 'Uygulama', 'Analiz', 'Sentez', 'Değerlendirme'];
-  const cognitiveData = cognitiveLevels.map((level, index) => {
-    const count = questions.filter(q => q.cognitiveLevel === level).length;
-    const demoCount = count > 0 ? count : Math.floor(Math.random() * 5) + 1;
-    return {
-      name: level,
-      count: demoCount,
-      fill: ['#8884d8', '#83a6ed', '#8dd1e1', '#82ca9d', '#a4de6c', '#d0ed57'][index]
-    };
-  });
+  const cognitivePalette = ['#8884d8', '#83a6ed', '#8dd1e1', '#82ca9d', '#a4de6c', '#d0ed57'];
+  const cognitiveData = cognitiveLevels.map((level, index) => ({
+    name: level,
+    count: questions.filter(q => q.cognitiveLevel === level).length,
+    fill: cognitivePalette[index]
+  }));
+  const hasCognitiveData = cognitiveData.some(item => item.count > 0);
 
   // Difficulty Data
   const difficultyData = [
-    { name: 'Kolay', value: questions.filter(q => q.difficulty === 'Kolay').length || 5, color: '#22c55e' },
-    { name: 'Orta', value: questions.filter(q => q.difficulty === 'Orta').length || 10, color: '#eab308' },
-    { name: 'Zor', value: questions.filter(q => q.difficulty === 'Zor').length || 5, color: '#ef4444' },
-  ];
+    { name: 'Kolay', value: questions.filter(q => q.difficulty === 'Kolay').length, color: '#22c55e' },
+    { name: 'Orta', value: questions.filter(q => q.difficulty === 'Orta').length, color: '#eab308' },
+    { name: 'Zor', value: questions.filter(q => q.difficulty === 'Zor').length, color: '#ef4444' },
+  ].filter(item => item.value > 0);
+  const hasDifficultyData = difficultyData.length > 0;
 
   const handleAiAnalysis = async () => {
     setLoadingAi(true);
@@ -283,8 +283,8 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
               <div className="p-3 bg-green-50 rounded-full mb-3 text-green-600 group-hover:scale-110 transition-transform">
                 <Target className="w-6 h-6" />
               </div>
-              <span className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">En Yüksek Puan</span>
-              <span className="text-3xl font-bold text-slate-800">{maxScore}</span>
+              <span className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">En Yüksek Başarı</span>
+              <span className="text-3xl font-bold text-slate-800">%{maxScore.toFixed(1)}</span>
             </div>
           </div>
         </div>
@@ -358,19 +358,25 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
               <Brain className="w-5 h-5 mr-2 text-indigo-600" />
               Bilişsel Düzey Analizi (Bloom)
             </h3>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadialBarChart cx="50%" cy="50%" innerRadius="10%" outerRadius="80%" barSize={10} data={cognitiveData}>
-                  <RadialBar
-                    label={{ position: 'insideStart', fill: '#fff' }}
-                    background
-                    dataKey="count"
-                  />
-                  <Legend iconSize={10} layout="vertical" verticalAlign="middle" wrapperStyle={{ right: 0 }} />
-                  <Tooltip />
-                </RadialBarChart>
-              </ResponsiveContainer>
-            </div>
+            {hasCognitiveData ? (
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadialBarChart cx="50%" cy="50%" innerRadius="10%" outerRadius="80%" barSize={10} data={cognitiveData}>
+                    <RadialBar
+                      label={{ position: 'insideStart', fill: '#fff' }}
+                      background
+                      dataKey="count"
+                    />
+                    <Legend iconSize={10} layout="vertical" verticalAlign="middle" wrapperStyle={{ right: 0 }} />
+                    <Tooltip />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-[300px] w-full flex items-center justify-center text-sm text-slate-400">
+                Bilişsel düzey bilgisi girilmedi.
+              </div>
+            )}
           </div>
 
           {/* Difficulty Analysis */}
@@ -379,27 +385,33 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
               <Signal className="w-5 h-5 mr-2 text-indigo-600" />
               Sınav Güçlük Dağılımı
             </h3>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={difficultyData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (%${(percent * 100).toFixed(0)})`}
-                  >
-                    {difficultyData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            {hasDifficultyData ? (
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={difficultyData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} (%${(percent * 100).toFixed(0)})`}
+                    >
+                      {difficultyData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-[300px] w-full flex items-center justify-center text-sm text-slate-400">
+                Güçlük düzeyi bilgisi girilmedi.
+              </div>
+            )}
           </div>
         </div>
 
@@ -491,11 +503,11 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
               </div>
               <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-center">
                 <div className="text-xs text-slate-500 uppercase font-bold mb-1">En Yüksek</div>
-                <div className="text-2xl font-bold text-green-600">{maxScore}</div>
+                <div className="text-2xl font-bold text-green-600">%{maxScore.toFixed(1)}</div>
               </div>
               <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-center">
                 <div className="text-xs text-slate-500 uppercase font-bold mb-1">En Düşük</div>
-                <div className="text-2xl font-bold text-red-600">{minScore}</div>
+                <div className="text-2xl font-bold text-red-600">%{minScore.toFixed(1)}</div>
               </div>
             </div>
 
@@ -633,6 +645,23 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* Psikometrik Analiz - YENİ MODÜL */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-violet-50">
+            <h3 className="text-lg font-bold text-slate-800 flex items-center">
+              <span className="mr-2">📊</span>
+              Psikometrik Analiz (PISA/TIMSS Standardı)
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">Soru güçlüğü, ayırt edicilik ve test güvenilirliği analizi.</p>
+          </div>
+          <div className="p-6">
+            <PsychometricAnalysis
+              questions={questions}
+              students={students}
+            />
           </div>
         </div>
 

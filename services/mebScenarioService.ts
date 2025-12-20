@@ -10,7 +10,8 @@ import { QuestionConfig } from '../types';
 const STORAGE_KEYS = {
     SCENARIOS: 'meb_scenarios_cache',
     LAST_UPDATE: 'meb_scenarios_last_update',
-    USER_SCENARIOS: 'user_custom_scenarios'
+    USER_SCENARIOS: 'user_custom_scenarios',
+    SCENARIO_TEMPLATES: 'scenario_templates_v1'
 };
 
 export interface ScenarioOption {
@@ -135,6 +136,53 @@ export function deleteUserScenario(name: string): boolean {
         return true;
     } catch (e) {
         return false;
+    }
+}
+
+/**
+ * Sınıf/ders/senaryo bazlı şablon kaydet
+ */
+export function saveScenarioTemplate(
+    grade: string,
+    subject: string,
+    scenario: string,
+    questions: QuestionConfig[]
+): boolean {
+    if (!scenario || scenario === 'custom') return false;
+    if (typeof localStorage === 'undefined') return false;
+
+    try {
+        const stored = localStorage.getItem(STORAGE_KEYS.SCENARIO_TEMPLATES);
+        const templates: Record<string, QuestionConfig[]> = stored ? JSON.parse(stored) : {};
+        const key = `${grade}|${subject}|${scenario}`.toLowerCase();
+        templates[key] = questions;
+        localStorage.setItem(STORAGE_KEYS.SCENARIO_TEMPLATES, JSON.stringify(templates));
+        return true;
+    } catch (e) {
+        console.error('Senaryo şablonu kaydedilemedi:', e);
+        return false;
+    }
+}
+
+/**
+ * Senaryo şablonunu getir
+ */
+export function getScenarioTemplate(
+    grade: string,
+    subject: string,
+    scenario: string
+): QuestionConfig[] | null {
+    if (!scenario || scenario === 'custom') return null;
+    if (typeof localStorage === 'undefined') return null;
+
+    try {
+        const stored = localStorage.getItem(STORAGE_KEYS.SCENARIO_TEMPLATES);
+        if (!stored) return null;
+        const templates: Record<string, QuestionConfig[]> = JSON.parse(stored);
+        const key = `${grade}|${subject}|${scenario}`.toLowerCase();
+        return templates[key] || null;
+    } catch (e) {
+        return null;
     }
 }
 

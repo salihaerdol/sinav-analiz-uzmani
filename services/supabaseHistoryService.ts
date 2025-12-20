@@ -84,7 +84,12 @@ const readLocalAnalyses = (key: string): SavedAnalysis[] => {
     if (typeof localStorage === 'undefined') return [];
     try {
         const stored = localStorage.getItem(key);
-        return stored ? JSON.parse(stored) : [];
+        const parsed = stored ? JSON.parse(stored) : [];
+        return (parsed || []).sort((a: SavedAnalysis, b: SavedAnalysis) => {
+            const aDate = new Date(a.metadata.date || a.createdAt).getTime();
+            const bDate = new Date(b.metadata.date || b.createdAt).getTime();
+            return bDate - aDate;
+        });
     } catch (error) {
         console.warn('Local analysis read failed:', error);
         return [];
@@ -286,7 +291,6 @@ const buildClassProgressFromAnalyses = (analyses: SavedAnalysis[]): ClassProgres
         return {
             ...cls,
             overallTrend,
-            grade: cls.examHistory[cls.examHistory.length - 1]?.grade || undefined,
             totalExams: averages.length,
             averageScore,
             bestAverage: Math.max(...averages),

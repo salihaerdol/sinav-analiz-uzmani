@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, CheckCircle, Eye, Download } from 'lucide-react';
 import { getScenarioByGradeAndSubject, MEBScenario } from '../data/mebScenarios';
+import { getScenarioTemplate } from '../services/mebScenarioService';
 import { openMEBPDF } from '../services/mebScenarioService';
 
 interface ScenarioVisualSelectorProps {
@@ -31,6 +32,15 @@ export function ScenarioVisualSelector({
             setAvailableScenarios([]);
         }
     }, [grade, subject]);
+
+    useEffect(() => {
+        if (selectedScenario === 'custom') return;
+        if (availableScenarios.length === 0) return;
+        const ids = availableScenarios.map(s => s.code);
+        if (!ids.includes(selectedScenario)) {
+            onSelect(ids[0]);
+        }
+    }, [availableScenarios, selectedScenario, onSelect]);
 
     const handlePreview = (e: React.MouseEvent, code: string) => {
         e.stopPropagation();
@@ -103,6 +113,9 @@ export function ScenarioVisualSelector({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {displayScenarios.map((scenario) => {
                     const isSelected = selectedScenario === scenario.id;
+                    const hasTemplate = scenario.isReal && Boolean(
+                        getScenarioTemplate(grade, subject, scenario.id)
+                    );
 
                     return (
                         <div
@@ -128,6 +141,11 @@ export function ScenarioVisualSelector({
                                         {scenario.isReal ? scenario.id.toUpperCase() : scenario.id}
                                     </span>
                                 </div>
+                                {hasTemplate && (
+                                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                        Hazır
+                                    </span>
+                                )}
                                 {scenario.isReal && (
                                     <button
                                         onClick={(e) => handlePreview(e, scenario.id)}
