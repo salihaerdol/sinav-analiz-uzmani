@@ -29,6 +29,7 @@ import { RiskDashboard } from '../modules/risk-analysis';
 import { BloomAnalysis } from '../modules/bloom-taxonomy';
 import { OCRScanner } from '../modules/ocr-scanner';
 import { ReportEditor } from '../modules/report-editor';
+import { OfficialFormView } from '../modules/official-form';
 
 interface Props {
   analysis: AnalysisResult;
@@ -69,6 +70,7 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
   const [showBloom, setShowBloom] = useState(false);
   const [showOCR, setShowOCR] = useState(false);
   const [showReportEditor, setShowReportEditor] = useState(false);
+  const [showOfficialForm, setShowOfficialForm] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const exportScenarios = getExportScenarios(selectedLanguage);
@@ -317,6 +319,20 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
           <Layout className="w-4 h-4" />
           Rapor Editörü
         </button>
+        <button
+          onClick={() => {
+            setShowPsychometric(false);
+            setShowRisk(false);
+            setShowBloom(false);
+            setShowOCR(false);
+            setShowReportEditor(false);
+            setShowOfficialForm(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg text-sm font-bold hover:bg-slate-600 transition-colors shadow-sm"
+        >
+          <FileText className="w-4 h-4" />
+          Resmi Form
+        </button>
       </div>
 
       {showPsychometric && (
@@ -423,6 +439,94 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
             </div>
             <div className="p-6 overflow-y-auto bg-slate-50">
               <OCRScanner />
+            </div>
+          </div>
+        </div>
+      )}
+      {showReportEditor && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-600 to-indigo-800 text-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Layout className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Gelişmiş Rapor Editörü</h2>
+                  <p className="text-xs text-indigo-100">Sürükle-bırak ile özel rapor tasarlayın</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowReportEditor(false)}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                aria-label="Kapat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-0 overflow-hidden bg-slate-100 flex-1">
+              <ReportEditor />
+            </div>
+          </div>
+        </div>
+      )}
+      {showOfficialForm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[320mm] max-h-[95vh] overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-800 text-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">MEB Resmi Sınav Analiz Formu</h2>
+                  <p className="text-xs text-slate-300">Yatay A4 formatında resmi çıktı örneği</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    const element = document.getElementById('official-meb-form');
+                    if (element) {
+                      setExportingPdf(true);
+                      try {
+                        const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+                        const imgData = canvas.toDataURL('image/png');
+                        const { jsPDF } = await import('jspdf');
+                        const pdf = new jsPDF('l', 'mm', 'a4');
+                        pdf.addImage(imgData, 'PNG', 0, 0, 297, 210);
+                        pdf.save(`${metadata.className}_Resmi_Form.pdf`);
+                      } catch (err) {
+                        console.error('Export error:', err);
+                      } finally {
+                        setExportingPdf(false);
+                      }
+                    }
+                  }}
+                  disabled={exportingPdf}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" />
+                  {exportingPdf ? 'Hazırlanıyor...' : 'PDF İndir'}
+                </button>
+                <button
+                  onClick={() => setShowOfficialForm(false)}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  aria-label="Kapat"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-8 overflow-auto bg-slate-200 flex-1 flex justify-center">
+              <div className="shadow-2xl">
+                <OfficialFormView
+                  analysis={analysis}
+                  metadata={metadata}
+                  questions={questions}
+                  students={students}
+                />
+              </div>
             </div>
           </div>
         </div>
