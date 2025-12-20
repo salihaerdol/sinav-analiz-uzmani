@@ -2,6 +2,7 @@ import { GoogleGenAI, createPartFromBase64 } from '@google/genai';
 import { getApiKey } from '../../services/geminiService';
 import { userApiKeyService } from '../../services/userApiKeyService';
 import { OCRScanResult, OCRStudentRow } from './types';
+import { renderPdfPageToBase64 } from './pdfUtils';
 
 export interface OCRResponse {
   success: boolean;
@@ -14,7 +15,7 @@ const OCR_MODEL = 'gemini-2.0-flash';
 const PROMPT = `
 Bir OCR sistemi olarak sadece JSON döndür. Kesinlikle açıklama, markdown veya ek metin ekleme.
 
-Görseldeki öğrenci listesi tablosunu çıkar ve aşağıdaki formatta ver:
+Girdi görsel veya PDF olabilir. Öğrenci listesi tablosunu çıkar ve aşağıdaki formatta ver:
 {
   "students": [
     {
@@ -35,6 +36,7 @@ Kurallar:
 `.trim();
 
 const SUPPORTED_IMAGE_PREFIX = 'image/';
+const SUPPORTED_PDF_MIME = 'application/pdf';
 
 const decodeErrors = [
   'API_KEY_INVALID',
@@ -188,18 +190,21 @@ function parseOCRResponse(text: string): { students: OCRStudentRow[] } | null {
   }
 }
 
-export async function analyzeImageWithOCR(file: File): Promise<OCRResponse> {
+export interface OCRRequestOptions {
+  pdfPage?: number;
+}
+
+export async function analyzeImageWithOCR(
+  file: File,
+  options?: OCRRequestOptions
+): Promise<OCRResponse> {
   if (!file) {
     return { success: false, error: 'Dosya bulunamadı.' };
   }
 
   const mimeType = resolveMimeType(file);
-  if (mimeType === 'application/pdf') {
-    return { success: false, error: 'PDF desteği henüz eklenmedi. Lütfen görsel yükleyin.' };
-  }
-
-  if (!mimeType.startsWith(SUPPORTED_IMAGE_PREFIX)) {
-    return { success: false, error: 'Sadece görsel dosyaları destekleniyor.' };
+  if (!mimeType.startsWith(SUPPORTED_IMAGE_PREFIX) && mimeType !== SUPPORTED_PDF_MIME) {
+    return { success: false, error: 'Sadece görsel veya PDF dosyaları destekleniyor.' };
   }
 
   const apiKey = await getApiKey();
@@ -211,17 +216,24 @@ export async function analyzeImageWithOCR(file: File): Promise<OCRResponse> {
   }
 
   let base64: string;
+  let payloadMimeType = mimeType;
   try {
-    base64 = await fileToBase64(file);
+    if (mimeType === SUPPORTED_PDF_MIME) {
+      const rendered = await renderPdfPageToBase64(file, options?.pdfPage);
+      base64 = rendered.base64;
+      payloadMimeType = rendered.mimeType;
+    } else {
+      base64 = await fileToBase64(file);
+    }
   } catch (error) {
     console.error('OCR dosya okunamadı:', error);
-    return { success: false, error: 'Dosya okunamadı. Lütfen tekrar deneyin.' };
+    return { success: false, error: 'Dosya işlenemedi. PDF ise ilk sayfa render edilemedi.' };
   }
 
   try {
     await userApiKeyService.incrementAiRequestCount();
     const ai = new GoogleGenAI({ apiKey });
-    const imagePart = createPartFromBase64(base64, mimeType);
+    const imagePart = createPartFromBase64(base64, payloadMimeType);
 
     const response = await ai.models.generateContent({
       model: OCR_MODEL,
@@ -239,7 +251,7 @@ export async function analyzeImageWithOCR(file: File): Promise<OCRResponse> {
     if (!parsed) {
       return {
         success: false,
-        error: 'OCR yanıtı okunamadı. Görsel netliğini kontrol edip tekrar deneyin.'
+        error: 'OCR yanıtı okunamadı. Dosya netliğini kontrol edip tekrar deneyin.'
       };
     }
 

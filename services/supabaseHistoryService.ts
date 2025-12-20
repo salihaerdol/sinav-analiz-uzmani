@@ -396,7 +396,7 @@ export const analysisHistoryService = {
             return localAnalyses;
         }
 
-        const remoteAnalyses = (data || []).map(this.dbToSavedAnalysis);
+        const remoteAnalyses = (data || []).map(item => this.dbToSavedAnalysis(item));
         return mergeAnalyses(remoteAnalyses, localAnalyses);
     },
 

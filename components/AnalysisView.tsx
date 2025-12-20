@@ -36,6 +36,8 @@ interface Props {
   metadata: ExamMetadata;
   questions: QuestionConfig[];
   students: Student[];
+  onApplyStudents?: (students: Student[]) => void;
+  onAppendStudents?: (students: Student[]) => void;
 }
 
 // Export scenario icons mapping
@@ -59,7 +61,7 @@ const calculateMedian = (scores: number[]) => {
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 };
 
-export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, students }) => {
+export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, students, onApplyStudents, onAppendStudents }) => {
   const [aiReport, setAiReport] = useState<string>('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -253,7 +255,7 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
 
   return (
     <div className="space-y-8 animate-fade-in pb-24">
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <button
           onClick={() => {
             setShowRisk(false);
@@ -438,7 +440,17 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
               </button>
             </div>
             <div className="p-6 overflow-y-auto bg-slate-50">
-              <OCRScanner />
+              <OCRScanner
+                defaultClassName={metadata.className}
+                defaultGrade={metadata.grade}
+                defaultSubject={metadata.subject}
+                defaultAcademicYear={metadata.academicYear}
+                defaultSchoolName={metadata.schoolName}
+                defaultTeacherName={metadata.teacherName}
+                onApplyStudents={onApplyStudents}
+                onAppendStudents={onAppendStudents}
+                onClose={() => setShowOCR(false)}
+              />
             </div>
           </div>
         </div>

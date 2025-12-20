@@ -170,6 +170,7 @@ export function calculateDemoAnalysis(data: DemoClass): AnalysisResult {
         outcomeStats,
         studentStats,
         classAverage,
+        averageSuccess: classAverage, // For demo purposes, they are the same
         totalQuestions: questions.length,
     };
 }

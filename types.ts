@@ -56,6 +56,7 @@ export interface AnalysisResult {
     percentage: number;
   }[];
   classAverage: number;
+  averageSuccess: number;
   totalQuestions: number;
 }
 

@@ -186,6 +186,55 @@ function MainApp() {
     setShowProgressDashboard(false);
   };
 
+  const handleApplyOCRStudents = (newStudents: Student[]) => {
+    setStudents(newStudents);
+    setCurrentAnalysisId(null);
+    setStep(Step.SCORES);
+  };
+
+  const normalizeStudentKey = (student: Student) => {
+    const numberKey = student.student_number?.replace(/\s+/g, '').trim();
+    if (numberKey) return `num:${numberKey.toLowerCase()}`;
+    const nameKey = student.name.trim().replace(/\s+/g, ' ').toLowerCase();
+    return `name:${nameKey}`;
+  };
+
+  const mergeStudents = (existing: Student[], incoming: Student[]) => {
+    const map = new Map<string, Student>();
+    const result: Student[] = [];
+    const now = Date.now();
+
+    existing.forEach((student) => {
+      const key = normalizeStudentKey(student);
+      map.set(key, student);
+      result.push(student);
+    });
+
+    incoming.forEach((student) => {
+      const key = normalizeStudentKey(student);
+      const existingStudent = map.get(key);
+      if (existingStudent) {
+        if (!existingStudent.student_number && student.student_number) {
+          existingStudent.student_number = student.student_number;
+        }
+        return;
+      }
+      map.set(key, student);
+      result.push(student);
+    });
+
+    return result.map((student, index) => ({
+      ...student,
+      id: student.id || `${now}-${index}`
+    }));
+  };
+
+  const handleAppendOCRStudents = (newStudents: Student[]) => {
+    setStudents((prev) => mergeStudents(prev, newStudents));
+    setCurrentAnalysisId(null);
+    setStep(Step.SCORES);
+  };
+
   const resetAnalysis = () => {
     if (confirm('Mevcut analiz verileri silinecek ve yeni bir analiz başlatılacak. Emin misiniz?')) {
       setMetadata(INITIAL_METADATA);
@@ -862,6 +911,8 @@ function MainApp() {
         metadata={metadata}
         questions={questions}
         students={students}
+        onApplyStudents={handleApplyOCRStudents}
+        onAppendStudents={handleAppendOCRStudents}
       />
     </div>
   );
