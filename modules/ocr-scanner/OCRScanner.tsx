@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle, Download, FileImage, Loader2, Save, Upload } from 'lucide-react';
+import { AlertCircle, CheckCircle, Download, FileImage, Loader2, Save, Trash2, Upload } from 'lucide-react';
 import { analyzeImageWithOCR } from './ocrService';
 import { getApiKey } from '../../services/geminiService';
 import { OCRScanResult, OCRStatus, OCRStudentRow } from './types';
@@ -100,6 +100,8 @@ export default function OCRScanner({
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [preserveScores, setPreserveScores] = useState(true);
+  const [confidenceThreshold, setConfidenceThreshold] = useState(70);
+  const [editableRows, setEditableRows] = useState<OCRStudentRow[]>([]);
 
   useEffect(() => {
     if (!file) {
@@ -142,7 +144,7 @@ export default function OCRScanner({
     () => Boolean(file) && (!isPdf || !loadingPdfInfo),
     [file, isPdf, loadingPdfInfo]
   );
-  const rows = result?.extractedData.students ?? [];
+  const rows = editableRows;
   const isPdf = file?.type === 'application/pdf' || file?.name?.toLowerCase().endsWith('.pdf');
   const visibleRows = useMemo(
     () =>
@@ -192,6 +194,14 @@ export default function OCRScanner({
     setSelectedRows(all);
   }, [rows]);
 
+  useEffect(() => {
+    if (!result) {
+      setEditableRows([]);
+      return;
+    }
+    setEditableRows(result.extractedData.students);
+  }, [result]);
+
   const csvData = useMemo(() => {
     if (!rows.length) return '';
     const header = ['Row', 'StudentNumber', 'FirstName', 'LastName', 'Confidence'];
@@ -217,6 +227,7 @@ export default function OCRScanner({
     setStatus('processing');
     setError(null);
     setResult(null);
+    setEditableRows([]);
     setApplyNotice(null);
 
     const response = await analyzeImageWithOCR(file, isPdf ? { pdfPage } : undefined);
@@ -266,6 +277,59 @@ export default function OCRScanner({
       }
       const next = new Set<number>();
       rows.forEach((_, index) => next.add(index));
+      return next;
+    });
+  };
+
+  const updateRow = (index: number, patch: Partial<OCRStudentRow>) => {
+    setEditableRows((prev) =>
+      prev.map((row, idx) => (idx === index ? { ...row, ...patch } : row))
+    );
+  };
+
+  const handleClearSelection = () => {
+    setSelectedRows(new Set());
+  };
+
+  const handleSelectLowConfidence = () => {
+    if (!rows.length) return;
+    const next = new Set<number>();
+    rows.forEach((row, index) => {
+      if (row.confidence < confidenceThreshold) {
+        next.add(index);
+      }
+    });
+    setSelectedRows(next);
+  };
+
+  const removeRow = (index: number) => {
+    setEditableRows((prev) => prev.filter((_, idx) => idx !== index));
+    setSelectedRows((prev) => {
+      const next = new Set<number>();
+      prev.forEach((value) => {
+        if (value === index) return;
+        next.add(value > index ? value - 1 : value);
+      });
+      return next;
+    });
+  };
+
+  const removeSelectedRows = () => {
+    if (selectedRows.size === 0) return;
+    const snapshot = new Set(selectedRows);
+    setEditableRows((prev) => prev.filter((_, idx) => !snapshot.has(idx)));
+    setSelectedRows(new Set());
+  };
+
+  const keepSelectedRows = () => {
+    if (selectedRows.size === 0) return;
+    const snapshot = new Set(selectedRows);
+    setEditableRows((prev) => prev.filter((_, idx) => snapshot.has(idx)));
+    setSelectedRows(() => {
+      const next = new Set<number>();
+      for (let i = 0; i < snapshot.size; i += 1) {
+        next.add(i);
+      }
       return next;
     });
   };
@@ -583,6 +647,49 @@ export default function OCRScanner({
               Sadece seçilenleri göster
             </label>
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+            <button
+              type="button"
+              onClick={handleClearSelection}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              Seçimi Temizle
+            </button>
+            <button
+              type="button"
+              onClick={removeSelectedRows}
+              disabled={selectedRows.size === 0}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              Seçilileri Sil
+            </button>
+            <button
+              type="button"
+              onClick={keepSelectedRows}
+              disabled={selectedRows.size === 0}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              Seçili Olanları Bırak
+            </button>
+            <div className="flex items-center gap-2">
+              <span>Düşük güven &lt;</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={confidenceThreshold}
+                onChange={(e) => setConfidenceThreshold(Number(e.target.value || 0))}
+                className="w-16 border border-slate-200 rounded-md px-2 py-1 text-xs focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500"
+              />
+              <button
+                type="button"
+                onClick={handleSelectLowConfidence}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Seç
+              </button>
+            </div>
+          </div>
           <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden">
             {rows.length === 0 ? (
               <div className="p-4 text-sm text-slate-500">
@@ -607,12 +714,13 @@ export default function OCRScanner({
                       <th className="px-4 py-2 text-left font-semibold">Ad</th>
                       <th className="px-4 py-2 text-left font-semibold">Soyad</th>
                       <th className="px-4 py-2 text-left font-semibold">Güven</th>
+                      <th className="px-4 py-2 text-left font-semibold"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-slate-700">
                     {visibleRows.length === 0 ? (
                       <tr>
-                        <td className="px-4 py-4 text-sm text-slate-500" colSpan={6}>
+                        <td className="px-4 py-4 text-sm text-slate-500" colSpan={7}>
                           Seçili kayıt bulunamadı.
                         </td>
                       </tr>
@@ -629,10 +737,44 @@ export default function OCRScanner({
                             />
                           </td>
                           <td className="px-4 py-2">{row.rowNumber}</td>
-                          <td className="px-4 py-2">{row.studentNumber || '-'}</td>
-                          <td className="px-4 py-2">{row.firstName || '-'}</td>
-                          <td className="px-4 py-2">{row.lastName || '-'}</td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={row.studentNumber || ''}
+                              onChange={(e) => updateRow(index, { studentNumber: e.target.value })}
+                              className="w-28 border border-transparent bg-transparent px-2 py-1 text-xs text-slate-700 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 rounded-md"
+                              placeholder="-"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={row.firstName || ''}
+                              onChange={(e) => updateRow(index, { firstName: e.target.value })}
+                              className="w-28 border border-transparent bg-transparent px-2 py-1 text-xs text-slate-700 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 rounded-md"
+                              placeholder="-"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={row.lastName || ''}
+                              onChange={(e) => updateRow(index, { lastName: e.target.value })}
+                              className="w-28 border border-transparent bg-transparent px-2 py-1 text-xs text-slate-700 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 rounded-md"
+                              placeholder="-"
+                            />
+                          </td>
                           <td className="px-4 py-2">%{row.confidence.toFixed(1)}</td>
+                          <td className="px-4 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => removeRow(index)}
+                              className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              aria-label="Satırı sil"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}

@@ -282,12 +282,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             {/* Stats Cards - Floating Effect */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 relative z-20">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-fade-in-delay-2">
-                    <div className="bg-white rounded-2xl p-6 shadow-xl border border-indigo-50 group hover:border-indigo-200 transition-all hover:shadow-2xl hover:-translate-y-1">
+                    <div className="glass-card p-6 card-hover group">
                         <div className="flex items-center justify-between mb-4">
-                            <div className="p-3 bg-blue-50 rounded-xl text-blue-600 group-hover:scale-110 transition-transform">
+                            <div className="p-3 bg-blue-50 rounded-xl text-blue-600 group-hover:scale-110 transition-transform shadow-sm group-hover:shadow-blue-200">
                                 <Users className="w-6 h-6" />
                             </div>
-                            <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center">
+                            <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center border border-green-100">
                                 <ArrowUpRight className="w-3 h-3 mr-1" /> Aktif
                             </span>
                         </div>
@@ -295,12 +295,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <p className="text-3xl font-bold text-slate-800 mt-1">{stats.totalClasses}</p>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-6 shadow-xl border border-indigo-50 group hover:border-indigo-200 transition-all hover:shadow-2xl hover:-translate-y-1">
+                    <div className="glass-card p-6 card-hover group">
                         <div className="flex items-center justify-between mb-4">
-                            <div className="p-3 bg-green-50 rounded-xl text-green-600 group-hover:scale-110 transition-transform">
+                            <div className="p-3 bg-green-50 rounded-xl text-green-600 group-hover:scale-110 transition-transform shadow-sm group-hover:shadow-green-200">
                                 <GraduationCap className="w-6 h-6" />
                             </div>
-                            <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center">
+                            <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center border border-green-100">
                                 <ArrowUpRight className="w-3 h-3 mr-1" /> +12%
                             </span>
                         </div>
@@ -308,12 +308,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <p className="text-3xl font-bold text-slate-800 mt-1">{stats.totalStudents}</p>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-6 shadow-xl border border-indigo-50 group hover:border-indigo-200 transition-all hover:shadow-2xl hover:-translate-y-1">
+                    <div className="glass-card p-6 card-hover group">
                         <div className="flex items-center justify-between mb-4">
-                            <div className="p-3 bg-purple-50 rounded-xl text-purple-600 group-hover:scale-110 transition-transform">
+                            <div className="p-3 bg-purple-50 rounded-xl text-purple-600 group-hover:scale-110 transition-transform shadow-sm group-hover:shadow-purple-200">
                                 <FileText className="w-6 h-6" />
                             </div>
-                            <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                            <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-full border border-purple-100">
                                 Bu Dönem
                             </span>
                         </div>
@@ -321,12 +321,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <p className="text-3xl font-bold text-slate-800 mt-1">{stats.totalExams}</p>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-6 shadow-xl border border-indigo-50 group hover:border-indigo-200 transition-all hover:shadow-2xl hover:-translate-y-1">
+                    <div className="glass-card p-6 card-hover group">
                         <div className="flex items-center justify-between mb-4">
-                            <div className="p-3 bg-orange-50 rounded-xl text-orange-600 group-hover:scale-110 transition-transform">
+                            <div className="p-3 bg-orange-50 rounded-xl text-orange-600 group-hover:scale-110 transition-transform shadow-sm group-hover:shadow-orange-200">
                                 <Activity className="w-6 h-6" />
                             </div>
-                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${stats.averageSuccess >= 70 ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full border ${stats.averageSuccess >= 70 ? 'bg-green-50 text-green-600 border-green-100' : 'bg-yellow-50 text-yellow-600 border-yellow-100'}`}>
                                 {stats.averageSuccess >= 70 ? 'Yüksek' : 'Orta'}
                             </span>
                         </div>

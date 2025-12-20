@@ -15,6 +15,25 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }
@@ -27,6 +46,11 @@ h1, h2, h3, h4, h5, h6 {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 .animate-fade-in {
@@ -48,6 +72,10 @@ h1, h2, h3, h4, h5, h6 {
   opacity: 0;
 }
 
+.animate-shine {
+  animation: shine 2s infinite;
+}
+
 /* Glassmorphism */
 .glass {
   @apply bg-white/70 backdrop-blur-lg border border-white/20 shadow-xl;
@@ -55,4 +83,16 @@ h1, h2, h3, h4, h5, h6 {
 
 .glass-card {
   @apply bg-white/80 backdrop-blur-md border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300;
+}
+
+.input-primary {
+  @apply w-full bg-white border-2 border-slate-200 rounded-xl shadow-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 p-3 text-slate-900 transition-all font-medium placeholder:text-slate-400;
+}
+
+.btn-primary {
+  @apply flex items-center justify-center px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-bold shadow-lg hover:shadow-indigo-500/30 transform hover:-translate-y-0.5 active:translate-y-0;
+}
+
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-indigo-200;
 }

@@ -186,8 +186,39 @@ function MainApp() {
     setShowProgressDashboard(false);
   };
 
-  const handleApplyOCRStudents = (newStudents: Student[]) => {
-    setStudents(newStudents);
+  const handleApplyOCRStudents = (
+    newStudents: Student[],
+    options?: { preserveScores?: boolean }
+  ) => {
+    const preserveScores = options?.preserveScores ?? true;
+    if (!preserveScores) {
+      setStudents(newStudents);
+      setCurrentAnalysisId(null);
+      setStep(Step.SCORES);
+      return;
+    }
+
+    setStudents((prev) => {
+      const now = Date.now();
+      const map = new Map<string, Student>();
+      prev.forEach((student) => {
+        map.set(normalizeStudentKey(student), student);
+      });
+
+      return newStudents.map((student, index) => {
+        const key = normalizeStudentKey(student);
+        const existing = map.get(key);
+        if (!existing) {
+          return { ...student, id: student.id || `${now}-${index}` };
+        }
+        return {
+          ...student,
+          id: existing.id,
+          scores: existing.scores,
+          student_number: student.student_number || existing.student_number
+        };
+      });
+    });
     setCurrentAnalysisId(null);
     setStep(Step.SCORES);
   };
@@ -199,7 +230,7 @@ function MainApp() {
     return `name:${nameKey}`;
   };
 
-  const mergeStudents = (existing: Student[], incoming: Student[]) => {
+  const mergeStudents = (existing: Student[], incoming: Student[], preserveScores = true) => {
     const map = new Map<string, Student>();
     const result: Student[] = [];
     const now = Date.now();
@@ -214,8 +245,24 @@ function MainApp() {
       const key = normalizeStudentKey(student);
       const existingStudent = map.get(key);
       if (existingStudent) {
-        if (!existingStudent.student_number && student.student_number) {
-          existingStudent.student_number = student.student_number;
+        if (preserveScores) {
+          if (!existingStudent.student_number && student.student_number) {
+            existingStudent.student_number = student.student_number;
+          }
+          if (!existingStudent.name && student.name) {
+            existingStudent.name = student.name;
+          }
+        } else {
+          const index = result.findIndex((item) => item.id === existingStudent.id);
+          const updated = {
+            ...student,
+            id: existingStudent.id,
+            scores: {}
+          };
+          map.set(key, updated);
+          if (index !== -1) {
+            result[index] = updated;
+          }
         }
         return;
       }
@@ -229,8 +276,11 @@ function MainApp() {
     }));
   };
 
-  const handleAppendOCRStudents = (newStudents: Student[]) => {
-    setStudents((prev) => mergeStudents(prev, newStudents));
+  const handleAppendOCRStudents = (
+    newStudents: Student[],
+    options?: { preserveScores?: boolean }
+  ) => {
+    setStudents((prev) => mergeStudents(prev, newStudents, options?.preserveScores ?? true));
     setCurrentAnalysisId(null);
     setStep(Step.SCORES);
   };
@@ -496,45 +546,49 @@ function MainApp() {
   // --- RENDER HELPERS ---
 
   const renderMetadataStep = () => (
-    <div className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-slate-200 relative">
+    <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-xl border border-slate-100 relative animate-fade-in">
       <div className="absolute top-4 right-4 flex gap-2">
         <button
           onClick={loadSavedClasses}
-          className="flex items-center text-indigo-600 hover:text-indigo-800 p-2 bg-indigo-50 rounded-lg transition-colors text-sm font-medium"
+          className="flex items-center text-indigo-600 hover:text-indigo-800 p-2.5 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all text-sm font-bold"
           title="Kayıtlı Sınıf Yükle"
         >
-          <Download className="w-4 h-4 mr-1" /> Sınıf Yükle
+          <Download className="w-4 h-4 mr-2" /> Sınıf Yükle
         </button>
       </div>
 
-      <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center border-b pb-4">
-        <Settings className="mr-3 text-indigo-600 w-7 h-7" /> Sınav Ayarları
+      <h2 className="text-2xl font-bold text-slate-800 mb-8 flex items-center border-b border-slate-100 pb-4">
+        <div className="p-2 bg-indigo-100 rounded-xl mr-3">
+          <Settings className="text-indigo-600 w-6 h-6" />
+        </div>
+        Sınav Ayarları
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="col-span-1 md:col-span-2">
-          <div className="flex items-start p-4 bg-indigo-50 border border-indigo-100 rounded-lg text-sm text-indigo-800">
-            <Info className="w-5 h-5 mr-2 shrink-0 mt-0.5" />
+          <div className="flex items-start p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl text-sm text-indigo-800">
+            <Info className="w-5 h-5 mr-3 shrink-0 mt-0.5 text-indigo-600" />
             <div>
-              <strong>Bilgi:</strong> Verileriniz tarayıcınıza otomatik kaydedilir. MEB senaryosu seçtiğinizde sorular otomatik yüklenir.
+              <strong className="block mb-1 text-indigo-900">Otomatik Kayıt</strong>
+              Verileriniz tarayıcınıza anlık olarak kaydedilir. MEB senaryosu seçtiğinizde sorular ve kazanımlar otomatik yüklenir.
             </div>
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Okul Adı</label>
-          <input type="text" className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Okul Adı</label>
+          <input type="text" className="input-primary"
             value={metadata.schoolName} onChange={(e) => handleMetadataChange('schoolName', e.target.value)} placeholder="Örn: Atatürk Ortaokulu" />
         </div>
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Öğretmen Adı</label>
-          <input type="text" className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Öğretmen Adı</label>
+          <input type="text" className="input-primary"
             value={metadata.teacherName} onChange={(e) => handleMetadataChange('teacherName', e.target.value)} placeholder="Örn: Ayşe Yılmaz" />
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Sınıf Kademesi</label>
-          <select className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium cursor-pointer"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Sınıf Kademesi</label>
+          <select className="input-primary cursor-pointer appearance-none"
             value={metadata.grade} onChange={(e) => handleMetadataChange('grade', e.target.value)}>
             <option value="5">5. Sınıf</option>
             <option value="6">6. Sınıf</option>
@@ -543,8 +597,8 @@ function MainApp() {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Ders</label>
-          <select className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium cursor-pointer"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Ders</label>
+          <select className="input-primary cursor-pointer appearance-none"
             value={metadata.subject} onChange={(e) => handleMetadataChange('subject', e.target.value)}>
             <option value="İngilizce">İngilizce</option>
             <option value="Matematik">Matematik</option>
@@ -554,9 +608,9 @@ function MainApp() {
         </div>
 
         <div className="col-span-1 md:col-span-2">
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex justify-between items-center mb-2 ml-1">
             <label className="block text-sm font-bold text-slate-700">Senaryo Seçimi</label>
-            <a href="https://odsgm.meb.gov.tr/" target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline flex items-center">
+            <a href="https://odsgm.meb.gov.tr/" target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center bg-indigo-50 px-2 py-1 rounded-lg transition-colors">
               <ExternalLink className="w-3 h-3 mr-1" /> MEB Güncel Senaryoları
             </a>
           </div>
@@ -565,18 +619,18 @@ function MainApp() {
             subject={metadata.subject}
             selectedScenario={metadata.scenario}
             onSelect={(id) => handleMetadataChange('scenario', id)}
-            scenarios={[]} // Bu prop artık içeriden yönetilecek veya yeni servisten beslenecek
+            scenarios={[]}
           />
         </div>
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Şube (Örn: 5/A)</label>
-          <input type="text" className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Şube (Örn: 5/A)</label>
+          <input type="text" className="input-primary"
             value={metadata.className} onChange={(e) => handleMetadataChange('className', e.target.value)} />
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Dönem</label>
-          <select className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium cursor-pointer"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Dönem</label>
+          <select className="input-primary cursor-pointer appearance-none"
             value={metadata.term} onChange={(e) => handleMetadataChange('term', e.target.value as '1' | '2')}>
             <option value="1">1. Dönem</option>
             <option value="2">2. Dönem</option>
@@ -584,8 +638,8 @@ function MainApp() {
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Sınav Numarası</label>
-          <select className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium cursor-pointer"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Sınav Numarası</label>
+          <select className="input-primary cursor-pointer appearance-none"
             value={metadata.examNumber} onChange={(e) => handleMetadataChange('examNumber', e.target.value)}>
             <option value="1">1. Sınav</option>
             <option value="2">2. Sınav</option>
@@ -595,8 +649,8 @@ function MainApp() {
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Sınav Türü</label>
-          <select className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium cursor-pointer"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Sınav Türü</label>
+          <select className="input-primary cursor-pointer appearance-none"
             value={metadata.examType} onChange={(e) => handleMetadataChange('examType', e.target.value as 'Yazılı' | 'Sözlü' | 'Performans' | 'Proje')}>
             <option value="Yazılı">Yazılı Sınav</option>
             <option value="Sözlü">Sözlü Sınav</option>
@@ -606,8 +660,8 @@ function MainApp() {
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Okul Türü</label>
-          <select className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium cursor-pointer"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Okul Türü</label>
+          <select className="input-primary cursor-pointer appearance-none"
             value={metadata.schoolType} onChange={(e) => handleMetadataChange('schoolType', e.target.value as 'İlkokul' | 'Ortaokul' | 'Lise')}>
             <option value="İlkokul">İlkokul</option>
             <option value="Ortaokul">Ortaokul</option>
@@ -616,22 +670,22 @@ function MainApp() {
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">İl (Opsiyonel)</label>
-          <input type="text" className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">İl (Opsiyonel)</label>
+          <input type="text" className="input-primary"
             value={metadata.province || ''} onChange={(e) => handleMetadataChange('province', e.target.value)} placeholder="Örn: Ankara" />
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">İlçe (Opsiyonel)</label>
-          <input type="text" className="w-full bg-white border-2 border-slate-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 p-3 text-slate-900 transition-all font-medium"
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">İlçe (Opsiyonel)</label>
+          <input type="text" className="input-primary"
             value={metadata.district || ''} onChange={(e) => handleMetadataChange('district', e.target.value)} placeholder="Örn: Çankaya" />
         </div>
       </div>
 
-      <div className="mt-8 flex justify-end">
+      <div className="mt-10 flex justify-end">
         <button
           onClick={initQuestions}
-          className="flex items-center px-8 py-3.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-bold text-lg shadow-lg hover:shadow-indigo-500/30 transform hover:-translate-y-0.5"
+          className="btn-primary text-lg px-10 py-4"
         >
           Devam Et <ChevronRight className="ml-2 w-5 h-5" />
         </button>
@@ -640,37 +694,42 @@ function MainApp() {
   );
 
   const renderQuestionsStep = () => (
-    <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-slate-200">
+    <div className="max-w-5xl mx-auto bg-white p-8 rounded-2xl shadow-xl border border-slate-100 animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 pb-4 border-b border-slate-100">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Soru ve Kazanım Düzenleme</h2>
-          <p className="text-slate-500 text-sm mt-1">{metadata.grade}. Sınıf {metadata.subject} - {metadata.scenario === 'custom' ? 'Özel Senaryo' : `${metadata.scenario}. Senaryo`}</p>
+          <h2 className="text-2xl font-bold text-slate-800 flex items-center">
+            <div className="p-2 bg-indigo-100 rounded-xl mr-3">
+              <FileText className="text-indigo-600 w-6 h-6" />
+            </div>
+            Soru ve Kazanım Düzenleme
+          </h2>
+          <p className="text-slate-500 text-sm mt-2 ml-14">{metadata.grade}. Sınıf {metadata.subject} - {metadata.scenario === 'custom' ? 'Özel Senaryo' : `${metadata.scenario}. Senaryo`}</p>
         </div>
 
         <div className="flex items-center gap-4 mt-4 md:mt-0">
-          <div className="px-4 py-2 bg-slate-50 rounded-lg border border-slate-200 text-slate-700">
-            Toplam Puan: <span className={`font-bold text-lg ${questions.reduce((a, b) => a + b.maxScore, 0) === 100 ? 'text-green-600' : 'text-indigo-600'}`}>{questions.reduce((a, b) => a + b.maxScore, 0)}</span>
+          <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 font-medium">
+            Toplam Puan: <span className={`font-bold text-lg ml-2 ${questions.reduce((a, b) => a + b.maxScore, 0) === 100 ? 'text-green-600' : 'text-indigo-600'}`}>{questions.reduce((a, b) => a + b.maxScore, 0)}</span>
           </div>
           <button
             onClick={addQuestion}
-            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-bold shadow-md transition-all hover:shadow-green-500/30"
+            className="flex items-center px-5 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 text-sm font-bold shadow-lg hover:shadow-green-500/30 transition-all transform hover:-translate-y-0.5"
           >
-            <Plus className="w-5 h-5 mr-1" /> Soru Ekle
+            <Plus className="w-5 h-5 mr-2" /> Soru Ekle
           </button>
         </div>
       </div>
 
       <div className="space-y-4">
         {questions.map((q, idx) => (
-          <div key={q.id} className="flex flex-col md:flex-row gap-4 p-5 border-2 border-slate-200 rounded-xl hover:border-indigo-400 transition-all bg-slate-50/50 hover:bg-white shadow-sm hover:shadow-md group">
-            <div className="flex items-center gap-4 w-full md:w-auto shrink-0 border-b md:border-b-0 md:border-r border-slate-200 pb-4 md:pb-0 md:pr-4">
-              <div className="flex flex-col items-center gap-2">
-                <span className="w-10 h-10 flex items-center justify-center bg-indigo-600 text-white rounded-full font-bold text-lg shrink-0 shadow-md">
+          <div key={q.id} className="flex flex-col md:flex-row gap-4 p-6 border border-slate-200 rounded-2xl hover:border-indigo-300 transition-all bg-slate-50/30 hover:bg-white shadow-sm hover:shadow-md group">
+            <div className="flex items-center gap-4 w-full md:w-auto shrink-0 border-b md:border-b-0 md:border-r border-slate-200 pb-4 md:pb-0 md:pr-6">
+              <div className="flex flex-col items-center gap-3">
+                <span className="w-12 h-12 flex items-center justify-center bg-indigo-600 text-white rounded-2xl font-bold text-xl shrink-0 shadow-indigo-200 shadow-lg">
                   {idx + 1}
                 </span>
                 <button
                   onClick={() => removeQuestion(q.id)}
-                  className="text-slate-400 hover:text-red-500 p-1.5 hover:bg-red-50 rounded-full transition-colors"
+                  className="text-slate-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition-colors"
                   title="Soruyu Sil"
                 >
                   <Trash2 className="w-5 h-5" />
@@ -678,10 +737,10 @@ function MainApp() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">PUAN</label>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1 text-center">PUAN</label>
                 <input
                   type="number"
-                  className="w-20 p-2.5 border-2 border-slate-300 rounded-lg text-center font-bold text-xl text-slate-800 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 bg-white shadow-sm"
+                  className="w-24 p-3 border-2 border-slate-200 rounded-xl text-center font-bold text-2xl text-slate-800 focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 bg-white shadow-sm transition-all"
                   value={q.maxScore}
                   onChange={(e) => updateQuestion(q.id, 'maxScore', Number(e.target.value))}
                 />
@@ -690,29 +749,29 @@ function MainApp() {
             <div className="flex-1 pt-2 md:pt-0">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="md:col-span-1">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">KAZANIM KODU</label>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1 ml-1">KAZANIM KODU</label>
                   <input
                     type="text"
                     placeholder="Örn: E5.1.S1"
-                    className="w-full p-3 border-2 border-slate-300 rounded-lg text-sm text-slate-900 font-bold focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 bg-white shadow-sm placeholder:text-slate-300 uppercase"
+                    className="input-primary uppercase"
                     value={q.outcome.code}
                     onChange={(e) => updateQuestionOutcome(q.id, e.target.value)}
                   />
                 </div>
                 <div className="md:col-span-3">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">KAZANIM AÇIKLAMASI (Otomatik)</label>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1 ml-1">KAZANIM AÇIKLAMASI (Otomatik)</label>
                   <input
                     type="text"
                     placeholder="Kazanım kodu girildiğinde otomatik dolar..."
-                    className="w-full p-3 border-2 border-slate-300 rounded-lg text-sm text-slate-800 font-medium focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 bg-white shadow-sm"
+                    className="input-primary bg-slate-50"
                     value={q.outcome.description}
                     onChange={(e) => updateQuestionOutcomeDesc(q.id, e.target.value)}
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">BİLİŞSEL DÜZEY (Bloom)</label>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1 ml-1">BİLİŞSEL DÜZEY (Bloom)</label>
                   <select
-                    className="w-full p-3 border-2 border-slate-300 rounded-lg text-sm text-slate-800 font-medium focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 bg-white shadow-sm"
+                    className="input-primary cursor-pointer appearance-none"
                     value={q.cognitiveLevel || ''}
                     onChange={(e) => updateQuestion(q.id, 'cognitiveLevel', e.target.value || undefined)}
                   >
@@ -726,9 +785,9 @@ function MainApp() {
                   </select>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">ZORLUK DÜZEYİ</label>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1 ml-1">ZORLUK DÜZEYİ</label>
                   <select
-                    className="w-full p-3 border-2 border-slate-300 rounded-lg text-sm text-slate-800 font-medium focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 bg-white shadow-sm"
+                    className="input-primary cursor-pointer appearance-none"
                     value={q.difficulty || ''}
                     onChange={(e) => updateQuestion(q.id, 'difficulty', e.target.value || undefined)}
                   >
@@ -744,13 +803,13 @@ function MainApp() {
         ))}
 
         {questions.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border-2 border-dashed border-slate-300">
-            <div className="bg-slate-50 p-4 rounded-full mb-3">
-              <Plus className="w-8 h-8 text-slate-400" />
+          <div className="flex flex-col items-center justify-center py-20 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-300 group hover:border-indigo-300 transition-colors">
+            <div className="bg-white p-6 rounded-full mb-4 shadow-sm group-hover:scale-110 transition-transform duration-300">
+              <Plus className="w-10 h-10 text-indigo-400" />
             </div>
-            <p className="text-slate-600 font-medium text-lg">Henüz soru eklenmedi.</p>
-            <p className="text-slate-400 text-sm mb-4">Başlamak için yeni bir soru ekleyin.</p>
-            <button onClick={addQuestion} className="px-5 py-2.5 bg-indigo-50 text-indigo-700 rounded-lg font-bold hover:bg-indigo-100 transition-colors">
+            <p className="text-slate-700 font-bold text-xl">Henüz soru eklenmedi</p>
+            <p className="text-slate-500 text-sm mb-6 mt-1">Analize başlamak için sorularınızı ekleyin</p>
+            <button onClick={addQuestion} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-500/30">
               İlk Soruyu Ekle
             </button>
           </div>
@@ -758,8 +817,8 @@ function MainApp() {
       </div>
 
       <div className="mt-10 flex justify-between pt-6 border-t border-slate-100">
-        <button onClick={() => setStep(Step.METADATA)} className="flex items-center text-slate-600 hover:text-slate-900 font-bold px-5 py-3 hover:bg-slate-100 rounded-lg transition-colors">
-          <ChevronLeft className="w-5 h-5 mr-1" /> Geri Dön
+        <button onClick={() => setStep(Step.METADATA)} className="flex items-center text-slate-600 hover:text-slate-900 font-bold px-6 py-3 hover:bg-slate-50 rounded-xl transition-colors">
+          <ChevronLeft className="w-5 h-5 mr-2" /> Geri Dön
         </button>
         <button onClick={() => {
           if (questions.length === 0) {
@@ -771,7 +830,7 @@ function MainApp() {
             setStudents(Array.from({ length: 5 }).map((_, i) => ({ id: i.toString(), name: `Öğrenci ${i + 1}`, scores: {} })));
           }
           setStep(Step.SCORES);
-        }} className="flex items-center px-8 py-3.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold text-lg shadow-lg hover:shadow-indigo-500/30 transform hover:-translate-y-0.5 transition-all">
+        }} className="btn-primary text-lg px-8 py-3.5">
           Not Girişine Geç <ChevronRight className="ml-2 w-5 h-5" />
         </button>
       </div>
@@ -783,7 +842,7 @@ function MainApp() {
       <div className="flex justify-between items-center mb-6 shrink-0 border-b border-slate-100 pb-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Öğrenci Not Girişi</h2>
-          ```
+
           <p className="text-sm text-slate-500">{metadata.className} Sınıfı - {questions.length} Soru</p>
           {isLoaded && <span className="text-xs text-green-600 flex items-center mt-1"><Save className="w-3 h-3 mr-1" /> Otomatik Kaydediliyor</span>}
         </div>
@@ -953,9 +1012,9 @@ function MainApp() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-inter selection:bg-indigo-100 selection:text-indigo-700">
+    <div className="min-h-screen bg-slate-50 font-inter selection:bg-indigo-100 selection:text-indigo-700" >
       {/* Navbar */}
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm/50 backdrop-blur-md bg-white/90">
+      < nav className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm/50 backdrop-blur-md bg-white/90" >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-18 py-3">
             <div className="flex items-center">
