@@ -22,6 +22,22 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
   CONSTRAINT user_profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
 
+-- Auto-create profile on signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.user_profiles (id, email, full_name)
+  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name')
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
 CREATE TABLE IF NOT EXISTS public.student_lists (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid,
@@ -134,6 +150,92 @@ CREATE TABLE IF NOT EXISTS public.exam_analytics (
   generated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT exam_analytics_pkey PRIMARY KEY (id),
   CONSTRAINT exam_analytics_exam_id_fkey FOREIGN KEY (exam_id) REFERENCES public.exams(id)
+);
+
+-- =====================================================
+-- ANALYSIS HISTORY TABLES
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.analysis_history (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  school_name text,
+  teacher_name text,
+  class_name text,
+  grade text,
+  subject text,
+  scenario text,
+  exam_date date,
+  term text,
+  exam_number text,
+  exam_type text,
+  academic_year text,
+  class_average numeric,
+  total_students integer,
+  total_questions integer,
+  analysis_data jsonb,
+  questions_data jsonb,
+  students_data jsonb,
+  ai_summary text,
+  ai_recommendations jsonb,
+  tags text[] DEFAULT '{}'::text[],
+  notes text,
+  is_archived boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT analysis_history_pkey PRIMARY KEY (id),
+  CONSTRAINT analysis_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+
+CREATE TABLE IF NOT EXISTS public.student_progress (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  student_name text NOT NULL,
+  class_name text,
+  total_exams integer DEFAULT 0,
+  average_score numeric,
+  best_score numeric,
+  worst_score numeric,
+  trend text CHECK (trend IN ('up', 'down', 'stable')) DEFAULT 'stable',
+  exam_history jsonb DEFAULT '[]'::jsonb,
+  outcome_progress jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT student_progress_pkey PRIMARY KEY (id),
+  CONSTRAINT student_progress_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+
+CREATE TABLE IF NOT EXISTS public.class_progress (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  class_name text NOT NULL,
+  grade text,
+  subject text NOT NULL,
+  total_exams integer DEFAULT 0,
+  average_score numeric,
+  best_average numeric,
+  worst_average numeric,
+  trend text CHECK (trend IN ('up', 'down', 'stable')) DEFAULT 'stable',
+  exam_history jsonb DEFAULT '[]'::jsonb,
+  outcome_progress jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT class_progress_pkey PRIMARY KEY (id),
+  CONSTRAINT class_progress_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+
+CREATE TABLE IF NOT EXISTS public.user_api_keys (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL UNIQUE,
+  gemini_api_key text,
+  gemini_api_key_valid boolean DEFAULT false,
+  gemini_last_verified timestamp with time zone,
+  openai_api_key text,
+  total_ai_requests integer DEFAULT 0,
+  last_ai_request timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_api_keys_pkey PRIMARY KEY (id),
+  CONSTRAINT user_api_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
 );
 
 -- =====================================================
@@ -289,6 +391,14 @@ ALTER TABLE public.report_templates ADD COLUMN IF NOT EXISTS usage_count integer
 
 CREATE INDEX IF NOT EXISTS idx_psychometric_exam ON public.psychometric_analysis(exam_id);
 CREATE INDEX IF NOT EXISTS idx_psychometric_user ON public.psychometric_analysis(user_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_history_user ON public.analysis_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_history_filters ON public.analysis_history(user_id, class_name, subject, grade);
+CREATE INDEX IF NOT EXISTS idx_analysis_history_exam_date ON public.analysis_history(exam_date);
+CREATE INDEX IF NOT EXISTS idx_student_progress_user ON public.student_progress(user_id);
+CREATE INDEX IF NOT EXISTS idx_student_progress_name ON public.student_progress(user_id, student_name);
+CREATE INDEX IF NOT EXISTS idx_class_progress_user ON public.class_progress(user_id);
+CREATE INDEX IF NOT EXISTS idx_class_progress_key ON public.class_progress(user_id, class_name, subject);
+CREATE INDEX IF NOT EXISTS idx_user_api_keys_user ON public.user_api_keys(user_id);
 CREATE INDEX IF NOT EXISTS idx_risk_student ON public.student_risk_scores(student_id);
 CREATE INDEX IF NOT EXISTS idx_risk_level ON public.student_risk_scores(risk_level);
 CREATE INDEX IF NOT EXISTS idx_risk_user ON public.student_risk_scores(user_id);
@@ -304,24 +414,171 @@ CREATE INDEX IF NOT EXISTS idx_template_type ON public.report_templates(template
 -- RLS FOR MODULE TABLES
 -- =====================================================
 ALTER TABLE public.psychometric_analysis ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "psychometric_public_access" ON public.psychometric_analysis;
-CREATE POLICY "psychometric_public_access" ON public.psychometric_analysis FOR ALL USING (true);
+DROP POLICY IF EXISTS "psychometric_owner_access" ON public.psychometric_analysis;
+CREATE POLICY "psychometric_owner_access" ON public.psychometric_analysis
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 ALTER TABLE public.student_risk_scores ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "risk_public_access" ON public.student_risk_scores;
-CREATE POLICY "risk_public_access" ON public.student_risk_scores FOR ALL USING (true);
+DROP POLICY IF EXISTS "risk_owner_access" ON public.student_risk_scores;
+CREATE POLICY "risk_owner_access" ON public.student_risk_scores
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 ALTER TABLE public.bloom_taxonomy_tags ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "bloom_public_access" ON public.bloom_taxonomy_tags;
-CREATE POLICY "bloom_public_access" ON public.bloom_taxonomy_tags FOR ALL USING (true);
+DROP POLICY IF EXISTS "bloom_owner_access" ON public.bloom_taxonomy_tags;
+CREATE POLICY "bloom_owner_access" ON public.bloom_taxonomy_tags
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 ALTER TABLE public.ocr_scans ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "ocr_public_access" ON public.ocr_scans;
-CREATE POLICY "ocr_public_access" ON public.ocr_scans FOR ALL USING (true);
+DROP POLICY IF EXISTS "ocr_owner_access" ON public.ocr_scans;
+CREATE POLICY "ocr_owner_access" ON public.ocr_scans
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 ALTER TABLE public.report_templates ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "template_public_access" ON public.report_templates;
-CREATE POLICY "template_public_access" ON public.report_templates FOR ALL USING (true);
+DROP POLICY IF EXISTS "template_owner_access" ON public.report_templates;
+CREATE POLICY "template_owner_access" ON public.report_templates
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE public.analysis_history ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "analysis_history_owner_access" ON public.analysis_history;
+CREATE POLICY "analysis_history_owner_access" ON public.analysis_history
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE public.student_progress ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "student_progress_owner_access" ON public.student_progress;
+CREATE POLICY "student_progress_owner_access" ON public.student_progress
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE public.class_progress ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "class_progress_owner_access" ON public.class_progress;
+CREATE POLICY "class_progress_owner_access" ON public.class_progress
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE public.user_api_keys ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "user_api_keys_owner_access" ON public.user_api_keys;
+CREATE POLICY "user_api_keys_owner_access" ON public.user_api_keys
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "user_profiles_owner_access" ON public.user_profiles;
+CREATE POLICY "user_profiles_owner_access" ON public.user_profiles
+  FOR ALL
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+ALTER TABLE public.student_lists ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "student_lists_owner_access" ON public.student_lists;
+CREATE POLICY "student_lists_owner_access" ON public.student_lists
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "students_owner_access" ON public.students;
+CREATE POLICY "students_owner_access" ON public.students
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.student_lists sl
+      WHERE sl.id = student_list_id
+        AND sl.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.student_lists sl
+      WHERE sl.id = student_list_id
+        AND sl.user_id = auth.uid()
+    )
+  );
+
+ALTER TABLE public.exams ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "exams_owner_access" ON public.exams;
+CREATE POLICY "exams_owner_access" ON public.exams
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE public.exam_questions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "exam_questions_owner_access" ON public.exam_questions;
+CREATE POLICY "exam_questions_owner_access" ON public.exam_questions
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.exams e
+      WHERE e.id = exam_id
+        AND e.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.exams e
+      WHERE e.id = exam_id
+        AND e.user_id = auth.uid()
+    )
+  );
+
+ALTER TABLE public.exam_scores ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "exam_scores_owner_access" ON public.exam_scores;
+CREATE POLICY "exam_scores_owner_access" ON public.exam_scores
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.exams e
+      WHERE e.id = exam_id
+        AND e.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.exams e
+      WHERE e.id = exam_id
+        AND e.user_id = auth.uid()
+    )
+  );
+
+ALTER TABLE public.exam_analytics ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "exam_analytics_owner_access" ON public.exam_analytics;
+CREATE POLICY "exam_analytics_owner_access" ON public.exam_analytics
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.exams e
+      WHERE e.id = exam_id
+        AND e.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.exams e
+      WHERE e.id = exam_id
+        AND e.user_id = auth.uid()
+    )
+  );
+
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "audit_logs_owner_access" ON public.audit_logs;
+CREATE POLICY "audit_logs_owner_access" ON public.audit_logs
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 -- =====================================================
 -- UPDATE TRIGGERS
@@ -347,6 +604,61 @@ CREATE TRIGGER update_risk_updated_at
 DROP TRIGGER IF EXISTS update_template_updated_at ON public.report_templates;
 CREATE TRIGGER update_template_updated_at
   BEFORE UPDATE ON public.report_templates
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_user_profiles_updated_at ON public.user_profiles;
+CREATE TRIGGER update_user_profiles_updated_at
+  BEFORE UPDATE ON public.user_profiles
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_student_lists_updated_at ON public.student_lists;
+CREATE TRIGGER update_student_lists_updated_at
+  BEFORE UPDATE ON public.student_lists
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_students_updated_at ON public.students;
+CREATE TRIGGER update_students_updated_at
+  BEFORE UPDATE ON public.students
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_exams_updated_at ON public.exams;
+CREATE TRIGGER update_exams_updated_at
+  BEFORE UPDATE ON public.exams
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_exam_questions_updated_at ON public.exam_questions;
+CREATE TRIGGER update_exam_questions_updated_at
+  BEFORE UPDATE ON public.exam_questions
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_exam_scores_updated_at ON public.exam_scores;
+CREATE TRIGGER update_exam_scores_updated_at
+  BEFORE UPDATE ON public.exam_scores
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_exam_analytics_updated_at ON public.exam_analytics;
+CREATE TRIGGER update_exam_analytics_updated_at
+  BEFORE UPDATE ON public.exam_analytics
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_analysis_history_updated_at ON public.analysis_history;
+CREATE TRIGGER update_analysis_history_updated_at
+  BEFORE UPDATE ON public.analysis_history
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_student_progress_updated_at ON public.student_progress;
+CREATE TRIGGER update_student_progress_updated_at
+  BEFORE UPDATE ON public.student_progress
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_class_progress_updated_at ON public.class_progress;
+CREATE TRIGGER update_class_progress_updated_at
+  BEFORE UPDATE ON public.class_progress
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_user_api_keys_updated_at ON public.user_api_keys;
+CREATE TRIGGER update_user_api_keys_updated_at
+  BEFORE UPDATE ON public.user_api_keys
   FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
 -- =====================================================
