@@ -1093,7 +1093,11 @@ function AuthWrapper() {
   }
   */
 
-  // Always show MainApp, bypass login requirement
+  // Require Google Auth login
+  if (!user) {
+    return <Login />;
+  }
+
   return <MainApp />;
 }
 
