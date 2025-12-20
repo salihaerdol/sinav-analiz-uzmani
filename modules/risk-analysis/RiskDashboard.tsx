@@ -11,9 +11,9 @@ interface Props {
 export const RiskDashboard: React.FC<Props> = ({ analysis, questions, students }) => {
   // Basit bir risk hesaplama mantığı (placeholder)
   const riskStudents = students.map(student => {
-    const totalScore = Object.values(student.scores).reduce((a, b) => a + b, 0);
-    const maxPossible = questions.reduce((a, b) => a + b.maxScore, 0);
-    const percentage = (totalScore / maxPossible) * 100;
+    const totalScore: number = (Object.values(student.scores) as any[]).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+    const maxPossible: number = questions.reduce((a: number, b: QuestionConfig) => a + (b.maxScore || 0), 0);
+    const percentage = maxPossible > 0 ? (totalScore / maxPossible) * 100 : 0;
 
     let riskLevel: 'Düşük' | 'Orta' | 'Yüksek' | 'Kritik' = 'Düşük';
     if (percentage < 45) riskLevel = 'Kritik';
@@ -96,8 +96,8 @@ export const RiskDashboard: React.FC<Props> = ({ analysis, questions, students }
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${student.riskLevel === 'Kritik' ? 'bg-red-100 text-red-700' :
-                        student.riskLevel === 'Yüksek' ? 'bg-orange-100 text-orange-700' :
-                          'bg-yellow-100 text-yellow-700'
+                      student.riskLevel === 'Yüksek' ? 'bg-orange-100 text-orange-700' :
+                        'bg-yellow-100 text-yellow-700'
                       }`}>
                       {student.riskLevel}
                     </span>

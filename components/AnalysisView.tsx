@@ -1,5 +1,4 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
-import { PsychometricAnalysis } from '../modules/psychometric';
 import { AnalysisResult, ExamMetadata, QuestionConfig, Student } from '../types';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -10,7 +9,7 @@ import { generateAIAnalysis } from '../services/geminiService';
 import {
   FileText, Download, Bot, AlertTriangle, CheckCircle, TrendingUp, Users, Target,
   ClipboardList, Globe, Calculator, BarChart2, UserCheck, PieChart as PieChartIcon,
-  Activity, Brain, Signal, ChevronDown, FileCheck, GraduationCap, Building, Sparkles, Gauge, X
+  Activity, Brain, Signal, ChevronDown, FileCheck, GraduationCap, Building, Sparkles, Gauge, X, Upload, Layout
 } from 'lucide-react';
 // import { exportToWord } from '../services/exportService';
 import {
@@ -28,6 +27,8 @@ import html2canvas from 'html2canvas';
 import { PsychometricAnalysis } from '../modules/psychometric';
 import { RiskDashboard } from '../modules/risk-analysis';
 import { BloomAnalysis } from '../modules/bloom-taxonomy';
+import { OCRScanner } from '../modules/ocr-scanner';
+import { ReportEditor } from '../modules/report-editor';
 
 interface Props {
   analysis: AnalysisResult;
@@ -66,6 +67,8 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
   const [showPsychometric, setShowPsychometric] = useState(false);
   const [showRisk, setShowRisk] = useState(false);
   const [showBloom, setShowBloom] = useState(false);
+  const [showOCR, setShowOCR] = useState(false);
+  const [showReportEditor, setShowReportEditor] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const exportScenarios = getExportScenarios(selectedLanguage);
@@ -253,6 +256,8 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
           onClick={() => {
             setShowRisk(false);
             setShowBloom(false);
+            setShowOCR(false);
+            setShowReportEditor(false);
             setShowPsychometric(true);
           }}
           className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors shadow-sm"
@@ -264,6 +269,8 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
           onClick={() => {
             setShowPsychometric(false);
             setShowBloom(false);
+            setShowOCR(false);
+            setShowReportEditor(false);
             setShowRisk(true);
           }}
           className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-bold hover:bg-rose-500 transition-colors shadow-sm"
@@ -275,12 +282,40 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
           onClick={() => {
             setShowPsychometric(false);
             setShowRisk(false);
+            setShowOCR(false);
+            setShowReportEditor(false);
             setShowBloom(true);
           }}
           className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-bold hover:bg-sky-500 transition-colors shadow-sm"
         >
           <Brain className="w-4 h-4" />
           Bloom Analizi
+        </button>
+        <button
+          onClick={() => {
+            setShowPsychometric(false);
+            setShowRisk(false);
+            setShowBloom(false);
+            setShowReportEditor(false);
+            setShowOCR(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-500 transition-colors shadow-sm"
+        >
+          <Upload className="w-4 h-4" />
+          OCR Tarama
+        </button>
+        <button
+          onClick={() => {
+            setShowPsychometric(false);
+            setShowRisk(false);
+            setShowBloom(false);
+            setShowOCR(false);
+            setShowReportEditor(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-500 transition-colors shadow-sm"
+        >
+          <Layout className="w-4 h-4" />
+          Rapor Editörü
         </button>
       </div>
 
@@ -361,6 +396,33 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
             </div>
             <div className="p-6 overflow-y-auto bg-slate-50">
               <BloomAnalysis analysis={analysis} questions={questions} students={students} />
+            </div>
+          </div>
+        </div>
+      )}
+      {showOCR && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-600 to-teal-500 text-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">OCR Tarama</h2>
+                  <p className="text-xs text-emerald-100">Sınıf listesi ve not görselleri</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowOCR(false)}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                aria-label="Kapat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto bg-slate-50">
+              <OCRScanner />
             </div>
           </div>
         </div>
@@ -695,32 +757,43 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
                 <tr>
                   <th className="px-6 py-4 w-16 text-center">Soru</th>
                   <th className="px-6 py-4">İlgili Kazanım</th>
+                  <th className="px-6 py-4 text-center">Bloom</th>
+                  <th className="px-6 py-4 text-center">Zorluk</th>
                   <th className="px-6 py-4 text-center">Maks Puan</th>
                   <th className="px-6 py-4 text-center">Sınıf Ort.</th>
                   <th className="px-6 py-4 text-center">Başarı %</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {analysis.questionStats.map((q) => (
-                  <tr key={q.questionId} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 text-center font-bold text-slate-700">{q.questionId}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-indigo-600 text-xs mb-0.5">{q.outcome.code}</span>
-                        <span>{q.outcome.description}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center text-slate-500">{questions.find(qu => qu.id === q.questionId)?.maxScore}</td>
-                    <td className="px-6 py-4 text-center font-medium">{q.averageScore.toFixed(1)}</td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center">
-                        <div className={`w-12 py-1 rounded text-xs font-bold ${q.successRate < 50 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                          %{q.successRate.toFixed(0)}
+                {analysis.questionStats.map((q) => {
+                  const questionMeta = questions.find(qu => qu.id === q.questionId);
+                  return (
+                    <tr key={q.questionId} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-center font-bold text-slate-700">{q.questionId}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-indigo-600 text-xs mb-0.5">{q.outcome.code}</span>
+                          <span>{q.outcome.description}</span>
                         </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 text-center text-xs font-semibold text-slate-600">
+                        {questionMeta?.cognitiveLevel || '-'}
+                      </td>
+                      <td className="px-6 py-4 text-center text-xs font-semibold text-slate-600">
+                        {questionMeta?.difficulty || '-'}
+                      </td>
+                      <td className="px-6 py-4 text-center text-slate-500">{questionMeta?.maxScore}</td>
+                      <td className="px-6 py-4 text-center font-medium">{q.averageScore.toFixed(1)}</td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center">
+                          <div className={`w-12 py-1 rounded text-xs font-bold ${q.successRate < 50 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                            %{q.successRate.toFixed(0)}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
