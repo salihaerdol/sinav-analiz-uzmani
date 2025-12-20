@@ -1091,10 +1091,7 @@ function AuthWrapper() {
     );
   }
 
-  if (!user) {
-    return <Login />;
-  }
-
+  // Always show MainApp, bypass login requirement
   return <MainApp />;
 }
 
