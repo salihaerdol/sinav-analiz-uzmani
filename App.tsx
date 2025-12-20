@@ -1074,6 +1074,7 @@ function AuthWrapper() {
     );
   }
 
+  /* 
   if (!isSupabaseConfigured) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-red-50 p-4">
@@ -1090,6 +1091,7 @@ function AuthWrapper() {
       </div>
     );
   }
+  */
 
   // Always show MainApp, bypass login requirement
   return <MainApp />;
