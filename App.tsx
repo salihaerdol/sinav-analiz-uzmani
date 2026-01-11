@@ -15,6 +15,7 @@ import { DataImport } from './components/DataImport';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { SettingsModal } from './components/SettingsModal';
 import { analysisHistoryService } from './services/supabaseHistoryService';
+import AdminDashboard from './modules/admin-dashboard/AdminDashboard';
 
 // Steps Enum
 enum Step {
@@ -106,6 +107,7 @@ function MainApp() {
   const [bulkStudentText, setBulkStudentText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showProgressDashboard, setShowProgressDashboard] = useState(false);
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [analysisCount, setAnalysisCount] = useState(0);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
@@ -1120,6 +1122,14 @@ function MainApp() {
                   </span>
                 )}
               </button>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowAdminDashboard(true)}
+                  className="ml-2 flex items-center px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+                >
+                  <LayoutDashboard className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Yönetici</span>
+                </button>
+              )}
 
               <button
                 onClick={() => setShowSettingsModal(true)}
@@ -1263,6 +1273,25 @@ function MainApp() {
             onLoadAnalysis={handleLoadAnalysis}
             onClose={() => setShowProgressDashboard(false)}
           />
+        )
+      }
+
+      {/* Admin Dashboard Modal */}
+      {
+        showAdminDashboard && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-800">Yönetici Dashboard</h3>
+                <button onClick={() => setShowAdminDashboard(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+                <AdminDashboard />
+              </div>
+            </div>
+          </div>
         )
       }
 

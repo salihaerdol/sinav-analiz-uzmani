@@ -19,12 +19,14 @@ import {
     RiskStudent
 } from './types';
 import {
-    generateDemoData,
+    buildAdminDashboardData,
+    createEmptyAdminDashboardData,
     sortClassesByPerformance,
     getRiskColor,
     getTrendIcon,
     calculatePercentChange
 } from './dashboardService';
+import analysisHistoryService from '../../services/supabaseHistoryService';
 
 // ═══════════════════════════════════════════════════════════════
 // ALT BİLEŞENLER
@@ -163,16 +165,20 @@ export const AdminDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'overview' | 'classes' | 'teachers' | 'risks'>('overview');
 
     useEffect(() => {
-        // Demo veri yükle
         const loadData = async () => {
             setLoading(true);
-            // Simüle edilmiş yükleme
-            await new Promise(resolve => setTimeout(resolve, 500));
-            setData(generateDemoData());
-            setLoading(false);
+            try {
+                const analyses = await analysisHistoryService.getAllAnalyses();
+                setData(buildAdminDashboardData(analyses, filters));
+            } catch (error) {
+                console.error('Dashboard verisi yüklenemedi:', error);
+                setData(createEmptyAdminDashboardData());
+            } finally {
+                setLoading(false);
+            }
         };
         loadData();
-    }, [filters.dateRange]);
+    }, [filters.dateRange, filters.grade, filters.subject, filters.teacher]);
 
     const sortedClasses = useMemo(() => {
         if (!data) return [];
