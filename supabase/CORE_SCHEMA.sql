@@ -4,6 +4,57 @@
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- UUID v7 generator (time-ordered)
+CREATE OR REPLACE FUNCTION public.uuid_generate_v7()
+RETURNS uuid
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  unix_ts_ms bigint;
+  rand_bytes bytea;
+  uuid_bytes bytea;
+BEGIN
+  unix_ts_ms := (extract(epoch from clock_timestamp()) * 1000)::bigint;
+  rand_bytes := gen_random_bytes(10);
+  uuid_bytes := set_byte(
+    set_byte(
+      set_byte(
+        set_byte(
+          set_byte(
+            set_byte(
+              set_byte(
+                set_byte(
+                  set_byte(
+                    set_byte(
+                      set_byte(
+                        set_byte(
+                          set_byte(
+                            set_byte(
+                              set_byte(
+                                set_byte(
+                                  '\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000'::bytea,
+                                  0, (unix_ts_ms >> 40) & 255),
+                                1, (unix_ts_ms >> 32) & 255),
+                              2, (unix_ts_ms >> 24) & 255),
+                            3, (unix_ts_ms >> 16) & 255),
+                          4, (unix_ts_ms >> 8) & 255),
+                        5, unix_ts_ms & 255),
+                      6, (get_byte(rand_bytes, 0) & 15) | 112),
+                    7, get_byte(rand_bytes, 1)),
+                  8, (get_byte(rand_bytes, 2) & 63) | 128),
+                9, get_byte(rand_bytes, 3)),
+              10, get_byte(rand_bytes, 4)),
+            11, get_byte(rand_bytes, 5)),
+          12, get_byte(rand_bytes, 6)),
+        13, get_byte(rand_bytes, 7)),
+      14, get_byte(rand_bytes, 8)),
+    15, get_byte(rand_bytes, 9)
+  );
+  RETURN encode(uuid_bytes, 'hex')::uuid;
+END;
+$$;
 
 -- =====================================================
 -- BASE TABLES
@@ -39,7 +90,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 CREATE TABLE IF NOT EXISTS public.student_lists (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   user_id uuid,
   name text NOT NULL,
   grade text NOT NULL,
@@ -56,7 +107,7 @@ CREATE TABLE IF NOT EXISTS public.student_lists (
 );
 
 CREATE TABLE IF NOT EXISTS public.students (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   student_list_id uuid,
   student_number text,
   full_name text NOT NULL,
@@ -73,7 +124,7 @@ CREATE TABLE IF NOT EXISTS public.students (
 );
 
 CREATE TABLE IF NOT EXISTS public.exams (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   user_id uuid,
   student_list_id uuid,
   title text NOT NULL,
@@ -99,7 +150,7 @@ CREATE TABLE IF NOT EXISTS public.exams (
 );
 
 CREATE TABLE IF NOT EXISTS public.exam_questions (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   exam_id uuid,
   question_number integer NOT NULL,
   max_score numeric NOT NULL,
@@ -116,7 +167,7 @@ CREATE TABLE IF NOT EXISTS public.exam_questions (
 );
 
 CREATE TABLE IF NOT EXISTS public.exam_scores (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   exam_id uuid,
   student_id uuid,
   exam_question_id uuid,
@@ -133,7 +184,7 @@ CREATE TABLE IF NOT EXISTS public.exam_scores (
 );
 
 CREATE TABLE IF NOT EXISTS public.exam_analytics (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   exam_id uuid UNIQUE,
   class_average numeric,
   median_score numeric,
@@ -156,7 +207,7 @@ CREATE TABLE IF NOT EXISTS public.exam_analytics (
 -- ANALYSIS HISTORY TABLES
 -- =====================================================
 CREATE TABLE IF NOT EXISTS public.analysis_history (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   user_id uuid NOT NULL,
   school_name text,
   teacher_name text,
@@ -187,7 +238,7 @@ CREATE TABLE IF NOT EXISTS public.analysis_history (
 );
 
 CREATE TABLE IF NOT EXISTS public.student_progress (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   user_id uuid NOT NULL,
   student_name text NOT NULL,
   class_name text,
@@ -205,7 +256,7 @@ CREATE TABLE IF NOT EXISTS public.student_progress (
 );
 
 CREATE TABLE IF NOT EXISTS public.class_progress (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   user_id uuid NOT NULL,
   class_name text NOT NULL,
   grade text,
@@ -224,7 +275,7 @@ CREATE TABLE IF NOT EXISTS public.class_progress (
 );
 
 CREATE TABLE IF NOT EXISTS public.user_api_keys (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   user_id uuid NOT NULL UNIQUE,
   gemini_api_key text,
   gemini_api_key_valid boolean DEFAULT false,
@@ -242,7 +293,7 @@ CREATE TABLE IF NOT EXISTS public.user_api_keys (
 -- MODULE TABLES
 -- =====================================================
 CREATE TABLE IF NOT EXISTS public.bloom_taxonomy_tags (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   question_id uuid,
   user_id uuid,
   exam_id uuid,
@@ -255,7 +306,7 @@ CREATE TABLE IF NOT EXISTS public.bloom_taxonomy_tags (
 );
 
 CREATE TABLE IF NOT EXISTS public.psychometric_analysis (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   exam_id uuid NOT NULL,
   question_id uuid,
   user_id uuid,
@@ -275,7 +326,7 @@ CREATE TABLE IF NOT EXISTS public.psychometric_analysis (
 );
 
 CREATE TABLE IF NOT EXISTS public.student_risk_scores (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   student_id uuid,
   user_id uuid,
   class_id uuid,
@@ -296,7 +347,7 @@ CREATE TABLE IF NOT EXISTS public.student_risk_scores (
 );
 
 CREATE TABLE IF NOT EXISTS public.ocr_scans (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   user_id uuid,
   student_list_id uuid,
   original_filename text,
@@ -316,7 +367,7 @@ CREATE TABLE IF NOT EXISTS public.ocr_scans (
 );
 
 CREATE TABLE IF NOT EXISTS public.report_templates (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   user_id uuid,
   name text NOT NULL DEFAULT 'Varsayılan Şablon',
   description text,
@@ -348,7 +399,7 @@ CREATE TABLE IF NOT EXISTS public.report_templates (
 );
 
 CREATE TABLE IF NOT EXISTS public.international_benchmarks (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   source text CHECK (source = ANY (ARRAY['PISA', 'TIMSS', 'PIRLS', 'CUSTOM'])),
   year integer,
   subject text,
@@ -361,7 +412,7 @@ CREATE TABLE IF NOT EXISTS public.international_benchmarks (
 );
 
 CREATE TABLE IF NOT EXISTS public.audit_logs (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
   user_id uuid,
   action text NOT NULL,
   entity_type text NOT NULL,
@@ -691,3 +742,6 @@ CREATE POLICY "Authenticated users can delete their own OCR scans"
 ON storage.objects FOR DELETE
 TO authenticated
 USING (bucket_id = 'ocr_scans' AND auth.uid() = owner);
+
+
+

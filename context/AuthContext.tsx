@@ -1,6 +1,20 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '../services/supabase';
+import { supabase, userProfileService } from '../services/supabase';
+
+const isDebug = import.meta.env.DEV;
+const debugLog = (...args: unknown[]) => {
+    if (isDebug) {
+        console.log(...args);
+    }
+};
+
+const ADMIN_EMAILS = new Set(['turhanhamza@gmail.com', 'salihaerdol11@gmail.com']);
+
+const isAdminEmail = (email?: string | null) => {
+    if (!email) return false;
+    return ADMIN_EMAILS.has(email.toLowerCase());
+};
 
 interface AuthContextType {
     user: User | null;
@@ -21,23 +35,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [isAdmin, setIsAdmin] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const checkAdmin = (user: User | null | undefined) => {
-        if (user && user.email === 'salihaerdol11@gmail.com') {
-            setIsAdmin(true);
-        } else {
+    const refreshAdminStatus = async (currentUser: User | null | undefined) => {
+        if (!currentUser) {
             setIsAdmin(false);
+            return;
+        }
+
+        const fallbackAdmin = isAdminEmail(currentUser.email);
+
+        try {
+            const profile = await userProfileService.getCurrentProfile();
+            const profileIsAdmin = Boolean(profile?.is_admin);
+
+            if (fallbackAdmin && !profileIsAdmin) {
+                await userProfileService.updateProfile({ is_admin: true, role: 'admin' });
+                setIsAdmin(true);
+                return;
+            }
+
+            setIsAdmin(profileIsAdmin || fallbackAdmin);
+        } catch (err) {
+            console.error('Admin status check failed:', err);
+            setIsAdmin(fallbackAdmin);
         }
     };
 
     useEffect(() => {
-        console.log('🔐 AuthProvider mounted. Checking session...');
-        console.log('📍 Current URL:', window.location.href);
-        console.log('📍 Current Hash:', window.location.hash ? 'Present' : 'None');
-        console.log('📍 Current Search:', window.location.search ? 'Present' : 'None');
+        debugLog('🔐 AuthProvider mounted. Checking session...');
+        debugLog('📍 Current URL:', window.location.href);
+        debugLog('📍 Current Hash:', window.location.hash ? 'Present' : 'None');
+        debugLog('📍 Current Search:', window.location.search ? 'Present' : 'None');
 
         const checkSession = async (retries = 5) => {
             try {
-                console.log(`📡 Checking session... (retries left: ${retries})`);
+                debugLog(`📡 Checking session... (retries left: ${retries})`);
 
                 // Try to get session normally
                 const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
@@ -54,7 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setError(sessionError.message);
                 }
 
-                console.log('📡 getSession result:', {
+                debugLog('📡 getSession result:', {
                     hasSession: !!currentSession,
                     user: currentSession?.user?.email,
                     url: window.location.href
@@ -63,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (currentSession) {
                     setSession(currentSession);
                     setUser(currentSession.user);
-                    checkAdmin(currentSession.user);
+                    await refreshAdminStatus(currentSession.user);
                     setLoading(false);
                 } else {
                     // FALLBACK: Manual session recovery from URL hash/search
@@ -79,17 +110,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                             const refresh_token = params.get('refresh_token');
 
                             if (access_token) {
-                                console.log('🛠 Attempting manual setSession...');
+                                debugLog('🛠 Attempting manual setSession...');
                                 const { data: manualData, error: manualError } = await supabase.auth.setSession({
                                     access_token,
                                     refresh_token: refresh_token || '',
                                 });
 
                                 if (manualData.session) {
-                                    console.log('✅ Manual session recovery successful!');
+                                    debugLog('✅ Manual session recovery successful!');
                                     setSession(manualData.session);
                                     setUser(manualData.session.user);
-                                    checkAdmin(manualData.session.user);
+                                    await refreshAdminStatus(manualData.session.user);
                                     setLoading(false);
                                     return;
                                 }
@@ -116,13 +147,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Listen for changes on auth state (sign in, sign out, etc.)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            console.log('🔄 Auth state change event:', event);
-            console.log('🔄 Auth state change session:', !!session);
+            debugLog('🔄 Auth state change event:', event);
+            debugLog('🔄 Auth state change session:', !!session);
 
             if (session) {
                 setSession(session);
                 setUser(session.user);
-                checkAdmin(session.user);
+                refreshAdminStatus(session.user);
             } else if (event === 'SIGNED_OUT') {
                 setSession(null);
                 setUser(null);
@@ -132,7 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Clear hash/search from URL after successful sign in
             if (event === 'SIGNED_IN' && (window.location.hash || window.location.search)) {
-                console.log('🧹 Clearing auth params from URL');
+                debugLog('🧹 Clearing auth params from URL');
                 window.history.replaceState(null, '', window.location.pathname);
             }
         });

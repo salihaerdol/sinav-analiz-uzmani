@@ -2,7 +2,7 @@
 import { getScenarioData, getOutcomeDescription } from './data/curriculum';
 import { QuestionConfig, Student, ExamMetadata, AnalysisResult, SavedAnalysis } from './types';
 import { AnalysisView } from './components/AnalysisView';
-import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X, History, TrendingUp, Key, Sparkles } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X, History, TrendingUp, Key } from 'lucide-react';
 import { ScenarioVisualSelector } from './components/ScenarioVisualSelector';
 import { MEB_SCENARIOS } from './services/mebScraperAdvanced';
 import { getScenarioTemplate, saveScenarioTemplate } from './services/mebScenarioService';
@@ -15,7 +15,6 @@ import { DataImport } from './components/DataImport';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { SettingsModal } from './components/SettingsModal';
 import { analysisHistoryService } from './services/supabaseHistoryService';
-import { DEMO_CLASSES, calculateDemoAnalysis } from './services/demoDataService';
 
 // Steps Enum
 enum Step {
@@ -26,6 +25,7 @@ enum Step {
 }
 
 const STORAGE_KEY = 'exam_analysis_v2'; // Updated to clear old cache
+const isDebug = import.meta.env.DEV;
 
 const INITIAL_METADATA: ExamMetadata = {
   grade: '5',
@@ -35,7 +35,7 @@ const INITIAL_METADATA: ExamMetadata = {
   teacherName: '',
   academicYear: '2025-2026',
   className: '',
-  date: new Date().toISOString().split('T')[0],
+  date: '', // Opsiyonel - boş bırakılabilir
   // Professional reporting fields
   term: '1',
   examNumber: '1',
@@ -45,71 +45,49 @@ const INITIAL_METADATA: ExamMetadata = {
   schoolType: 'Ortaokul'
 };
 
-const BLOOM_KEYWORDS: Record<Exclude<QuestionConfig['cognitiveLevel'], undefined>, string[]> = {
-  Bilgi: ['tanim', 'hatirla', 'belirt', 'sirala', 'liste', 'say', 'adi', 'ezber', 'isaretle'],
-  Kavrama: ['acikla', 'ornek', 'ozet', 'yorumla', 'siniflandir', 'kendi cumle'],
-  Uygulama: ['uygula', 'kullan', 'hesapla', 'coz', 'uyarla', 'goster', 'gerceklestir'],
-  Analiz: ['analiz', 'karsilastir', 'ayir', 'iliskilendir', 'neden', 'sonuc', 'cikarim'],
-  Sentez: ['tasarla', 'olustur', 'yapilandir', 'planla', 'model', 'yaz', 'gelistir'],
-  Değerlendirme: ['degerlendir', 'elestir', 'savun', 'kanitla', 'sec', 'gerekcelendir']
-};
+// Gelişmiş Bloom Taksonomisi Otomatik Etiketleme Servisi
+import {
+  analyzeBloomByKeywords,
+  inferDifficultyFromBloom,
+  getBloomSuggestion,
+  applyAutoBloomToQuestions as applyAutoBloomService
+} from './services/autoBloomService';
 
-const normalizeBloomText = (value: string) =>
-  value
-    .toLocaleLowerCase('tr-TR')
-    .replace(/[ğ]/g, 'g')
-    .replace(/[ü]/g, 'u')
-    .replace(/[ş]/g, 's')
-    .replace(/[ı]/g, 'i')
-    .replace(/[ö]/g, 'o')
-    .replace(/[ç]/g, 'c')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
+// Geriye uyumluluk için basit wrapper fonksiyonlar
 const inferBloomLevel = (text: string): QuestionConfig['cognitiveLevel'] | undefined => {
-  const normalized = normalizeBloomText(text);
-  if (!normalized) return undefined;
-  let bestLevel: QuestionConfig['cognitiveLevel'] | undefined;
-  let bestScore = 0;
-
-  (Object.keys(BLOOM_KEYWORDS) as Array<Exclude<QuestionConfig['cognitiveLevel'], undefined>>).forEach((level) => {
-    const score = BLOOM_KEYWORDS[level].reduce((sum, keyword) => (
-      normalized.includes(keyword) ? sum + 1 : sum
-    ), 0);
-    if (score > bestScore) {
-      bestScore = score;
-      bestLevel = level;
-    }
-  });
-
-  return bestScore > 0 ? bestLevel : undefined;
+  const result = analyzeBloomByKeywords(text);
+  return result.level || undefined;
 };
 
 const inferDifficulty = (level: QuestionConfig['cognitiveLevel'] | undefined): QuestionConfig['difficulty'] | undefined => {
   if (!level) return undefined;
-  if (level === 'Bilgi') return 'Kolay';
-  if (level === 'Kavrama' || level === 'Uygulama') return 'Orta';
-  return 'Zor';
+  return inferDifficultyFromBloom(level);
 };
 
 const applyAutoBloom = (question: QuestionConfig, description: string): QuestionConfig => {
-  const inferredLevel = question.cognitiveLevel ?? inferBloomLevel(description);
-  const inferredDifficulty = question.difficulty ?? inferDifficulty(inferredLevel);
-
-  if (inferredLevel === question.cognitiveLevel && inferredDifficulty === question.difficulty) {
+  // Manuel etiketleme varsa koru
+  if (question.cognitiveLevel && question.difficulty) {
     return question;
   }
 
+  const suggestion = getBloomSuggestion(question);
+
   return {
     ...question,
-    cognitiveLevel: inferredLevel ?? question.cognitiveLevel,
-    difficulty: inferredDifficulty ?? question.difficulty
+    cognitiveLevel: question.cognitiveLevel || suggestion.cognitiveLevel,
+    difficulty: question.difficulty || suggestion.difficulty
   };
 };
 
 const applyAutoBloomToQuestions = (list: QuestionConfig[]) =>
   list.map((question) => applyAutoBloom(question, question.outcome?.description || ''));
+
+const createLocalStudentId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
 
 function MainApp() {
   const { user, signOut, isAdmin } = useAuth();
@@ -145,7 +123,7 @@ function MainApp() {
         if (parsed.metadata) setMetadata(parsed.metadata);
         if (parsed.questions) setQuestions(parsed.questions);
         if (parsed.students) setStudents(parsed.students);
-        if (parsed.step) setStep(parsed.step);
+        if (parsed.step !== undefined) setStep(parsed.step);
         if (parsed.currentAnalysisId) setCurrentAnalysisId(parsed.currentAnalysisId);
       } catch (e) {
         console.error("Failed to load saved data", e);
@@ -187,15 +165,21 @@ function MainApp() {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        console.log('🔍 Fetching analyses...');
+        if (isDebug) {
+          console.log('Fetching analyses...');
+        }
         const analyses = await analysisHistoryService.getAllAnalyses();
-        console.log(`✅ Found ${analyses.length} analyses:`, analyses);
+        if (isDebug) {
+          console.log(`Found ${analyses.length} analyses:`, analyses);
+        }
         setAnalysisCount(analyses.length);
 
         if (analyses.length === 0) {
-          console.warn('⚠️ No analyses found for this user!');
-          const { data: { user } } = await supabase.auth.getUser();
-          console.log('👤 Current user:', user?.email, user?.id);
+          if (isDebug) {
+            console.warn('No analyses found for this user.');
+            const { data: { user } } = await supabase.auth.getUser();
+            console.log('Current user:', user?.email, user?.id);
+          }
         }
       } catch (error) {
         console.error('❌ Error fetching analyses:', error);
@@ -494,9 +478,8 @@ function MainApp() {
     const names = bulkStudentText.split('\n').filter(n => n.trim().length > 0);
     if (names.length === 0) return;
 
-    const startId = students.length > 0 ? Math.max(...students.map(s => parseInt(s.id))) + 1 : 1;
-    const newStudents = names.map((name, idx) => ({
-      id: (startId + idx).toString(),
+    const newStudents = names.map((name) => ({
+      id: createLocalStudentId(),
       name: name.trim(),
       scores: {}
     }));
@@ -579,8 +562,8 @@ function MainApp() {
   };
 
   const addStudent = () => {
-    const newId = (students.length > 0 ? Math.max(...students.map(s => parseInt(s.id))) + 1 : 1).toString();
-    setStudents([...students, { id: newId, name: `Öğrenci ${newId}`, scores: {} }]);
+    const newId = createLocalStudentId();
+    setStudents([...students, { id: newId, name: `Öğrenci ${students.length + 1}`, scores: {} }]);
   };
 
   const removeStudent = (id: string) => {
@@ -604,6 +587,7 @@ function MainApp() {
         outcomeStats: [],
         studentStats: [],
         classAverage: 0,
+        averageSuccess: 0,
         totalQuestions: 0
       };
     }
@@ -652,11 +636,14 @@ function MainApp() {
       isFailed: (data.totalRate / data.count) < 50
     }));
 
+    const averageSuccess = classAverage;
+
     return {
       questionStats,
       outcomeStats,
       studentStats,
       classAverage,
+      averageSuccess,
       totalQuestions: questions.length
     };
   }, [questions, students]);
@@ -1101,50 +1088,6 @@ function MainApp() {
     </div>
   );
 
-  const loadDemo = (key: string) => {
-    const demo = DEMO_CLASSES[key];
-    if (!demo) return;
-    setMetadata(demo.metadata);
-    setQuestions(demo.questions);
-    setStudents(demo.students);
-    setCurrentStudentListId(null);
-    setStep(Step.ANALYSIS);
-  };
-
-  const saveAllDemosToDB = async () => {
-    setIsSaving(true);
-    try {
-      for (const key of Object.keys(DEMO_CLASSES)) {
-        const demo = DEMO_CLASSES[key];
-        const list = await studentListService.create({
-          name: demo.metadata.className,
-          grade: demo.metadata.grade,
-          academic_year: demo.metadata.academicYear,
-          subject: demo.metadata.subject,
-          school_name: demo.metadata.schoolName,
-          total_students: demo.students.length
-        });
-
-        if (list?.id) {
-          const rosterPayload = demo.students.map((student) => ({
-            student_list_id: list.id as string,
-            full_name: student.name,
-            student_number: student.student_number || null,
-            is_active: true
-          }));
-          await studentService.bulkCreate(rosterPayload);
-        }
-      }
-      alert('Tüm demo sınıflar başarıyla kaydedildi!');
-      loadSavedClasses();
-    } catch (error) {
-      console.error('Error saving demos:', error);
-      alert('Kaydedilirken bir hata oluştu.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 font-inter selection:bg-indigo-100 selection:text-indigo-700" >
       {/* Navbar */}
@@ -1177,35 +1120,6 @@ function MainApp() {
                   </span>
                 )}
               </button>
-
-              {/* Demo Menu */}
-              <div className="relative group ml-2">
-                <button
-                  className="flex items-center px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors"
-                >
-                  <Sparkles className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Demo Verileri</span>
-                </button>
-                <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[60]">
-                  {Object.keys(DEMO_CLASSES).map(key => (
-                    <button
-                      key={key}
-                      onClick={() => loadDemo(key)}
-                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 transition-colors flex flex-col"
-                    >
-                      <span className="font-bold">{key}</span>
-                      <span className="text-[10px] opacity-70">{DEMO_CLASSES[key].metadata.teacherName}</span>
-                    </button>
-                  ))}
-                  <div className="border-t border-slate-100 my-1"></div>
-                  <button
-                    onClick={saveAllDemosToDB}
-                    disabled={isSaving}
-                    className="w-full text-left px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 font-bold transition-colors flex items-center"
-                  >
-                    <Save className="w-4 h-4 mr-2" /> {isSaving ? 'Kaydediliyor...' : 'Tümünü Veritabanına Kaydet'}
-                  </button>
-                </div>
-              </div>
 
               <button
                 onClick={() => setShowSettingsModal(true)}
@@ -1401,10 +1315,6 @@ function AuthWrapper() {
 }
 
 export default function App() {
-  console.log('🚀 App starting...');
-  console.log('📍 VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL ? '✅' : '❌');
-  console.log('📍 VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅' : '❌');
-
   return (
     <AuthProvider>
       <AuthWrapper />

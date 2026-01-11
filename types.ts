@@ -27,7 +27,7 @@ export interface ExamMetadata {
   teacherName: string;
   academicYear: string;
   className: string;
-  date: string;
+  date?: string; // Opsiyonel - boş bırakılabilir
   // New fields for professional reporting
   term: '1' | '2'; // Dönem (1. Dönem / 2. Dönem)
   examNumber: string; // Sınav numarası (1, 2, 3, etc.)

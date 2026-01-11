@@ -34,109 +34,264 @@ const HEIGHT_CLASSES: Record<string, string> = {
 const getComponentLabel = (type: ReportComponentType) =>
     AVAILABLE_COMPONENTS.find((item) => item.type === type)?.label || type;
 
+// ═══════════════════════════════════════════════════════════════
+// DEMO VERİLER - Önizleme için gerçekçi örnek veriler
+// ═══════════════════════════════════════════════════════════════
+const DEMO_DATA = {
+    className: '5-A',
+    subject: 'Matematik',
+    schoolName: 'Örnek Ortaokulu',
+    teacherName: 'Mehmet Öğretmen',
+    date: '2026-01-11',
+    examType: '1. Yazılı',
+    classAverage: 72.5,
+    studentCount: 28,
+    questionCount: 10,
+    passRate: 82,
+    highestScore: 95,
+    lowestScore: 35,
+    outcomes: [
+        { name: 'Doğal Sayıları Toplama', success: 85 },
+        { name: 'Kesirlerle İşlemler', success: 68 },
+        { name: 'Geometrik Şekiller', success: 75 },
+        { name: 'Ondalık Kesirler', success: 62 },
+    ],
+    students: [
+        { name: 'Ali Yılmaz', score: 95, status: 'passed' },
+        { name: 'Ayşe Kaya', score: 88, status: 'passed' },
+        { name: 'Mehmet Demir', score: 72, status: 'passed' },
+        { name: 'Zeynep Ak', score: 45, status: 'failed' },
+    ],
+    riskStudents: [
+        { name: 'Zeynep Ak', risk: 'high', score: 45 },
+        { name: 'Emre Çelik', risk: 'medium', score: 52 },
+    ],
+    aiComment: 'Sınıf genel olarak başarılı performans göstermiştir. Kesirlerle işlemler konusunda ek çalışma yapılması önerilir. Risk altındaki 2 öğrenci için bireysel destek programı oluşturulmalıdır.'
+};
+
+/**
+ * Zengin önizleme içeriği - Demo verilerle gerçekçi görünüm
+ */
 const renderPreviewContent = (type: ReportComponentType) => {
     switch (type) {
         case 'header':
             return (
-                <div className="space-y-1">
-                    <div className="text-lg font-bold text-slate-800">Sınav Analiz Raporu</div>
-                    <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
-                        <span>Okul Adı</span>
-                        <span>•</span>
-                        <span>Şube</span>
-                        <span>•</span>
-                        <span>Tarih</span>
+                <div className="space-y-2">
+                    <div className="text-lg font-bold text-slate-800">📊 Sınav Analiz Raporu</div>
+                    <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+                        <span className="px-2 py-0.5 bg-indigo-50 rounded">{DEMO_DATA.schoolName}</span>
+                        <span className="px-2 py-0.5 bg-emerald-50 rounded">{DEMO_DATA.className}</span>
+                        <span className="px-2 py-0.5 bg-amber-50 rounded">{DEMO_DATA.subject}</span>
+                        <span className="px-2 py-0.5 bg-slate-100 rounded">{DEMO_DATA.date}</span>
+                    </div>
+                    <div className="text-xs text-slate-400">
+                        Öğretmen: {DEMO_DATA.teacherName} | {DEMO_DATA.examType}
                     </div>
                 </div>
             );
         case 'summary_stats':
             return (
-                <div className="grid grid-cols-3 gap-2 h-full">
-                    {[1, 2, 3].map((item) => (
-                        <div key={item} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-[10px] text-slate-500">
-                            <div className="h-2 w-12 bg-slate-200 rounded mb-2"></div>
-                            <div className="h-3 w-8 bg-slate-300 rounded"></div>
-                        </div>
-                    ))}
+                <div className="grid grid-cols-3 gap-3 h-full">
+                    <div className="rounded-lg border-l-4 border-indigo-500 bg-indigo-50 p-3">
+                        <div className="text-[10px] text-indigo-600 font-medium">SINIF ORT.</div>
+                        <div className="text-xl font-bold text-indigo-700">%{DEMO_DATA.classAverage}</div>
+                    </div>
+                    <div className="rounded-lg border-l-4 border-emerald-500 bg-emerald-50 p-3">
+                        <div className="text-[10px] text-emerald-600 font-medium">ÖĞRENCİ</div>
+                        <div className="text-xl font-bold text-emerald-700">{DEMO_DATA.studentCount}</div>
+                    </div>
+                    <div className="rounded-lg border-l-4 border-amber-500 bg-amber-50 p-3">
+                        <div className="text-[10px] text-amber-600 font-medium">BAŞARI</div>
+                        <div className="text-xl font-bold text-amber-700">%{DEMO_DATA.passRate}</div>
+                    </div>
                 </div>
             );
         case 'bar_chart':
             return (
-                <div className="flex items-end gap-2 h-full">
-                    <div className="w-1/6 h-1/3 bg-indigo-200 rounded-sm"></div>
-                    <div className="w-1/6 h-2/3 bg-indigo-300 rounded-sm"></div>
-                    <div className="w-1/6 h-1/2 bg-indigo-200 rounded-sm"></div>
-                    <div className="w-1/6 h-3/4 bg-indigo-300 rounded-sm"></div>
-                    <div className="w-1/6 h-2/5 bg-indigo-200 rounded-sm"></div>
+                <div className="h-full flex flex-col">
+                    <div className="text-xs font-medium text-slate-600 mb-2">Kazanım Başarı Grafiği</div>
+                    <div className="flex-1 flex items-end gap-2">
+                        {DEMO_DATA.outcomes.map((o, i) => (
+                            <div key={i} className="flex-1 flex flex-col items-center">
+                                <div
+                                    className={`w-full rounded-t-sm transition-all ${o.success >= 70 ? 'bg-emerald-400' : o.success >= 50 ? 'bg-amber-400' : 'bg-rose-400'}`}
+                                    style={{ height: `${o.success}%` }}
+                                />
+                                <div className="text-[8px] text-slate-500 mt-1 truncate w-full text-center">
+                                    {o.name.split(' ')[0]}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             );
         case 'pie_chart':
             return (
-                <div className="h-full flex items-center justify-center">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-200 via-emerald-200 to-amber-200"></div>
+                <div className="h-full flex items-center gap-4">
+                    <div className="w-20 h-20 rounded-full bg-gradient-conic from-emerald-400 via-amber-400 to-rose-400 relative">
+                        <div className="absolute inset-2 bg-white rounded-full flex items-center justify-center">
+                            <span className="text-xs font-bold text-slate-700">%{DEMO_DATA.passRate}</span>
+                        </div>
+                    </div>
+                    <div className="text-xs space-y-1">
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-emerald-400 rounded-sm"></div>
+                            <span>Geçen: {Math.round(DEMO_DATA.studentCount * DEMO_DATA.passRate / 100)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-rose-400 rounded-sm"></div>
+                            <span>Kalan: {Math.round(DEMO_DATA.studentCount * (100 - DEMO_DATA.passRate) / 100)}</span>
+                        </div>
+                    </div>
                 </div>
             );
         case 'radar_chart':
             return (
                 <div className="h-full flex items-center justify-center">
-                    <div className="w-20 h-20 border-2 border-dashed border-slate-300 rounded-full"></div>
+                    <div className="relative w-24 h-24">
+                        <div className="absolute inset-0 border-2 border-slate-200 rounded-full"></div>
+                        <div className="absolute inset-3 border border-slate-100 rounded-full"></div>
+                        <div className="absolute inset-6 border border-slate-50 rounded-full"></div>
+                        <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">
+                            Kazanım Radar
+                        </div>
+                    </div>
                 </div>
             );
         case 'student_table':
+            return (
+                <div className="space-y-2 overflow-hidden">
+                    <div className="text-xs font-medium text-slate-600">Öğrenci Listesi (İlk 4)</div>
+                    <table className="w-full text-[10px]">
+                        <thead>
+                            <tr className="bg-slate-100">
+                                <th className="px-2 py-1 text-left">#</th>
+                                <th className="px-2 py-1 text-left">Ad Soyad</th>
+                                <th className="px-2 py-1 text-center">Puan</th>
+                                <th className="px-2 py-1 text-center">Durum</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {DEMO_DATA.students.map((s, i) => (
+                                <tr key={i} className="border-b border-slate-50">
+                                    <td className="px-2 py-1">{i + 1}</td>
+                                    <td className="px-2 py-1">{s.name}</td>
+                                    <td className="px-2 py-1 text-center font-medium">{s.score}</td>
+                                    <td className="px-2 py-1 text-center">
+                                        <span className={`px-1.5 py-0.5 rounded text-[8px] ${s.status === 'passed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                            {s.status === 'passed' ? 'GEÇTİ' : 'KALDI'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
         case 'outcome_table':
+            return (
+                <div className="space-y-2">
+                    <div className="text-xs font-medium text-slate-600">Kazanım Tablosu</div>
+                    <div className="space-y-1.5">
+                        {DEMO_DATA.outcomes.map((o, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                                <div className="flex-1 text-[10px] text-slate-600 truncate">{o.name}</div>
+                                <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full ${o.success >= 70 ? 'bg-emerald-400' : o.success >= 50 ? 'bg-amber-400' : 'bg-rose-400'}`}
+                                        style={{ width: `${o.success}%` }}
+                                    />
+                                </div>
+                                <div className="text-[10px] font-medium w-8 text-right">%{o.success}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
         case 'psychometric_table':
             return (
                 <div className="space-y-2">
-                    <div className="h-3 w-24 bg-slate-200 rounded"></div>
-                    {[1, 2, 3].map((item) => (
-                        <div key={item} className="h-2 w-full bg-slate-100 rounded"></div>
-                    ))}
+                    <div className="text-xs font-medium text-slate-600">Psikometrik Analiz</div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div className="bg-slate-50 p-2 rounded">
+                            <span className="text-slate-500">Güvenilirlik (α)</span>
+                            <div className="font-bold text-slate-700">0.82</div>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded">
+                            <span className="text-slate-500">Ortalama</span>
+                            <div className="font-bold text-slate-700">{DEMO_DATA.classAverage}</div>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded">
+                            <span className="text-slate-500">Std. Sapma</span>
+                            <div className="font-bold text-slate-700">12.5</div>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded">
+                            <span className="text-slate-500">Ayırt Edicilik</span>
+                            <div className="font-bold text-slate-700">0.45</div>
+                        </div>
+                    </div>
                 </div>
             );
         case 'risk_card':
             return (
-                <div className="grid grid-cols-2 gap-2 h-full">
-                    <div className="rounded-lg border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600">
-                        Yüksek Risk
-                    </div>
-                    <div className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-1 text-[10px] text-amber-600">
-                        Orta Risk
+                <div className="space-y-2">
+                    <div className="text-xs font-medium text-slate-600">⚠️ Risk Altındaki Öğrenciler</div>
+                    <div className="space-y-1.5">
+                        {DEMO_DATA.riskStudents.map((s, i) => (
+                            <div key={i} className={`flex items-center justify-between px-2 py-1.5 rounded text-[10px] ${s.risk === 'high' ? 'bg-rose-50 border border-rose-200' : 'bg-amber-50 border border-amber-200'}`}>
+                                <span className={s.risk === 'high' ? 'text-rose-700' : 'text-amber-700'}>{s.name}</span>
+                                <span className="font-medium">{s.score} puan</span>
+                            </div>
+                        ))}
                     </div>
                 </div>
             );
         case 'ai_comment':
             return (
-                <div className="text-[10px] text-slate-500 italic">
-                    AI yorumu burada yer alır.
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-medium text-indigo-600">
+                        <span>🤖</span> AI Değerlendirmesi
+                    </div>
+                    <div className="text-[10px] text-slate-600 leading-relaxed bg-indigo-50 p-2 rounded border border-indigo-100">
+                        {DEMO_DATA.aiComment}
+                    </div>
                 </div>
             );
         case 'free_text':
             return (
                 <div className="space-y-2">
-                    <div className="h-2 w-4/5 bg-slate-200 rounded"></div>
-                    <div className="h-2 w-2/3 bg-slate-200 rounded"></div>
-                    <div className="h-2 w-3/4 bg-slate-200 rounded"></div>
+                    <div className="text-xs font-medium text-slate-600">📝 Öğretmen Notları</div>
+                    <div className="text-[10px] text-slate-500 italic">
+                        Bu alana öğretmen kendi notlarını ekleyebilir...
+                    </div>
                 </div>
             );
         case 'signature':
             return (
-                <div className="flex items-end justify-between h-full text-[10px] text-slate-400">
-                    <div className="w-1/3 border-t border-slate-300 pt-1">İmza</div>
-                    <div className="w-1/3 border-t border-slate-300 pt-1 text-right">Onay</div>
+                <div className="flex items-end justify-between h-full text-[10px] text-slate-500">
+                    <div className="text-center">
+                        <div className="w-24 border-t border-slate-300 pt-1">Öğretmen</div>
+                        <div className="text-[8px] text-slate-400">{DEMO_DATA.teacherName}</div>
+                    </div>
+                    <div className="text-center">
+                        <div className="w-24 border-t border-slate-300 pt-1">Müdür Onayı</div>
+                        <div className="text-[8px] text-slate-400">Tarih: {DEMO_DATA.date}</div>
+                    </div>
                 </div>
             );
         case 'page_break':
             return (
                 <div className="w-full flex items-center gap-3 text-[10px] text-slate-400">
-                    <div className="flex-1 h-px border-t border-dashed border-slate-200"></div>
-                    SAYFA SONU
-                    <div className="flex-1 h-px border-t border-dashed border-slate-200"></div>
+                    <div className="flex-1 h-px border-t border-dashed border-slate-300"></div>
+                    ✂️ SAYFA SONU
+                    <div className="flex-1 h-px border-t border-dashed border-slate-300"></div>
                 </div>
             );
         default:
             return <div className="text-xs text-slate-400">Bileşen önizlemesi</div>;
     }
 };
+
 
 interface DraggableComponentProps {
     component: ReportComponent;

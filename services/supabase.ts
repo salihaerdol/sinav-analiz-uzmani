@@ -9,17 +9,6 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-console.log('🌐 Supabase URL:', supabaseUrl);
-console.log('🔑 Anon Key:', {
-  length: supabaseAnonKey?.length,
-  prefix: supabaseAnonKey?.substring(0, 10),
-  suffix: supabaseAnonKey?.substring(supabaseAnonKey?.length - 10)
-});
-console.log('🆔 Google Client ID:', {
-  length: import.meta.env.VITE_GOOGLE_CLIENT_ID?.length,
-  prefix: import.meta.env.VITE_GOOGLE_CLIENT_ID?.substring(0, 10)
-});
-
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 if (!isSupabaseConfigured) {

@@ -735,7 +735,12 @@ export const analysisHistoryService = {
             return buildStudentProgressFromAnalyses(readLocalAnalyses(localKey));
         }
 
-        return (data || []).map(this.dbToStudentProgress);
+        if (!data || data.length === 0) {
+            const analyses = await this.getAllAnalyses();
+            return buildStudentProgressFromAnalyses(analyses);
+        }
+
+        return data.map(this.dbToStudentProgress);
     },
 
     /**
@@ -759,7 +764,12 @@ export const analysisHistoryService = {
             return buildClassProgressFromAnalyses(readLocalAnalyses(localKey));
         }
 
-        return (data || []).map(this.dbToClassProgress);
+        if (!data || data.length === 0) {
+            const analyses = await this.getAllAnalyses();
+            return buildClassProgressFromAnalyses(analyses);
+        }
+
+        return data.map(this.dbToClassProgress);
     },
 
     /**

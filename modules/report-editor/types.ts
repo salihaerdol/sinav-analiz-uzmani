@@ -25,6 +25,57 @@ export interface ReportComponent {
     order: number;
 }
 
+/**
+ * Rapor bileşen seçim opsiyonları
+ * Kullanıcı hangi bileşenlerin rapora dahil edileceğini seçebilir
+ */
+export interface ReportOptions {
+    // Grafikler
+    includeBarChart: boolean;
+    includePieChart: boolean;
+    includeRadarChart: boolean;
+
+    // Tablolar
+    includeStudentTable: boolean;
+    includeOutcomeTable: boolean;
+
+    // Analizler
+    includeBloomAnalysis: boolean;
+    includePsychometric: boolean;
+    includeRiskAnalysis: boolean;
+
+    // Diğer
+    includeSummaryStats: boolean;
+    includeAIRecommendations: boolean;
+    includeHeader: boolean;
+    includeSignature: boolean;
+}
+
+/**
+ * Varsayılan rapor opsiyonları
+ */
+export const DEFAULT_REPORT_OPTIONS: ReportOptions = {
+    // Grafikler - varsayılan açık
+    includeBarChart: true,
+    includePieChart: true,
+    includeRadarChart: false,
+
+    // Tablolar - varsayılan açık
+    includeStudentTable: true,
+    includeOutcomeTable: true,
+
+    // Analizler - Bloom ve Risk varsayılan açık
+    includeBloomAnalysis: true,
+    includePsychometric: false,
+    includeRiskAnalysis: true,
+
+    // Diğer
+    includeSummaryStats: true,
+    includeAIRecommendations: true,
+    includeHeader: true,
+    includeSignature: false
+};
+
 export interface ReportTemplate {
     id?: string;
     user_id?: string;
@@ -39,6 +90,8 @@ export interface ReportTemplate {
         fontFamily: string;
         primaryColor: string;
     };
+    // Yeni: Bileşen seçim opsiyonları
+    componentOptions?: ReportOptions;
     created_at?: string;
     updated_at?: string;
 }

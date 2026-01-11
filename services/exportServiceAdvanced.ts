@@ -160,9 +160,10 @@ async function createFullReport(
     doc.setTextColor(30, 41, 59);
     doc.text('Sınav Bilgileri', margin + 3, y + 7);
 
+    // Tarih opsiyonel - sadece doluysa göster
     const infoLeft = [
         { label: 'Okul', value: normalizeText(metadata.schoolName || '-') },
-        { label: 'Tarih', value: normalizeText(metadata.date || '-') },
+        ...(metadata.date ? [{ label: 'Tarih', value: normalizeText(metadata.date) }] : []),
         { label: 'Öğretmen', value: normalizeText(metadata.teacherName || '-') }
     ];
     const infoRight = [
@@ -876,7 +877,10 @@ export async function exportToOfficialForm(
     doc.text(`Sınav Numarası: ${metadata.examNumber}. Yazılı`, col3, y);
     y += 4;
     doc.text(`Öğretmen: ${toUpperTr(normalizeText(metadata.teacherName))}`, col1, y);
-    doc.text(`Sınav Tarihi: ${normalizeText(metadata.date)}`, col3, y);
+    // Tarih opsiyonel - sadece doluysa göster
+    if (metadata.date) {
+        doc.text(`Sınav Tarihi: ${normalizeText(metadata.date)}`, col3, y);
+    }
     y += 6;
 
     // Student Scores Table (Grid 1-20 questions)
@@ -1061,4 +1065,307 @@ export function getExportScenarios(language: Language = 'tr') {
         { id: 'full_report' as ExportScenario, icon: '📊', name: 'Tam Rapor', description: 'Soru analizi, kazanım durumu ve öğrenci listesi' },
         { id: 'student_cards' as ExportScenario, icon: '👨‍🎓', name: 'Öğrenci Karneleri', description: 'Her öğrenci için ayrı sayfa' }
     ];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ŞABLON TABANLI PDF EXPORT
+// ═══════════════════════════════════════════════════════════════
+
+import { ReportTemplate, ReportOptions, DEFAULT_REPORT_OPTIONS } from '../modules/report-editor/types';
+
+/**
+ * Rapor opsiyonlarına göre PDF oluştur
+ * Bu fonksiyon kullanıcının seçtiği bileşenlere göre rapor içeriği oluşturur
+ */
+export async function exportPDFWithOptions(
+    analysis: AnalysisResult,
+    metadata: ExamMetadata,
+    questions: QuestionConfig[],
+    students: Student[],
+    chartImages: ChartImages = {},
+    options: ReportOptions = DEFAULT_REPORT_OPTIONS
+): Promise<void> {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    await addTurkishFontsToPDF(doc);
+
+    const pageWidth = 210;
+    const margin = 15;
+    let y = 15;
+
+    const maxTotal = questions.reduce((a, q) => a + q.maxScore, 0);
+    const studentTotals = students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0));
+    const maxScore = studentTotals.length ? Math.max(...studentTotals) : 0;
+    const minScore = studentTotals.length ? Math.min(...studentTotals) : 0;
+    const passCount = students.filter(s => {
+        const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
+        return maxTotal > 0 ? (total / maxTotal * 100) >= 50 : false;
+    }).length;
+
+    // Header (eğer seçiliyse)
+    if (options.includeHeader) {
+        doc.setFont('Roboto', 'bold');
+        doc.setFontSize(18);
+        doc.setTextColor(30, 41, 59);
+        doc.text('SINAV SONUÇ ANALİZ RAPORU', pageWidth / 2, y, { align: 'center' });
+        y += 7;
+
+        doc.setFontSize(10);
+        doc.setFont('Roboto', 'normal');
+        doc.setTextColor(100, 116, 139);
+        doc.text(`${toUpperTr(normalizeText(metadata.className))} - ${toUpperTr(normalizeText(metadata.subject))} | ${toUpperTr(normalizeText(metadata.examType))}`, pageWidth / 2, y, { align: 'center' });
+        y += 5;
+
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.5);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 5;
+
+        // Metadata box
+        const infoBoxHeight = 24;
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(margin, y, pageWidth - margin * 2, infoBoxHeight, 2, 2, 'FD');
+
+        doc.setFont('Roboto', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Sınav Bilgileri', margin + 3, y + 7);
+
+        const infoLeft = [
+            { label: 'Okul', value: normalizeText(metadata.schoolName || '-') },
+            ...(metadata.date ? [{ label: 'Tarih', value: normalizeText(metadata.date) }] : []),
+            { label: 'Öğretmen', value: normalizeText(metadata.teacherName || '-') }
+        ];
+        const infoRight = [
+            { label: 'Ders', value: normalizeText(metadata.subject) },
+            { label: 'Dönem/Sınav', value: normalizeText(`${metadata.term}. Dönem | ${metadata.examNumber}. ${metadata.examType}`) },
+            { label: 'Sınıf', value: normalizeText(metadata.className) }
+        ];
+
+        doc.setFont('Roboto', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+
+        infoLeft.forEach((item, idx) => {
+            doc.text(`${item.label}: ${toUpperTr(item.value)}`, margin + 3, y + 13 + idx * 5);
+        });
+
+        const secondColumnX = margin + ((pageWidth - margin * 2) / 2) + 2;
+        infoRight.forEach((item, idx) => {
+            doc.text(`${item.label}: ${toUpperTr(item.value)}`, secondColumnX, y + 13 + idx * 5);
+        });
+
+        y += infoBoxHeight + 10;
+    }
+
+    // Özet İstatistikler (eğer seçiliyse)
+    if (options.includeSummaryStats) {
+        const cardWidth = (pageWidth - margin * 2 - 10) / 3;
+        const cardHeight = 25;
+
+        const stats = [
+            { label: 'SINIF ORTALAMASI', value: `%${analysis.classAverage.toFixed(1)}`, color: [79, 70, 229] as [number, number, number] },
+            { label: 'TOPLAM ÖĞRENCİ', value: students.length.toString(), color: [16, 185, 129] as [number, number, number] },
+            { label: 'SORU SAYISI', value: questions.length.toString(), color: [245, 158, 11] as [number, number, number] }
+        ];
+
+        stats.forEach((stat, i) => {
+            const curX = margin + i * (cardWidth + 5);
+
+            doc.setFillColor(255, 255, 255);
+            doc.setDrawColor(226, 232, 240);
+            doc.roundedRect(curX, y, cardWidth, cardHeight, 2, 2, 'FD');
+
+            doc.setFillColor(stat.color[0], stat.color[1], stat.color[2]);
+            doc.rect(curX, y, 2, cardHeight, 'F');
+
+            doc.setFontSize(7);
+            doc.setTextColor(100, 116, 139);
+            doc.setFont('Roboto', 'bold');
+            doc.text(stat.label, curX + 6, y + 8);
+
+            doc.setFontSize(12);
+            doc.setTextColor(30, 41, 59);
+            doc.text(stat.value, curX + 6, y + 18);
+        });
+
+        y += cardHeight + 10;
+    }
+
+    // Grafikler (eğer seçiliyse)
+    const chartCardWidth = (pageWidth - margin * 2 - 8) / 2;
+    const chartCardHeight = 60;
+    let chartCount = 0;
+
+    if (options.includePieChart && chartImages.gradePieChart) {
+        drawChartCard(doc, {
+            title: 'Not Dağılımı (5\'li Sistem)',
+            image: chartImages.gradePieChart,
+            x: margin + (chartCount % 2) * (chartCardWidth + 8),
+            y: y + Math.floor(chartCount / 2) * (chartCardHeight + 10),
+            width: chartCardWidth,
+            height: chartCardHeight
+        });
+        chartCount++;
+    }
+
+    if (options.includeBarChart && chartImages.histogramChart) {
+        drawChartCard(doc, {
+            title: 'Not Dağılımı (Histogram)',
+            image: chartImages.histogramChart,
+            x: margin + (chartCount % 2) * (chartCardWidth + 8),
+            y: y + Math.floor(chartCount / 2) * (chartCardHeight + 10),
+            width: chartCardWidth,
+            height: chartCardHeight
+        });
+        chartCount++;
+    }
+
+    if (options.includeRadarChart && chartImages.radarChart) {
+        drawChartCard(doc, {
+            title: 'Kazanım Radar Haritası',
+            image: chartImages.radarChart,
+            x: margin + (chartCount % 2) * (chartCardWidth + 8),
+            y: y + Math.floor(chartCount / 2) * (chartCardHeight + 10),
+            width: chartCardWidth,
+            height: chartCardHeight
+        });
+        chartCount++;
+    }
+
+    if (chartCount > 0) {
+        y += Math.ceil(chartCount / 2) * (chartCardHeight + 10);
+    }
+
+    // Öğrenci Listesi (eğer seçiliyse)
+    if (options.includeStudentTable) {
+        if (y > 200) {
+            doc.addPage();
+            y = 20;
+        }
+
+        doc.setFont('Roboto', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(30, 41, 59);
+        doc.text('ÖĞRENCİ SONUÇ LİSTESİ', margin, y);
+        y += 5;
+
+        const sortedStudents = [...students].sort((a, b) => {
+            const sa = Object.values(a.scores).reduce((x, y) => x + y, 0);
+            const sb = Object.values(b.scores).reduce((x, y) => x + y, 0);
+            return sb - sa;
+        });
+
+        const studentRows = sortedStudents.map((s, i) => {
+            const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
+            const pct = (total / maxTotal) * 100;
+            return [String(i + 1), normalizeText(s.student_number || '-'), toUpperTr(normalizeText(s.name)), String(total), `%${pct.toFixed(0)}`, pct >= 50 ? 'GEÇTİ' : 'KALDI'];
+        });
+
+        autoTable(doc, {
+            startY: y,
+            head: [['Sıra', 'No', 'Ad Soyad', 'Puan', 'Yüzde', 'Durum']],
+            body: studentRows,
+            theme: 'striped',
+            styles: { font: 'Roboto', fontSize: 8, cellPadding: 3 },
+            headStyles: { fillColor: [103, 58, 183], textColor: 255, fontStyle: 'bold', fontSize: 9, halign: 'center' },
+            columnStyles: {
+                0: { cellWidth: 13, halign: 'center', fontStyle: 'bold' },
+                1: { cellWidth: 20, halign: 'center' },
+                2: { cellWidth: 85 },
+                3: { cellWidth: 20, halign: 'center', fontStyle: 'bold', textColor: [99, 102, 241] },
+                4: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+                5: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }
+            },
+            didParseCell: (data) => {
+                if (data.section === 'body' && data.column.index === 5) {
+                    if (data.cell.raw === 'KALDI') {
+                        data.cell.styles.textColor = [220, 53, 69];
+                        data.cell.styles.fillColor = [254, 226, 226];
+                    } else {
+                        data.cell.styles.textColor = [21, 128, 61];
+                        data.cell.styles.fillColor = [220, 252, 231];
+                    }
+                }
+            },
+            margin: { left: margin, right: margin }
+        });
+    }
+
+    // Kazanım Tablosu (eğer seçiliyse)
+    if (options.includeOutcomeTable && analysis.outcomeStats.length > 0) {
+        doc.addPage();
+        y = 20;
+
+        doc.setFont('Roboto', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(30, 41, 59);
+        doc.text('KAZANIM ANALİZİ', margin, y);
+        y += 5;
+
+        const outcomeRows = analysis.outcomeStats.map(t => [
+            t.description.length > 50 ? t.description.substring(0, 50) + '...' : t.description,
+            `%${t.successRate.toFixed(0)}`,
+            t.isFailed ? 'DÜŞÜK' : 'İYİ'
+        ]);
+
+        autoTable(doc, {
+            startY: y,
+            head: [['Kazanım', 'Başarı', 'Durum']],
+            body: outcomeRows,
+            theme: 'grid',
+            styles: { font: 'Roboto', fontSize: 8, cellPadding: 2 },
+            headStyles: { fillColor: [99, 102, 241], textColor: 255 },
+            columnStyles: {
+                0: { cellWidth: 'auto' },
+                1: { cellWidth: 25, halign: 'center' },
+                2: { cellWidth: 25, halign: 'center' }
+            },
+            didParseCell: (data) => {
+                if (data.section === 'body' && data.column.index === 2) {
+                    if (data.cell.raw === 'DÜŞÜK') {
+                        data.cell.styles.textColor = [220, 53, 69];
+                    } else {
+                        data.cell.styles.textColor = [21, 128, 61];
+                    }
+                }
+            },
+            margin: { left: margin, right: margin }
+        });
+    }
+
+    // İmza Alanı (eğer seçiliyse)
+    if (options.includeSignature) {
+        doc.addPage();
+        y = 240;
+
+        doc.setDrawColor(100, 116, 139);
+        doc.setLineWidth(0.3);
+        doc.line(margin, y, margin + 60, y);
+        doc.line(pageWidth - margin - 60, y, pageWidth - margin, y);
+
+        doc.setFont('Roboto', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text('Öğretmen İmzası', margin + 30, y + 5, { align: 'center' });
+        doc.text('Müdür Onayı', pageWidth - margin - 30, y + 5, { align: 'center' });
+    }
+
+    doc.save(`${safeName(metadata.className)}_Ozel_Rapor.pdf`);
+}
+
+/**
+ * Şablon temelli PDF oluştur
+ * ReportTemplate'in layout ve componentOptions alanlarını kullanır
+ */
+export async function exportPDFWithTemplate(
+    template: ReportTemplate,
+    analysis: AnalysisResult,
+    metadata: ExamMetadata,
+    questions: QuestionConfig[],
+    students: Student[],
+    chartImages: ChartImages = {}
+): Promise<void> {
+    const options = template.componentOptions || DEFAULT_REPORT_OPTIONS;
+    await exportPDFWithOptions(analysis, metadata, questions, students, chartImages, options);
 }
