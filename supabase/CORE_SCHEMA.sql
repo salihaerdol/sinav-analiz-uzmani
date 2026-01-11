@@ -743,5 +743,402 @@ ON storage.objects FOR DELETE
 TO authenticated
 USING (bucket_id = 'ocr_scans' AND auth.uid() = owner);
 
+-- =====================================================
+-- ROW LEVEL SECURITY POLICIES
+-- =====================================================
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_is_admin boolean;
+BEGIN
+  SELECT is_admin INTO v_is_admin FROM public.user_profiles WHERE id = auth.uid();
+  RETURN COALESCE(v_is_admin, false);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.owns_student_list(list_id uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.student_lists
+    WHERE id = list_id
+      AND user_id = auth.uid()
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.owns_exam(exam_id uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.exams
+    WHERE id = exam_id
+      AND user_id = auth.uid()
+  );
+$$;
+
+ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_scores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_analytics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.analysis_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.class_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bloom_taxonomy_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.psychometric_analysis ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_risk_scores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ocr_scans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.report_templates ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "profile_select_own_or_admin" ON public.user_profiles;
+CREATE POLICY "profile_select_own_or_admin"
+ON public.user_profiles FOR SELECT
+USING (auth.uid() = id OR public.is_admin());
+
+DROP POLICY IF EXISTS "profile_insert_own_or_admin" ON public.user_profiles;
+CREATE POLICY "profile_insert_own_or_admin"
+ON public.user_profiles FOR INSERT
+WITH CHECK (auth.uid() = id OR public.is_admin());
+
+DROP POLICY IF EXISTS "profile_update_own_or_admin" ON public.user_profiles;
+CREATE POLICY "profile_update_own_or_admin"
+ON public.user_profiles FOR UPDATE
+USING (auth.uid() = id OR public.is_admin())
+WITH CHECK (auth.uid() = id OR public.is_admin());
+
+DROP POLICY IF EXISTS "profile_delete_own_or_admin" ON public.user_profiles;
+CREATE POLICY "profile_delete_own_or_admin"
+ON public.user_profiles FOR DELETE
+USING (auth.uid() = id OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_lists_select_own_or_admin" ON public.student_lists;
+CREATE POLICY "student_lists_select_own_or_admin"
+ON public.student_lists FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_lists_insert_own_or_admin" ON public.student_lists;
+CREATE POLICY "student_lists_insert_own_or_admin"
+ON public.student_lists FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_lists_update_own_or_admin" ON public.student_lists;
+CREATE POLICY "student_lists_update_own_or_admin"
+ON public.student_lists FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_lists_delete_own_or_admin" ON public.student_lists;
+CREATE POLICY "student_lists_delete_own_or_admin"
+ON public.student_lists FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "students_select_own_or_admin" ON public.students;
+CREATE POLICY "students_select_own_or_admin"
+ON public.students FOR SELECT
+USING (public.is_admin() OR public.owns_student_list(student_list_id));
+
+DROP POLICY IF EXISTS "students_insert_own_or_admin" ON public.students;
+CREATE POLICY "students_insert_own_or_admin"
+ON public.students FOR INSERT
+WITH CHECK (public.is_admin() OR public.owns_student_list(student_list_id));
+
+DROP POLICY IF EXISTS "students_update_own_or_admin" ON public.students;
+CREATE POLICY "students_update_own_or_admin"
+ON public.students FOR UPDATE
+USING (public.is_admin() OR public.owns_student_list(student_list_id))
+WITH CHECK (public.is_admin() OR public.owns_student_list(student_list_id));
+
+DROP POLICY IF EXISTS "students_delete_own_or_admin" ON public.students;
+CREATE POLICY "students_delete_own_or_admin"
+ON public.students FOR DELETE
+USING (public.is_admin() OR public.owns_student_list(student_list_id));
+
+DROP POLICY IF EXISTS "exams_select_own_or_admin" ON public.exams;
+CREATE POLICY "exams_select_own_or_admin"
+ON public.exams FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "exams_insert_own_or_admin" ON public.exams;
+CREATE POLICY "exams_insert_own_or_admin"
+ON public.exams FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "exams_update_own_or_admin" ON public.exams;
+CREATE POLICY "exams_update_own_or_admin"
+ON public.exams FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "exams_delete_own_or_admin" ON public.exams;
+CREATE POLICY "exams_delete_own_or_admin"
+ON public.exams FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "exam_questions_select_own_or_admin" ON public.exam_questions;
+CREATE POLICY "exam_questions_select_own_or_admin"
+ON public.exam_questions FOR SELECT
+USING (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_questions_insert_own_or_admin" ON public.exam_questions;
+CREATE POLICY "exam_questions_insert_own_or_admin"
+ON public.exam_questions FOR INSERT
+WITH CHECK (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_questions_update_own_or_admin" ON public.exam_questions;
+CREATE POLICY "exam_questions_update_own_or_admin"
+ON public.exam_questions FOR UPDATE
+USING (public.is_admin() OR public.owns_exam(exam_id))
+WITH CHECK (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_questions_delete_own_or_admin" ON public.exam_questions;
+CREATE POLICY "exam_questions_delete_own_or_admin"
+ON public.exam_questions FOR DELETE
+USING (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_scores_select_own_or_admin" ON public.exam_scores;
+CREATE POLICY "exam_scores_select_own_or_admin"
+ON public.exam_scores FOR SELECT
+USING (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_scores_insert_own_or_admin" ON public.exam_scores;
+CREATE POLICY "exam_scores_insert_own_or_admin"
+ON public.exam_scores FOR INSERT
+WITH CHECK (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_scores_update_own_or_admin" ON public.exam_scores;
+CREATE POLICY "exam_scores_update_own_or_admin"
+ON public.exam_scores FOR UPDATE
+USING (public.is_admin() OR public.owns_exam(exam_id))
+WITH CHECK (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_scores_delete_own_or_admin" ON public.exam_scores;
+CREATE POLICY "exam_scores_delete_own_or_admin"
+ON public.exam_scores FOR DELETE
+USING (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_analytics_select_own_or_admin" ON public.exam_analytics;
+CREATE POLICY "exam_analytics_select_own_or_admin"
+ON public.exam_analytics FOR SELECT
+USING (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_analytics_insert_own_or_admin" ON public.exam_analytics;
+CREATE POLICY "exam_analytics_insert_own_or_admin"
+ON public.exam_analytics FOR INSERT
+WITH CHECK (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_analytics_update_own_or_admin" ON public.exam_analytics;
+CREATE POLICY "exam_analytics_update_own_or_admin"
+ON public.exam_analytics FOR UPDATE
+USING (public.is_admin() OR public.owns_exam(exam_id))
+WITH CHECK (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "exam_analytics_delete_own_or_admin" ON public.exam_analytics;
+CREATE POLICY "exam_analytics_delete_own_or_admin"
+ON public.exam_analytics FOR DELETE
+USING (public.is_admin() OR public.owns_exam(exam_id));
+
+DROP POLICY IF EXISTS "analysis_history_select_own_or_admin" ON public.analysis_history;
+CREATE POLICY "analysis_history_select_own_or_admin"
+ON public.analysis_history FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "analysis_history_insert_own_or_admin" ON public.analysis_history;
+CREATE POLICY "analysis_history_insert_own_or_admin"
+ON public.analysis_history FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "analysis_history_update_own_or_admin" ON public.analysis_history;
+CREATE POLICY "analysis_history_update_own_or_admin"
+ON public.analysis_history FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "analysis_history_delete_own_or_admin" ON public.analysis_history;
+CREATE POLICY "analysis_history_delete_own_or_admin"
+ON public.analysis_history FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_progress_select_own_or_admin" ON public.student_progress;
+CREATE POLICY "student_progress_select_own_or_admin"
+ON public.student_progress FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_progress_insert_own_or_admin" ON public.student_progress;
+CREATE POLICY "student_progress_insert_own_or_admin"
+ON public.student_progress FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_progress_update_own_or_admin" ON public.student_progress;
+CREATE POLICY "student_progress_update_own_or_admin"
+ON public.student_progress FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_progress_delete_own_or_admin" ON public.student_progress;
+CREATE POLICY "student_progress_delete_own_or_admin"
+ON public.student_progress FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "class_progress_select_own_or_admin" ON public.class_progress;
+CREATE POLICY "class_progress_select_own_or_admin"
+ON public.class_progress FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "class_progress_insert_own_or_admin" ON public.class_progress;
+CREATE POLICY "class_progress_insert_own_or_admin"
+ON public.class_progress FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "class_progress_update_own_or_admin" ON public.class_progress;
+CREATE POLICY "class_progress_update_own_or_admin"
+ON public.class_progress FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "class_progress_delete_own_or_admin" ON public.class_progress;
+CREATE POLICY "class_progress_delete_own_or_admin"
+ON public.class_progress FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "user_api_keys_select_own_or_admin" ON public.user_api_keys;
+CREATE POLICY "user_api_keys_select_own_or_admin"
+ON public.user_api_keys FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "user_api_keys_insert_own_or_admin" ON public.user_api_keys;
+CREATE POLICY "user_api_keys_insert_own_or_admin"
+ON public.user_api_keys FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "user_api_keys_update_own_or_admin" ON public.user_api_keys;
+CREATE POLICY "user_api_keys_update_own_or_admin"
+ON public.user_api_keys FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "user_api_keys_delete_own_or_admin" ON public.user_api_keys;
+CREATE POLICY "user_api_keys_delete_own_or_admin"
+ON public.user_api_keys FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "bloom_taxonomy_select_own_or_admin" ON public.bloom_taxonomy_tags;
+CREATE POLICY "bloom_taxonomy_select_own_or_admin"
+ON public.bloom_taxonomy_tags FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "bloom_taxonomy_insert_own_or_admin" ON public.bloom_taxonomy_tags;
+CREATE POLICY "bloom_taxonomy_insert_own_or_admin"
+ON public.bloom_taxonomy_tags FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "bloom_taxonomy_update_own_or_admin" ON public.bloom_taxonomy_tags;
+CREATE POLICY "bloom_taxonomy_update_own_or_admin"
+ON public.bloom_taxonomy_tags FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "bloom_taxonomy_delete_own_or_admin" ON public.bloom_taxonomy_tags;
+CREATE POLICY "bloom_taxonomy_delete_own_or_admin"
+ON public.bloom_taxonomy_tags FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "psychometric_select_own_or_admin" ON public.psychometric_analysis;
+CREATE POLICY "psychometric_select_own_or_admin"
+ON public.psychometric_analysis FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "psychometric_insert_own_or_admin" ON public.psychometric_analysis;
+CREATE POLICY "psychometric_insert_own_or_admin"
+ON public.psychometric_analysis FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "psychometric_update_own_or_admin" ON public.psychometric_analysis;
+CREATE POLICY "psychometric_update_own_or_admin"
+ON public.psychometric_analysis FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "psychometric_delete_own_or_admin" ON public.psychometric_analysis;
+CREATE POLICY "psychometric_delete_own_or_admin"
+ON public.psychometric_analysis FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_risk_select_own_or_admin" ON public.student_risk_scores;
+CREATE POLICY "student_risk_select_own_or_admin"
+ON public.student_risk_scores FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_risk_insert_own_or_admin" ON public.student_risk_scores;
+CREATE POLICY "student_risk_insert_own_or_admin"
+ON public.student_risk_scores FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_risk_update_own_or_admin" ON public.student_risk_scores;
+CREATE POLICY "student_risk_update_own_or_admin"
+ON public.student_risk_scores FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_risk_delete_own_or_admin" ON public.student_risk_scores;
+CREATE POLICY "student_risk_delete_own_or_admin"
+ON public.student_risk_scores FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "ocr_scans_select_own_or_admin" ON public.ocr_scans;
+CREATE POLICY "ocr_scans_select_own_or_admin"
+ON public.ocr_scans FOR SELECT
+USING (public.is_admin() OR user_id = auth.uid() OR public.owns_student_list(student_list_id));
+
+DROP POLICY IF EXISTS "ocr_scans_insert_own_or_admin" ON public.ocr_scans;
+CREATE POLICY "ocr_scans_insert_own_or_admin"
+ON public.ocr_scans FOR INSERT
+WITH CHECK (public.is_admin() OR user_id = auth.uid() OR public.owns_student_list(student_list_id));
+
+DROP POLICY IF EXISTS "ocr_scans_update_own_or_admin" ON public.ocr_scans;
+CREATE POLICY "ocr_scans_update_own_or_admin"
+ON public.ocr_scans FOR UPDATE
+USING (public.is_admin() OR user_id = auth.uid() OR public.owns_student_list(student_list_id))
+WITH CHECK (public.is_admin() OR user_id = auth.uid() OR public.owns_student_list(student_list_id));
+
+DROP POLICY IF EXISTS "ocr_scans_delete_own_or_admin" ON public.ocr_scans;
+CREATE POLICY "ocr_scans_delete_own_or_admin"
+ON public.ocr_scans FOR DELETE
+USING (public.is_admin() OR user_id = auth.uid() OR public.owns_student_list(student_list_id));
+
+DROP POLICY IF EXISTS "report_templates_select_public_or_own" ON public.report_templates;
+CREATE POLICY "report_templates_select_public_or_own"
+ON public.report_templates FOR SELECT
+USING (is_public = true OR user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "report_templates_insert_own_or_admin" ON public.report_templates;
+CREATE POLICY "report_templates_insert_own_or_admin"
+ON public.report_templates FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "report_templates_update_own_or_admin" ON public.report_templates;
+CREATE POLICY "report_templates_update_own_or_admin"
+ON public.report_templates FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "report_templates_delete_own_or_admin" ON public.report_templates;
+CREATE POLICY "report_templates_delete_own_or_admin"
+ON public.report_templates FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
 
 
