@@ -22,6 +22,8 @@ import { ComponentPalette } from './ComponentPalette';
 import { ReportCanvas } from './ReportCanvas';
 import { ReportComponent, ReportTemplate, ReportComponentType, ReportOptions, DEFAULT_REPORT_OPTIONS } from './types';
 import { reportService } from './reportService';
+import { analysisHistoryService } from '../../services/supabaseHistoryService';
+import { SavedAnalysis } from '../../types';
 
 interface ReportEditorProps {
     exportCanvasId?: string;
@@ -125,6 +127,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
     const [templates, setTemplates] = useState<ReportTemplate[]>([]);
     const [showTemplates, setShowTemplates] = useState(false);
     const [isPreview, setIsPreview] = useState(false);
+    const [previewAnalysis, setPreviewAnalysis] = useState<SavedAnalysis | null>(null);
 
     // Yeni: Bileşen seçim opsiyonları
     const [componentOptions, setComponentOptions] = useState<ReportOptions>(DEFAULT_REPORT_OPTIONS);
@@ -132,6 +135,21 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
 
     useEffect(() => {
         loadTemplates();
+    }, []);
+
+    useEffect(() => {
+        const loadPreviewAnalysis = async () => {
+            try {
+                const analyses = await analysisHistoryService.getAllAnalyses();
+                if (analyses.length > 0) {
+                    setPreviewAnalysis(analyses[0]);
+                }
+            } catch (err) {
+                console.warn('Önizleme verisi getirilemedi:', err);
+            }
+        };
+
+        loadPreviewAnalysis();
     }, []);
 
     const loadTemplates = async () => {
@@ -330,6 +348,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
                         exportId={exportCanvasId}
                         layout={layout}
                         isPreview={isPreview}
+                        previewAnalysis={previewAnalysis}
                         onAddComponent={handleAddComponent}
                         onRemoveComponent={handleRemoveComponent}
                         onMoveComponent={handleMoveComponent}

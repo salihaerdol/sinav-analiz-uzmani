@@ -1,7 +1,8 @@
-import React from 'react';
+﻿import React from 'react';
 import { useDrop, useDrag } from 'react-dnd';
 import { Trash2, GripVertical, Settings2 } from 'lucide-react';
 import { ReportComponent, DRAGGABLE_ITEM_TYPE, AVAILABLE_COMPONENTS, ReportComponentType } from './types';
+import { SavedAnalysis } from '../../types';
 
 const WIDTH_OPTIONS = [
     { value: 'full', label: 'Tam' },
@@ -34,10 +35,29 @@ const HEIGHT_CLASSES: Record<string, string> = {
 const getComponentLabel = (type: ReportComponentType) =>
     AVAILABLE_COMPONENTS.find((item) => item.type === type)?.label || type;
 
+type ReportPreviewData = {
+    className: string;
+    subject: string;
+    schoolName: string;
+    teacherName: string;
+    date: string;
+    examType: string;
+    classAverage: number;
+    studentCount: number;
+    questionCount: number;
+    passRate: number;
+    highestScore: number;
+    lowestScore: number;
+    outcomes: { name: string; success: number }[];
+    students: { name: string; score: number; status: 'passed' | 'failed' }[];
+    riskStudents: { name: string; risk: 'high' | 'medium'; score: number }[];
+    aiComment: string;
+};
+
 // ═══════════════════════════════════════════════════════════════
 // DEMO VERİLER - Önizleme için gerçekçi örnek veriler
 // ═══════════════════════════════════════════════════════════════
-const DEMO_DATA = {
+const DEMO_DATA: ReportPreviewData = {
     className: '5-A',
     subject: 'Matematik',
     schoolName: 'Örnek Ortaokulu',
@@ -72,20 +92,98 @@ const DEMO_DATA = {
 /**
  * Zengin önizleme içeriği - Demo verilerle gerçekçi görünüm
  */
-const renderPreviewContent = (type: ReportComponentType) => {
+const buildPreviewData = (analysis?: SavedAnalysis | null): ReportPreviewData => {
+    if (!analysis) {
+        return DEMO_DATA;
+    }
+
+    const metadata = analysis.metadata || ({} as SavedAnalysis['metadata']);
+    const questions = analysis.questions || [];
+    const students = analysis.students || [];
+
+    const totalMaxScore = questions.reduce((sum, question) => sum + (Number(question.maxScore) || 0), 0);
+    const scoredStudents = students.map((student) => {
+        const total = Object.values(student.scores || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
+        const percentage = totalMaxScore > 0 ? (total / totalMaxScore) * 100 : 0;
+        return { name: student.name, total, percentage };
+    });
+
+    const computedAverage = scoredStudents.length > 0
+        ? scoredStudents.reduce((sum, item) => sum + item.percentage, 0) / scoredStudents.length
+        : 0;
+    const classAverage = Number.isFinite(analysis.analysis?.classAverage)
+        ? analysis.analysis.classAverage
+        : computedAverage;
+
+    const passCount = scoredStudents.filter((item) => item.percentage >= 50).length;
+    const passRate = scoredStudents.length > 0
+        ? Math.round((passCount / scoredStudents.length) * 100)
+        : 0;
+
+    const sortedByScore = [...scoredStudents].sort((a, b) => b.total - a.total);
+    const highestScore = sortedByScore.length > 0 ? Math.round(sortedByScore[0].total) : 0;
+    const lowestScore = sortedByScore.length > 0 ? Math.round(sortedByScore[sortedByScore.length - 1].total) : 0;
+
+    const previewStudents = sortedByScore.slice(0, 4).map((student) => ({
+        name: student.name,
+        score: Math.round(student.total),
+        status: student.percentage >= 50 ? 'passed' : 'failed'
+    }));
+
+    const riskStudents = [...scoredStudents]
+        .sort((a, b) => a.percentage - b.percentage)
+        .slice(0, 2)
+        .map((student) => ({
+            name: student.name,
+            risk: student.percentage < 50 ? 'high' : 'medium',
+            score: Math.round(student.percentage)
+        }));
+
+    const outcomes = (analysis.analysis?.outcomeStats || []).slice(0, 4).map((item) => ({
+        name: item.description,
+        success: Math.round(item.successRate)
+    }));
+
+    const examType = metadata.examType
+        ? (metadata.examNumber ? `${metadata.examNumber}. ${metadata.examType}` : metadata.examType)
+        : '';
+    const rawDate = metadata.date || analysis.createdAt || '';
+    const date = rawDate ? rawDate.split('T')[0] : '';
+
+    return {
+        className: metadata.className || DEMO_DATA.className,
+        subject: metadata.subject || DEMO_DATA.subject,
+        schoolName: metadata.schoolName || DEMO_DATA.schoolName,
+        teacherName: metadata.teacherName || DEMO_DATA.teacherName,
+        date: date || DEMO_DATA.date,
+        examType: examType || DEMO_DATA.examType,
+        classAverage: Number.isFinite(classAverage) ? Number(classAverage.toFixed(1)) : DEMO_DATA.classAverage,
+        studentCount: students.length || DEMO_DATA.studentCount,
+        questionCount: questions.length || DEMO_DATA.questionCount,
+        passRate: Number.isFinite(passRate) ? passRate : DEMO_DATA.passRate,
+        highestScore,
+        lowestScore,
+        outcomes: outcomes.length > 0 ? outcomes : DEMO_DATA.outcomes,
+        students: previewStudents.length > 0 ? previewStudents : DEMO_DATA.students,
+        riskStudents: riskStudents.length > 0 ? riskStudents : DEMO_DATA.riskStudents,
+        aiComment: analysis.aiSummary || DEMO_DATA.aiComment
+    };
+};
+
+const renderPreviewContent = (type: ReportComponentType, preview: ReportPreviewData) => {
     switch (type) {
         case 'header':
             return (
                 <div className="space-y-2">
                     <div className="text-lg font-bold text-slate-800">📊 Sınav Analiz Raporu</div>
                     <div className="flex flex-wrap gap-3 text-xs text-slate-600">
-                        <span className="px-2 py-0.5 bg-indigo-50 rounded">{DEMO_DATA.schoolName}</span>
-                        <span className="px-2 py-0.5 bg-emerald-50 rounded">{DEMO_DATA.className}</span>
-                        <span className="px-2 py-0.5 bg-amber-50 rounded">{DEMO_DATA.subject}</span>
-                        <span className="px-2 py-0.5 bg-slate-100 rounded">{DEMO_DATA.date}</span>
+                        <span className="px-2 py-0.5 bg-indigo-50 rounded">{preview.schoolName}</span>
+                        <span className="px-2 py-0.5 bg-emerald-50 rounded">{preview.className}</span>
+                        <span className="px-2 py-0.5 bg-amber-50 rounded">{preview.subject}</span>
+                        <span className="px-2 py-0.5 bg-slate-100 rounded">{preview.date}</span>
                     </div>
                     <div className="text-xs text-slate-400">
-                        Öğretmen: {DEMO_DATA.teacherName} | {DEMO_DATA.examType}
+                        Öğretmen: {preview.teacherName} | {preview.examType}
                     </div>
                 </div>
             );
@@ -94,15 +192,15 @@ const renderPreviewContent = (type: ReportComponentType) => {
                 <div className="grid grid-cols-3 gap-3 h-full">
                     <div className="rounded-lg border-l-4 border-indigo-500 bg-indigo-50 p-3">
                         <div className="text-[10px] text-indigo-600 font-medium">SINIF ORT.</div>
-                        <div className="text-xl font-bold text-indigo-700">%{DEMO_DATA.classAverage}</div>
+                        <div className="text-xl font-bold text-indigo-700">%{preview.classAverage}</div>
                     </div>
                     <div className="rounded-lg border-l-4 border-emerald-500 bg-emerald-50 p-3">
                         <div className="text-[10px] text-emerald-600 font-medium">ÖĞRENCİ</div>
-                        <div className="text-xl font-bold text-emerald-700">{DEMO_DATA.studentCount}</div>
+                        <div className="text-xl font-bold text-emerald-700">{preview.studentCount}</div>
                     </div>
                     <div className="rounded-lg border-l-4 border-amber-500 bg-amber-50 p-3">
                         <div className="text-[10px] text-amber-600 font-medium">BAŞARI</div>
-                        <div className="text-xl font-bold text-amber-700">%{DEMO_DATA.passRate}</div>
+                        <div className="text-xl font-bold text-amber-700">%{preview.passRate}</div>
                     </div>
                 </div>
             );
@@ -111,7 +209,7 @@ const renderPreviewContent = (type: ReportComponentType) => {
                 <div className="h-full flex flex-col">
                     <div className="text-xs font-medium text-slate-600 mb-2">Kazanım Başarı Grafiği</div>
                     <div className="flex-1 flex items-end gap-2">
-                        {DEMO_DATA.outcomes.map((o, i) => (
+                        {preview.outcomes.map((o, i) => (
                             <div key={i} className="flex-1 flex flex-col items-center">
                                 <div
                                     className={`w-full rounded-t-sm transition-all ${o.success >= 70 ? 'bg-emerald-400' : o.success >= 50 ? 'bg-amber-400' : 'bg-rose-400'}`}
@@ -130,17 +228,17 @@ const renderPreviewContent = (type: ReportComponentType) => {
                 <div className="h-full flex items-center gap-4">
                     <div className="w-20 h-20 rounded-full bg-gradient-conic from-emerald-400 via-amber-400 to-rose-400 relative">
                         <div className="absolute inset-2 bg-white rounded-full flex items-center justify-center">
-                            <span className="text-xs font-bold text-slate-700">%{DEMO_DATA.passRate}</span>
+                            <span className="text-xs font-bold text-slate-700">%{preview.passRate}</span>
                         </div>
                     </div>
                     <div className="text-xs space-y-1">
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 bg-emerald-400 rounded-sm"></div>
-                            <span>Geçen: {Math.round(DEMO_DATA.studentCount * DEMO_DATA.passRate / 100)}</span>
+                            <span>Geçen: {Math.round(preview.studentCount * preview.passRate / 100)}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 bg-rose-400 rounded-sm"></div>
-                            <span>Kalan: {Math.round(DEMO_DATA.studentCount * (100 - DEMO_DATA.passRate) / 100)}</span>
+                            <span>Kalan: {Math.round(preview.studentCount * (100 - preview.passRate) / 100)}</span>
                         </div>
                     </div>
                 </div>
@@ -172,7 +270,7 @@ const renderPreviewContent = (type: ReportComponentType) => {
                             </tr>
                         </thead>
                         <tbody>
-                            {DEMO_DATA.students.map((s, i) => (
+                            {preview.students.map((s, i) => (
                                 <tr key={i} className="border-b border-slate-50">
                                     <td className="px-2 py-1">{i + 1}</td>
                                     <td className="px-2 py-1">{s.name}</td>
@@ -193,7 +291,7 @@ const renderPreviewContent = (type: ReportComponentType) => {
                 <div className="space-y-2">
                     <div className="text-xs font-medium text-slate-600">Kazanım Tablosu</div>
                     <div className="space-y-1.5">
-                        {DEMO_DATA.outcomes.map((o, i) => (
+                        {preview.outcomes.map((o, i) => (
                             <div key={i} className="flex items-center gap-2">
                                 <div className="flex-1 text-[10px] text-slate-600 truncate">{o.name}</div>
                                 <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -219,7 +317,7 @@ const renderPreviewContent = (type: ReportComponentType) => {
                         </div>
                         <div className="bg-slate-50 p-2 rounded">
                             <span className="text-slate-500">Ortalama</span>
-                            <div className="font-bold text-slate-700">{DEMO_DATA.classAverage}</div>
+                            <div className="font-bold text-slate-700">{preview.classAverage}</div>
                         </div>
                         <div className="bg-slate-50 p-2 rounded">
                             <span className="text-slate-500">Std. Sapma</span>
@@ -237,7 +335,7 @@ const renderPreviewContent = (type: ReportComponentType) => {
                 <div className="space-y-2">
                     <div className="text-xs font-medium text-slate-600">⚠️ Risk Altındaki Öğrenciler</div>
                     <div className="space-y-1.5">
-                        {DEMO_DATA.riskStudents.map((s, i) => (
+                        {preview.riskStudents.map((s, i) => (
                             <div key={i} className={`flex items-center justify-between px-2 py-1.5 rounded text-[10px] ${s.risk === 'high' ? 'bg-rose-50 border border-rose-200' : 'bg-amber-50 border border-amber-200'}`}>
                                 <span className={s.risk === 'high' ? 'text-rose-700' : 'text-amber-700'}>{s.name}</span>
                                 <span className="font-medium">{s.score} puan</span>
@@ -253,7 +351,7 @@ const renderPreviewContent = (type: ReportComponentType) => {
                         <span>🤖</span> AI Değerlendirmesi
                     </div>
                     <div className="text-[10px] text-slate-600 leading-relaxed bg-indigo-50 p-2 rounded border border-indigo-100">
-                        {DEMO_DATA.aiComment}
+                        {preview.aiComment}
                     </div>
                 </div>
             );
@@ -271,11 +369,11 @@ const renderPreviewContent = (type: ReportComponentType) => {
                 <div className="flex items-end justify-between h-full text-[10px] text-slate-500">
                     <div className="text-center">
                         <div className="w-24 border-t border-slate-300 pt-1">Öğretmen</div>
-                        <div className="text-[8px] text-slate-400">{DEMO_DATA.teacherName}</div>
+                        <div className="text-[8px] text-slate-400">{preview.teacherName}</div>
                     </div>
                     <div className="text-center">
                         <div className="w-24 border-t border-slate-300 pt-1">Müdür Onayı</div>
-                        <div className="text-[8px] text-slate-400">Tarih: {DEMO_DATA.date}</div>
+                        <div className="text-[8px] text-slate-400">Tarih: {preview.date}</div>
                     </div>
                 </div>
             );
@@ -300,6 +398,7 @@ interface DraggableComponentProps {
     onMove: (dragIndex: number, hoverIndex: number) => void;
     onUpdateSettings: (id: string, settings: any) => void;
     isPreview: boolean;
+    previewData: ReportPreviewData;
 }
 
 const DraggableComponent: React.FC<DraggableComponentProps> = ({
@@ -308,7 +407,8 @@ const DraggableComponent: React.FC<DraggableComponentProps> = ({
     onRemove,
     onMove,
     onUpdateSettings,
-    isPreview
+    isPreview,
+    previewData
 }) => {
     const ref = React.useRef<HTMLDivElement>(null);
     const [showSettings, setShowSettings] = React.useState(false);
@@ -429,7 +529,7 @@ const DraggableComponent: React.FC<DraggableComponentProps> = ({
             <div className={`${heightClass} flex ${isPreview ? 'items-start justify-start' : 'items-center justify-center'} bg-slate-50 rounded-lg border border-slate-100 text-slate-400 text-xs italic px-3`}>
                 {isPreview ? (
                     <div className="w-full h-full text-left text-slate-600 not-italic">
-                        {renderPreviewContent(component.type)}
+                        {renderPreviewContent(component.type, previewData)}
                     </div>
                 ) : (
                     component.type === 'page_break' ? (
@@ -451,6 +551,7 @@ interface ReportCanvasProps {
     exportId?: string;
     layout: ReportComponent[];
     isPreview?: boolean;
+    previewAnalysis?: SavedAnalysis | null;
     onAddComponent: (type: any) => void;
     onRemoveComponent: (id: string) => void;
     onMoveComponent: (dragIndex: number, hoverIndex: number) => void;
@@ -461,11 +562,13 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
     exportId,
     layout,
     isPreview = false,
+    previewAnalysis = null,
     onAddComponent,
     onRemoveComponent,
     onMoveComponent,
     onUpdateSettings
 }) => {
+    const previewData = React.useMemo(() => buildPreviewData(previewAnalysis), [previewAnalysis]);
     const [{ isOver }, drop] = useDrop(() => ({
         accept: DRAGGABLE_ITEM_TYPE,
         canDrop: () => !isPreview,
@@ -511,6 +614,7 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
                                 onMove={onMoveComponent}
                                 onUpdateSettings={onUpdateSettings}
                                 isPreview={isPreview}
+                                previewData={previewData}
                             />
                         ))}
                     </div>
@@ -526,3 +630,4 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
         </div>
     );
 };
+
