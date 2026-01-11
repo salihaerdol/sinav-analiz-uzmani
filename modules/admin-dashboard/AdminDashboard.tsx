@@ -158,7 +158,11 @@ const RiskStudentRow: React.FC<{
 // ANA DASHBOARD BİLEŞENİ
 // ═══════════════════════════════════════════════════════════════
 
-export const AdminDashboard: React.FC = () => {
+interface AdminDashboardProps {
+    scope?: 'own' | 'all';
+}
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ scope = 'own' }) => {
     const [data, setData] = useState<AdminDashboardData | null>(null);
     const [loading, setLoading] = useState(true);
     const [filters, setFilters] = useState<DashboardFilters>({ dateRange: 'semester' });
@@ -168,7 +172,7 @@ export const AdminDashboard: React.FC = () => {
         const loadData = async () => {
             setLoading(true);
             try {
-                const analyses = await analysisHistoryService.getAllAnalyses();
+                const analyses = await analysisHistoryService.getAllAnalyses({ scope });
                 setData(buildAdminDashboardData(analyses, filters));
             } catch (error) {
                 console.error('Dashboard verisi yüklenemedi:', error);

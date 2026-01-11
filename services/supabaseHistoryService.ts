@@ -375,7 +375,7 @@ export const analysisHistoryService = {
     /**
      * Tüm analizleri getir
      */
-    async getAllAnalyses(): Promise<SavedAnalysis[]> {
+    async getAllAnalyses(options?: { scope?: 'own' | 'all' }): Promise<SavedAnalysis[]> {
         const { data: { user } } = await supabase.auth.getUser();
         const localKey = getLocalStorageKey(user?.id);
         const localAnalyses = readLocalAnalyses(localKey);
@@ -384,12 +384,17 @@ export const analysisHistoryService = {
             return localAnalyses;
         }
 
-        const { data, error } = await supabase
+        let query = supabase
             .from('analysis_history')
             .select('*')
             .eq('is_archived', false)
-            .eq('user_id', user.id)
             .order('created_at', { ascending: false });
+
+        if (options?.scope !== 'all') {
+            query = query.eq('user_id', user.id);
+        }
+
+        const { data, error } = await query;
 
         if (error) {
             console.error('Analizler getirilemedi:', error);
@@ -397,6 +402,9 @@ export const analysisHistoryService = {
         }
 
         const remoteAnalyses = (data || []).map(item => this.dbToSavedAnalysis(item));
+        if (options?.scope === 'all') {
+            return remoteAnalyses;
+        }
         return mergeAnalyses(remoteAnalyses, localAnalyses);
     },
 
