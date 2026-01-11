@@ -61,7 +61,7 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose, sc
 
     const handleDeleteAnalysis = async (id: string) => {
         if (window.confirm('Bu analizi silmek istediğinizden emin misiniz?')) {
-            await analysisHistoryService.deleteAnalysis(id);
+            await analysisHistoryService.deleteAnalysis(id, { scope });
             loadData();
         }
     };

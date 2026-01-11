@@ -494,7 +494,7 @@ export const analysisHistoryService = {
     /**
      * Analiz sil
      */
-    async deleteAnalysis(id: string): Promise<boolean> {
+    async deleteAnalysis(id: string, options?: { scope?: 'own' | 'all' }): Promise<boolean> {
         const { data: { user } } = await supabase.auth.getUser();
         const localKey = getLocalStorageKey(user?.id);
         deleteLocalAnalysis(localKey, id);
@@ -503,11 +503,16 @@ export const analysisHistoryService = {
             return true;
         }
 
-        const { error } = await supabase
+        let query = supabase
             .from('analysis_history')
             .delete()
-            .eq('id', id)
-            .eq('user_id', user.id);
+            .eq('id', id);
+
+        if (options?.scope !== 'all') {
+            query = query.eq('user_id', user.id);
+        }
+
+        const { error } = await query;
 
         if (error) {
             console.error('Analiz silinemedi:', error);
