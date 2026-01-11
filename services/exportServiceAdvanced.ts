@@ -733,7 +733,8 @@ export async function exportToWord(
     questions: QuestionConfig[],
     students: Student[]
 ) {
-    const averageSuccess = analysis.averageSuccess ?? analysis.classAverage;
+    const classAverage = Number.isFinite(analysis.classAverage) ? analysis.classAverage : 0;
+    const averageSuccess = Number.isFinite(analysis.averageSuccess) ? analysis.averageSuccess : classAverage;
     const totalScores = students.map((s) => Object.values(s.scores).reduce((a, b) => a + b, 0));
     const maxScoreValue = totalScores.length ? Math.max(...totalScores) : 0;
 
@@ -813,7 +814,7 @@ export async function exportToWord(
         new TableRow({
             children: [
                 makeCell(students.length.toString()),
-                makeCell(analysis.classAverage.toFixed(2)),
+                makeCell(classAverage.toFixed(2)),
                 makeCell(`%${averageSuccess.toFixed(1)}`),
                 makeCell(maxScoreValue.toString())
             ]
@@ -866,7 +867,7 @@ export async function exportToWord(
         ]
     });
 
-    const outcomeRows = analysis.outcomeStats.map((item) => new TableRow({
+    const outcomeRows = (analysis.outcomeStats ?? []).map((item) => new TableRow({
         children: [
             makeCell(item.description, { align: AlignmentType.LEFT }),
             makeCell('-'),
@@ -915,6 +916,7 @@ export async function exportToWord(
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
 
 // ═══════════════════════════════════════════════════════════════
