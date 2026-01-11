@@ -723,56 +723,125 @@ export async function exportToWord(
     const title = `${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)} Analiz Raporu`;
 
     let html = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
         <head>
             <meta charset="utf-8">
             <title>${title}</title>
             <style>
-                body { font-family: 'Calibri', 'Arial', sans-serif; }
-                table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-                th, td { border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px; }
-                th { background-color: #f0f0f0; font-weight: bold; }
-                .header { text-align: center; margin-bottom: 20px; }
-                .title { font-size: 16px; font-weight: bold; }
-                .subtitle { font-size: 12px; }
-                .success { color: green; font-weight: bold; }
-                .fail { color: red; font-weight: bold; }
+                @page {
+                    size: A4;
+                    margin: 20mm 16mm;
+                }
+                body {
+                    font-family: 'Calibri', 'Arial', sans-serif;
+                    font-size: 11pt;
+                    line-height: 1.35;
+                    margin: 0;
+                    padding: 0;
+                    color: #111827;
+                }
+                .page {
+                    width: 100%;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 12pt;
+                    page-break-inside: avoid;
+                }
+                .title {
+                    font-size: 16pt;
+                    font-weight: bold;
+                    letter-spacing: 0.2pt;
+                }
+                .subtitle {
+                    font-size: 11pt;
+                }
+                h3 {
+                    margin: 16pt 0 8pt;
+                    font-size: 12.5pt;
+                    color: #1f2937;
+                    page-break-after: avoid;
+                }
+                table {
+                    border-collapse: collapse;
+                    width: 100%;
+                    table-layout: fixed;
+                    margin-bottom: 12pt;
+                    word-wrap: break-word;
+                    page-break-inside: avoid;
+                }
+                th, td {
+                    border: 1px solid #d1d5db;
+                    padding: 6pt;
+                    text-align: center;
+                    font-size: 10.5pt;
+                    vertical-align: top;
+                }
+                th {
+                    background-color: #f3f4f6;
+                    font-weight: bold;
+                }
+                .success {
+                    color: #15803d;
+                    font-weight: bold;
+                }
+                .fail {
+                    color: #b91c1c;
+                    font-weight: bold;
+                }
+                .text-left {
+                    text-align: left;
+                }
             </style>
         </head>
         <body>
-            <div class="header">
-                <div class="title">SINAV SONUÇ ANALİZ RAPORU</div>
-                <div class="subtitle">${toUpperTr(normalizeText(metadata.schoolName || ''))}</div>
-                <div class="subtitle">${toUpperTr(normalizeText(metadata.className))} - ${toUpperTr(normalizeText(metadata.subject))}</div>
-                <div class="subtitle">${toUpperTr(normalizeText(metadata.examType))} | ${normalizeText(metadata.academicYear || '')}</div>
-            </div>
+            <div class="page">
+                <div class="header">
+                    <div class="title">SINAV SONUÇ ANALİZ RAPORU</div>
+                    <div class="subtitle">${toUpperTr(normalizeText(metadata.schoolName || ''))}</div>
+                    <div class="subtitle">${toUpperTr(normalizeText(metadata.className))} - ${toUpperTr(normalizeText(metadata.subject))}</div>
+                    <div class="subtitle">${toUpperTr(normalizeText(metadata.examType))} | ${normalizeText(metadata.academicYear || '')}</div>
+                </div>
 
-            <h3>1. SINIF ÖZETİ</h3>
-            <table>
-                <tr>
-                    <th>Öğrenci Sayısı</th>
-                    <th>Sınıf Ortalaması</th>
-                    <th>Başarı Oranı</th>
-                    <th>En Yüksek Puan</th>
-                </tr>
-                <tr>
-                    <td>${students.length}</td>
-                    <td>${analysis.classAverage.toFixed(2)}</td>
-                    <td>%${analysis.averageSuccess.toFixed(1)}</td>
-                    <td>${Math.max(...students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0)))}</td>
-                </tr>
-            </table>
+                <h3>1. SINIF ÖZETİ</h3>
+                <table>
+                    <colgroup>
+                        <col style="width: 25%" />
+                        <col style="width: 25%" />
+                        <col style="width: 25%" />
+                        <col style="width: 25%" />
+                    </colgroup>
+                    <tr>
+                        <th>Öğrenci Sayısı</th>
+                        <th>Sınıf Ortalaması</th>
+                        <th>Başarı Oranı</th>
+                        <th>En Yüksek Puan</th>
+                    </tr>
+                    <tr>
+                        <td>${students.length}</td>
+                        <td>${analysis.classAverage.toFixed(2)}</td>
+                        <td>%${analysis.averageSuccess.toFixed(1)}</td>
+                        <td>${Math.max(...students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0)))}</td>
+                    </tr>
+                </table>
 
-            <h3>2. ÖĞRENCİ LİSTESİ</h3>
-            <table>
-                <tr>
-                    <th>Sıra</th>
-                    <th>Adı Soyadı</th>
-                    <th>Puan</th>
-                    <th>Başarı</th>
-                    <th>Durum</th>
-                </tr>
-                ${students.sort((a, b) => {
+                <h3>2. ÖĞRENCİ LİSTESİ</h3>
+                <table>
+                    <colgroup>
+                        <col style="width: 8%" />
+                        <col style="width: 44%" />
+                        <col style="width: 16%" />
+                        <col style="width: 14%" />
+                        <col style="width: 18%" />
+                    </colgroup>
+                    <tr>
+                        <th>Sıra</th>
+                        <th>Adı Soyadı</th>
+                        <th>Puan</th>
+                        <th>Başarı</th>
+                        <th>Durum</th>
+                    </tr>
+                    ${students.sort((a, b) => {
         const sa = Object.values(a.scores).reduce((x, y) => x + y, 0);
         const sb = Object.values(b.scores).reduce((x, y) => x + y, 0);
         return sb - sa;
@@ -783,30 +852,36 @@ export async function exportToWord(
         return `
                         <tr>
                             <td>${i + 1}</td>
-                            <td style="text-align: left;">${toUpperTr(s.name)}</td>
+                            <td class="text-left">${toUpperTr(s.name)}</td>
                             <td>${total}</td>
                             <td>%${pct.toFixed(0)}</td>
                             <td class="${pct >= 50 ? 'success' : 'fail'}">${pct >= 50 ? 'GEÇTİ' : 'KALDI'}</td>
                         </tr>
                     `;
     }).join('')}
-            </table>
+                </table>
 
-            <h3>3. KAZANIM ANALİZİ</h3>
-            <table>
-                <tr>
-                    <th>Kazanım</th>
-                    <th>Soru Sayısı</th>
-                    <th>Sınıf Başarısı</th>
-                </tr>
-                ${analysis.outcomeStats.map(t => `
+                <h3>3. KAZANIM ANALİZİ</h3>
+                <table>
+                    <colgroup>
+                        <col style="width: 70%" />
+                        <col style="width: 15%" />
+                        <col style="width: 15%" />
+                    </colgroup>
                     <tr>
-                        <td style="text-align: left;">${t.description}</td>
-                        <td>-</td>
-                        <td>%${t.successRate.toFixed(1)}</td>
+                        <th>Kazanım</th>
+                        <th>Soru Sayısı</th>
+                        <th>Sınıf Başarısı</th>
                     </tr>
-                `).join('')}
-            </table>
+                    ${analysis.outcomeStats.map(t => `
+                        <tr>
+                            <td class="text-left">${t.description}</td>
+                            <td>-</td>
+                            <td>%${t.successRate.toFixed(1)}</td>
+                        </tr>
+                    `).join('')}
+                </table>
+            </div>
         </body>
         </html>
     `;
