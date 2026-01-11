@@ -8,6 +8,19 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+    AlignmentType,
+    BorderStyle,
+    Document,
+    Packer,
+    Paragraph,
+    Table,
+    TableCell,
+    TableLayoutType,
+    TableRow,
+    TextRun,
+    WidthType
+} from 'docx';
 import { AnalysisResult, ExamMetadata, QuestionConfig, Student } from '../types';
 import { addTurkishFontsToPDF } from './fontService';
 
@@ -712,7 +725,7 @@ async function createStudentCards(
 // ═══════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════
-// WORD EXPORT (HTML tabanlı)
+// WORD EXPORT (DOCX)
 // ═══════════════════════════════════════════════════════════════
 export async function exportToWord(
     analysis: AnalysisResult,
@@ -720,181 +733,185 @@ export async function exportToWord(
     questions: QuestionConfig[],
     students: Student[]
 ) {
-    const title = `${toUpperTr(metadata.className)} - ${toUpperTr(metadata.subject)} Analiz Raporu`;
+    const averageSuccess = analysis.averageSuccess ?? analysis.classAverage;
+    const totalScores = students.map((s) => Object.values(s.scores).reduce((a, b) => a + b, 0));
+    const maxScoreValue = totalScores.length ? Math.max(...totalScores) : 0;
 
-    let html = `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-            <meta charset="utf-8">
-            <title>${title}</title>
-            <style>
-                @page {
-                    size: A4;
-                    margin: 20mm 16mm;
-                }
-                body {
-                    font-family: 'Calibri', 'Arial', sans-serif;
-                    font-size: 11pt;
-                    line-height: 1.35;
-                    margin: 0;
-                    padding: 0;
-                    color: #111827;
-                }
-                .page {
-                    width: 100%;
-                }
-                .header {
-                    text-align: center;
-                    margin-bottom: 12pt;
-                    page-break-inside: avoid;
-                }
-                .title {
-                    font-size: 16pt;
-                    font-weight: bold;
-                    letter-spacing: 0.2pt;
-                }
-                .subtitle {
-                    font-size: 11pt;
-                }
-                h3 {
-                    margin: 16pt 0 8pt;
-                    font-size: 12.5pt;
-                    color: #1f2937;
-                    page-break-after: avoid;
-                }
-                table {
-                    border-collapse: collapse;
-                    width: 100%;
-                    table-layout: fixed;
-                    margin-bottom: 12pt;
-                    word-wrap: break-word;
-                    page-break-inside: avoid;
-                }
-                th, td {
-                    border: 1px solid #d1d5db;
-                    padding: 6pt;
-                    text-align: center;
-                    font-size: 10.5pt;
-                    vertical-align: top;
-                }
-                th {
-                    background-color: #f3f4f6;
-                    font-weight: bold;
-                }
-                .success {
-                    color: #15803d;
-                    font-weight: bold;
-                }
-                .fail {
-                    color: #b91c1c;
-                    font-weight: bold;
-                }
-                .text-left {
-                    text-align: left;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="page">
-                <div class="header">
-                    <div class="title">SINAV SONUÇ ANALİZ RAPORU</div>
-                    <div class="subtitle">${toUpperTr(normalizeText(metadata.schoolName || ''))}</div>
-                    <div class="subtitle">${toUpperTr(normalizeText(metadata.className))} - ${toUpperTr(normalizeText(metadata.subject))}</div>
-                    <div class="subtitle">${toUpperTr(normalizeText(metadata.examType))} | ${normalizeText(metadata.academicYear || '')}</div>
-                </div>
+    const tableBorders = {
+        top: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
+        bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
+        left: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
+        right: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' }
+    };
 
-                <h3>1. SINIF ÖZETİ</h3>
-                <table>
-                    <colgroup>
-                        <col style="width: 25%" />
-                        <col style="width: 25%" />
-                        <col style="width: 25%" />
-                        <col style="width: 25%" />
-                    </colgroup>
-                    <tr>
-                        <th>Öğrenci Sayısı</th>
-                        <th>Sınıf Ortalaması</th>
-                        <th>Başarı Oranı</th>
-                        <th>En Yüksek Puan</th>
-                    </tr>
-                    <tr>
-                        <td>${students.length}</td>
-                        <td>${analysis.classAverage.toFixed(2)}</td>
-                        <td>%${analysis.averageSuccess.toFixed(1)}</td>
-                        <td>${Math.max(...students.map(s => Object.values(s.scores).reduce((a, b) => a + b, 0)))}</td>
-                    </tr>
-                </table>
+    const cellMargins = { top: 120, bottom: 120, left: 160, right: 160 };
 
-                <h3>2. ÖĞRENCİ LİSTESİ</h3>
-                <table>
-                    <colgroup>
-                        <col style="width: 8%" />
-                        <col style="width: 44%" />
-                        <col style="width: 16%" />
-                        <col style="width: 14%" />
-                        <col style="width: 18%" />
-                    </colgroup>
-                    <tr>
-                        <th>Sıra</th>
-                        <th>Adı Soyadı</th>
-                        <th>Puan</th>
-                        <th>Başarı</th>
-                        <th>Durum</th>
-                    </tr>
-                    ${students.sort((a, b) => {
+    const makeCell = (text: string, options?: { bold?: boolean; align?: AlignmentType; color?: string }) => (
+        new TableCell({
+            margins: cellMargins,
+            borders: tableBorders,
+            children: [
+                new Paragraph({
+                    alignment: options?.align ?? AlignmentType.CENTER,
+                    children: [
+                        new TextRun({
+                            text,
+                            bold: options?.bold ?? false,
+                            color: options?.color
+                        })
+                    ]
+                })
+            ]
+        })
+    );
+
+    const buildTable = (rows: TableRow[]) => new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        layout: TableLayoutType.FIXED,
+        rows
+    });
+
+    const headerBlock = [
+        new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 120 },
+            children: [new TextRun({ text: 'SINAV SONUÇ ANALİZ RAPORU', bold: true, size: 32 })]
+        }),
+        new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 60 },
+            children: [new TextRun({ text: toUpperTr(normalizeText(metadata.schoolName || '')), size: 22 })]
+        }),
+        new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 60 },
+            children: [new TextRun({
+                text: `${toUpperTr(normalizeText(metadata.className))} - ${toUpperTr(normalizeText(metadata.subject))}`,
+                size: 22
+            })]
+        }),
+        new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 180 },
+            children: [new TextRun({
+                text: `${toUpperTr(normalizeText(metadata.examType))} | ${normalizeText(metadata.academicYear || '')}`,
+                size: 22
+            })]
+        })
+    ];
+
+    const summaryTable = buildTable([
+        new TableRow({
+            tableHeader: true,
+            children: [
+                makeCell('Öğrenci Sayısı', { bold: true }),
+                makeCell('Sınıf Ortalaması', { bold: true }),
+                makeCell('Başarı Oranı', { bold: true }),
+                makeCell('En Yüksek Puan', { bold: true })
+            ]
+        }),
+        new TableRow({
+            children: [
+                makeCell(students.length.toString()),
+                makeCell(analysis.classAverage.toFixed(2)),
+                makeCell(`%${averageSuccess.toFixed(1)}`),
+                makeCell(maxScoreValue.toString())
+            ]
+        })
+    ]);
+
+    const sortedStudents = [...students].sort((a, b) => {
         const sa = Object.values(a.scores).reduce((x, y) => x + y, 0);
         const sb = Object.values(b.scores).reduce((x, y) => x + y, 0);
         return sb - sa;
-    }).map((s, i) => {
-        const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
-        const max = questions.reduce((a, q) => a + q.maxScore, 0);
-        const pct = (total / max) * 100;
-        return `
-                        <tr>
-                            <td>${i + 1}</td>
-                            <td class="text-left">${toUpperTr(s.name)}</td>
-                            <td>${total}</td>
-                            <td>%${pct.toFixed(0)}</td>
-                            <td class="${pct >= 50 ? 'success' : 'fail'}">${pct >= 50 ? 'GEÇTİ' : 'KALDI'}</td>
-                        </tr>
-                    `;
-    }).join('')}
-                </table>
-
-                <h3>3. KAZANIM ANALİZİ</h3>
-                <table>
-                    <colgroup>
-                        <col style="width: 70%" />
-                        <col style="width: 15%" />
-                        <col style="width: 15%" />
-                    </colgroup>
-                    <tr>
-                        <th>Kazanım</th>
-                        <th>Soru Sayısı</th>
-                        <th>Sınıf Başarısı</th>
-                    </tr>
-                    ${analysis.outcomeStats.map(t => `
-                        <tr>
-                            <td class="text-left">${t.description}</td>
-                            <td>-</td>
-                            <td>%${t.successRate.toFixed(1)}</td>
-                        </tr>
-                    `).join('')}
-                </table>
-            </div>
-        </body>
-        </html>
-    `;
-
-    const blob = new Blob(['\ufeff', html], {
-        type: 'application/msword'
     });
 
-    // Link oluştur ve tıkla
+    const studentHeaderRow = new TableRow({
+        tableHeader: true,
+        children: [
+            makeCell('Sıra', { bold: true }),
+            makeCell('Adı Soyadı', { bold: true }),
+            makeCell('Puan', { bold: true }),
+            makeCell('Başarı', { bold: true }),
+            makeCell('Durum', { bold: true })
+        ]
+    });
+
+    const studentRows = sortedStudents.map((student, index) => {
+        const total = Object.values(student.scores).reduce((a, b) => a + b, 0);
+        const max = questions.reduce((a, q) => a + q.maxScore, 0);
+        const pct = max > 0 ? (total / max) * 100 : 0;
+        const status = pct >= 50 ? 'GEÇTİ' : 'KALDI';
+        const statusColor = pct >= 50 ? '15803D' : 'B91C1C';
+
+        return new TableRow({
+            children: [
+                makeCell((index + 1).toString()),
+                makeCell(toUpperTr(student.name), { align: AlignmentType.LEFT }),
+                makeCell(total.toString()),
+                makeCell(`%${pct.toFixed(0)}`),
+                makeCell(status, { bold: true, color: statusColor })
+            ]
+        });
+    });
+
+    const studentTable = buildTable([studentHeaderRow, ...studentRows]);
+
+    const outcomeHeaderRow = new TableRow({
+        tableHeader: true,
+        children: [
+            makeCell('Kazanım', { bold: true, align: AlignmentType.LEFT }),
+            makeCell('Soru Sayısı', { bold: true }),
+            makeCell('Sınıf Başarısı', { bold: true })
+        ]
+    });
+
+    const outcomeRows = analysis.outcomeStats.map((item) => new TableRow({
+        children: [
+            makeCell(item.description, { align: AlignmentType.LEFT }),
+            makeCell('-'),
+            makeCell(`%${item.successRate.toFixed(1)}`)
+        ]
+    }));
+
+    const outcomeTable = buildTable([outcomeHeaderRow, ...outcomeRows]);
+
+    const doc = new Document({
+        sections: [
+            {
+                properties: {
+                    page: {
+                        size: { width: 11906, height: 16838 },
+                        margin: { top: 1134, bottom: 1134, left: 907, right: 907 }
+                    }
+                },
+                children: [
+                    ...headerBlock,
+                    new Paragraph({
+                        spacing: { before: 200, after: 120 },
+                        children: [new TextRun({ text: '1. SINIF ÖZETİ', bold: true })]
+                    }),
+                    summaryTable,
+                    new Paragraph({
+                        spacing: { before: 200, after: 120 },
+                        children: [new TextRun({ text: '2. ÖĞRENCİ LİSTESİ', bold: true })]
+                    }),
+                    studentTable,
+                    new Paragraph({
+                        spacing: { before: 200, after: 120 },
+                        children: [new TextRun({ text: '3. KAZANIM ANALİZİ', bold: true })]
+                    }),
+                    outcomeTable
+                ]
+            }
+        ]
+    });
+
+    const blob = await Packer.toBlob(doc);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${safeName(metadata.className)}_Analiz.doc`;
+    link.download = `${safeName(metadata.className)}_Analiz.docx`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
