@@ -16,11 +16,12 @@ import analysisHistoryService from '../services/supabaseHistoryService';
 interface Props {
     onLoadAnalysis: (analysis: SavedAnalysis) => void;
     onClose: () => void;
+    scope?: 'own' | 'all';
 }
 
 type ViewMode = 'dashboard' | 'history' | 'student' | 'class';
 
-export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) => {
+export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose, scope = 'own' }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
     const [summary, setSummary] = useState<DashboardSummary | null>(null);
     const [analyses, setAnalyses] = useState<SavedAnalysis[]>([]);
@@ -41,10 +42,10 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose }) 
         setLoading(true);
         try {
             const [sum, allAnalyses, students, classes] = await Promise.all([
-                analysisHistoryService.getDashboardSummary(),
-                analysisHistoryService.getAllAnalyses(),
-                analysisHistoryService.getAllStudentProgress(),
-                analysisHistoryService.getAllClassProgress()
+                analysisHistoryService.getDashboardSummary({ scope }),
+                analysisHistoryService.getAllAnalyses({ scope }),
+                analysisHistoryService.getAllStudentProgress({ scope }),
+                analysisHistoryService.getAllClassProgress({ scope })
             ]);
 
             setSummary(sum);

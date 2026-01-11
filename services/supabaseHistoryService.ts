@@ -725,7 +725,7 @@ export const analysisHistoryService = {
     /**
      * Tüm öğrenci ilerlemelerini getir
      */
-    async getAllStudentProgress(): Promise<StudentProgress[]> {
+    async getAllStudentProgress(options?: { scope?: 'own' | 'all' }): Promise<StudentProgress[]> {
         const { data: { user } } = await supabase.auth.getUser();
         const localKey = getLocalStorageKey(user?.id);
 
@@ -733,10 +733,16 @@ export const analysisHistoryService = {
             return buildStudentProgressFromAnalyses(readLocalAnalyses(localKey));
         }
 
-        const { data, error } = await supabase
+        let query = supabase
             .from('student_progress')
             .select('*')
             .order('average_score', { ascending: false });
+
+        if (options?.scope !== 'all') {
+            query = query.eq('user_id', user.id);
+        }
+
+        const { data, error } = await query;
 
         if (error) {
             console.error('Öğrenci ilerlemeleri getirilemedi:', error);
@@ -744,7 +750,7 @@ export const analysisHistoryService = {
         }
 
         if (!data || data.length === 0) {
-            const analyses = await this.getAllAnalyses();
+            const analyses = await this.getAllAnalyses(options);
             return buildStudentProgressFromAnalyses(analyses);
         }
 
@@ -754,7 +760,7 @@ export const analysisHistoryService = {
     /**
      * Tüm sınıf ilerlemelerini getir
      */
-    async getAllClassProgress(): Promise<ClassProgress[]> {
+    async getAllClassProgress(options?: { scope?: 'own' | 'all' }): Promise<ClassProgress[]> {
         const { data: { user } } = await supabase.auth.getUser();
         const localKey = getLocalStorageKey(user?.id);
 
@@ -762,10 +768,16 @@ export const analysisHistoryService = {
             return buildClassProgressFromAnalyses(readLocalAnalyses(localKey));
         }
 
-        const { data, error } = await supabase
+        let query = supabase
             .from('class_progress')
             .select('*')
             .order('average_score', { ascending: false });
+
+        if (options?.scope !== 'all') {
+            query = query.eq('user_id', user.id);
+        }
+
+        const { data, error } = await query;
 
         if (error) {
             console.error('Sınıf ilerlemeleri getirilemedi:', error);
@@ -773,7 +785,7 @@ export const analysisHistoryService = {
         }
 
         if (!data || data.length === 0) {
-            const analyses = await this.getAllAnalyses();
+            const analyses = await this.getAllAnalyses(options);
             return buildClassProgressFromAnalyses(analyses);
         }
 
@@ -783,11 +795,11 @@ export const analysisHistoryService = {
     /**
      * Dashboard özeti getir
      */
-    async getDashboardSummary(): Promise<DashboardSummary> {
+    async getDashboardSummary(options?: { scope?: 'own' | 'all' }): Promise<DashboardSummary> {
         const [analyses, students, classes] = await Promise.all([
-            this.getAllAnalyses(),
-            this.getAllStudentProgress(),
-            this.getAllClassProgress()
+            this.getAllAnalyses(options),
+            this.getAllStudentProgress(options),
+            this.getAllClassProgress(options)
         ]);
 
         // En başarılı öğrenciler - map to expected format

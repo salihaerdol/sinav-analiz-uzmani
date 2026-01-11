@@ -1272,6 +1272,7 @@ function MainApp() {
           <ProgressDashboard
             onLoadAnalysis={handleLoadAnalysis}
             onClose={() => setShowProgressDashboard(false)}
+            scope={isAdmin ? 'all' : 'own'}
           />
         )
       }
