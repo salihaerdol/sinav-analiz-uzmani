@@ -12,6 +12,7 @@ import {
     SavedAnalysis, StudentProgress, ClassProgress, DashboardSummary
 } from '../types';
 import analysisHistoryService from '../services/supabaseHistoryService';
+import { useToast } from '../modules/notifications';
 
 interface Props {
     onLoadAnalysis: (analysis: SavedAnalysis) => void;
@@ -33,6 +34,7 @@ export const ProgressDashboard: React.FC<Props> = ({ onLoadAnalysis, onClose, sc
     const [filterClass, setFilterClass] = useState('');
     const [filterSubject, setFilterSubject] = useState('');
     const [loading, setLoading] = useState(true);
+    const toast = useToast();
 
     useEffect(() => {
         loadData();

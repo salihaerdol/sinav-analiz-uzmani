@@ -12,6 +12,7 @@ import {
 } from './types';
 import { analysisHistoryService } from '../../services/supabaseHistoryService';
 import { SavedAnalysis, Student } from '../../types';
+import { supabase, isSupabaseConfigured } from '../../services/supabase';
 
 const normalizeName = (value?: string) => (value || '').trim().toLowerCase();
 
@@ -365,4 +366,208 @@ export function getRecommendationIcon(type: ParentRecommendation['type']): strin
         case 'meeting': return '👥';
         default: return '📌';
     }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WRITE OPERATIONS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Bildirimi okundu olarak işaretle
+ */
+export async function markNotificationAsRead(notificationId: string): Promise<boolean> {
+    if (!isSupabaseConfigured) {
+        console.warn('Supabase yapılandırılmamış, bildirim güncellenemedi.');
+        return false;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { error } = await supabase
+        .from('parent_notifications')
+        .upsert({
+            id: notificationId,
+            user_id: user.id,
+            is_read: true,
+            read_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+    if (error) {
+        console.error('Bildirim güncellenemedi:', error);
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Tüm bildirimleri okundu olarak işaretle
+ */
+export async function markAllNotificationsAsRead(): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { error } = await supabase
+        .from('parent_notifications')
+        .update({
+            is_read: true,
+            read_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
+
+    if (error) {
+        console.error('Bildirimler güncellenemedi:', error);
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Veli tercihlerini kaydet
+ */
+export async function saveParentPreferences(preferences: {
+    emailNotifications?: boolean;
+    pushNotifications?: boolean;
+    weeklyReport?: boolean;
+    selectedChildId?: string;
+    language?: string;
+}): Promise<boolean> {
+    if (!isSupabaseConfigured) {
+        console.warn('Supabase yapılandırılmamış, tercihler kaydedilemedi.');
+        return false;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { error } = await supabase
+        .from('parent_preferences')
+        .upsert({
+            user_id: user.id,
+            email_notifications: preferences.emailNotifications,
+            push_notifications: preferences.pushNotifications,
+            weekly_report: preferences.weeklyReport,
+            selected_child_id: preferences.selectedChildId,
+            language: preferences.language,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+
+    if (error) {
+        console.error('Tercihler kaydedilemedi:', error);
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Veli tercihlerini getir
+ */
+export async function getParentPreferences(): Promise<{
+    emailNotifications: boolean;
+    pushNotifications: boolean;
+    weeklyReport: boolean;
+    selectedChildId?: string;
+    language: string;
+} | null> {
+    if (!isSupabaseConfigured) return null;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('parent_preferences')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+    if (error || !data) {
+        return {
+            emailNotifications: true,
+            pushNotifications: true,
+            weeklyReport: true,
+            language: 'tr'
+        };
+    }
+
+    return {
+        emailNotifications: data.email_notifications ?? true,
+        pushNotifications: data.push_notifications ?? true,
+        weeklyReport: data.weekly_report ?? true,
+        selectedChildId: data.selected_child_id,
+        language: data.language ?? 'tr'
+    };
+}
+
+/**
+ * Çocuk takip notunu kaydet
+ */
+export async function saveChildNote(childId: string, note: {
+    title: string;
+    content: string;
+    category?: 'academic' | 'behavior' | 'health' | 'general';
+}): Promise<string | null> {
+    if (!isSupabaseConfigured) return null;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('parent_child_notes')
+        .insert({
+            user_id: user.id,
+            child_id: childId,
+            title: note.title,
+            content: note.content,
+            category: note.category || 'general',
+            created_at: new Date().toISOString()
+        })
+        .select('id')
+        .single();
+
+    if (error) {
+        console.error('Not kaydedilemedi:', error);
+        return null;
+    }
+
+    return data?.id || null;
+}
+
+/**
+ * Veli geri bildirimi gönder
+ */
+export async function submitParentFeedback(feedback: {
+    type: 'suggestion' | 'complaint' | 'praise' | 'question';
+    subject: string;
+    message: string;
+    childId?: string;
+}): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { error } = await supabase
+        .from('parent_feedback')
+        .insert({
+            user_id: user.id,
+            type: feedback.type,
+            subject: feedback.subject,
+            message: feedback.message,
+            child_id: feedback.childId,
+            status: 'pending',
+            created_at: new Date().toISOString()
+        });
+
+    if (error) {
+        console.error('Geri bildirim gönderilemedi:', error);
+        return false;
+    }
+
+    return true;
 }

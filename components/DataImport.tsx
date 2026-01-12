@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Upload, Download, AlertCircle } from 'lucide-react';
 import { QuestionConfig } from '../types';
+import { useToast } from '../modules/notifications';
 
 interface DataImportProps {
     questions: QuestionConfig[];
@@ -10,6 +11,7 @@ interface DataImportProps {
 export const DataImport: React.FC<DataImportProps> = ({ questions, onImport }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [error, setError] = useState<string | null>(null);
+    const toast = useToast();
 
     const downloadTemplate = () => {
         // Create CSV header
@@ -83,7 +85,7 @@ export const DataImport: React.FC<DataImportProps> = ({ questions, onImport }) =
                 onImport(students);
                 setError(null);
                 if (fileInputRef.current) fileInputRef.current.value = '';
-                alert(`${students.length} öğrenci başarıyla yüklendi.`);
+                toast.success(`${students.length} öğrenci başarıyla yüklendi.`);
             } catch (err) {
                 console.error(err);
                 setError('Dosya okunurken hata oluştu. Lütfen şablona uygun CSV dosyası yükleyin.');

@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect } from 'react';
+﻿import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { getScenarioData, getOutcomeDescription } from './data/curriculum';
 import { QuestionConfig, Student, ExamMetadata, AnalysisResult, SavedAnalysis } from './types';
 import { AnalysisView } from './components/AnalysisView';
@@ -19,7 +19,7 @@ import AdminDashboard from './modules/admin-dashboard/AdminDashboard';
 import { QuestionBankDashboard } from './modules/question-bank';
 import { StudentDashboard } from './modules/student-portal';
 import { ParentDashboard } from './modules/parent-portal';
-import { NotificationProvider, ToastContainer } from './modules/notifications';
+import { NotificationProvider, ToastContainer, useToast } from './modules/notifications';
 import { I18nProvider, LanguageSelector } from './modules/i18n';
 
 // Steps Enum
@@ -85,6 +85,47 @@ const applyAutoBloom = (question: QuestionConfig, description: string): Question
   };
 };
 
+const padTwo = (value: number) => value.toString().padStart(2, '0');
+
+const normalizeExamDateInput = (value?: string | null): string | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    if (
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
+    ) {
+      return `${year}-${padTwo(month)}-${padTwo(day)}`;
+    }
+    return null;
+  }
+
+  const dmyMatch = trimmed.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (dmyMatch) {
+    const day = Number(dmyMatch[1]);
+    const month = Number(dmyMatch[2]);
+    const year = Number(dmyMatch[3]);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    if (
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
+    ) {
+      return `${year}-${padTwo(month)}-${padTwo(day)}`;
+    }
+  }
+
+  return null;
+};
+
 const applyAutoBloomToQuestions = (list: QuestionConfig[]) =>
   list.map((question) => applyAutoBloom(question, question.outcome?.description || ''));
 
@@ -97,6 +138,7 @@ const createLocalStudentId = () => {
 
 function MainApp() {
   const { user, signOut, isAdmin } = useAuth();
+  const toast = useToast();
   const [step, setStep] = useState<Step>(Step.METADATA);
 
   // State
@@ -104,6 +146,13 @@ function MainApp() {
   const [questions, setQuestions] = useState<QuestionConfig[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  const trimmedExamDate = metadata.date?.trim() || '';
+  const normalizedExamDate = useMemo(
+    () => normalizeExamDateInput(metadata.date),
+    [metadata.date]
+  );
+  const isExamDateValid = !trimmedExamDate || Boolean(normalizedExamDate);
 
   // New States for Features
   const [showClassModal, setShowClassModal] = useState(false);
@@ -200,31 +249,37 @@ function MainApp() {
 
   const handleSaveAnalysis = async () => {
     if (questions.length === 0 || students.length === 0) {
-      alert('Kaydedilecek analiz verisi bulunamadı.');
+      toast.warning('Kaydedilecek analiz verisi bulunamadı.');
       return;
     }
 
     setIsSaving(true);
     try {
+      if (trimmedExamDate && !normalizedExamDate) {
+        toast.warning('Sınav tarihi formatı geçersiz. Kayıtta tarih boş geçilecek.');
+      }
+      const metadataToSave = normalizedExamDate
+        ? { ...metadata, date: normalizedExamDate }
+        : metadata;
       if (currentAnalysisId) {
         // Update existing
         await analysisHistoryService.updateAnalysis(currentAnalysisId, {
-          metadata,
+          metadata: metadataToSave,
           analysis,
           questions,
           students
         });
-        alert('Analiz başarıyla GÜNCELLENDİ!');
+        toast.success('Analiz başarıyla güncellendi!');
       } else {
         // Create new
-        const saved = await analysisHistoryService.saveAnalysis(metadata, analysis, questions, students);
+        const saved = await analysisHistoryService.saveAnalysis(metadataToSave, analysis, questions, students);
         if (saved) {
           setCurrentAnalysisId(saved.id);
           const analyses = await analysisHistoryService.getAllAnalyses();
           setAnalysisCount(analyses.length);
-          alert('Yeni analiz başarıyla KAYDEDİLDİ!');
+          toast.success('Yeni analiz başarıyla kaydedildi!');
         } else {
-          alert('Analiz kaydedilirken bir hata oluştu.');
+          toast.error('Analiz kaydedilirken bir hata oluştu.');
         }
       }
       if (metadata.scenario !== 'custom' && questions.length > 0) {
@@ -232,7 +287,7 @@ function MainApp() {
       }
     } catch (error) {
       console.error('Kaydetme hatası:', error);
-      alert('İşlem sırasında bir hata oluştu.');
+      toast.error('İşlem sırasında bir hata oluştu.');
     } finally {
       setIsSaving(false);
     }
@@ -366,13 +421,13 @@ function MainApp() {
       setShowClassModal(true);
     } catch (error) {
       console.error('Sınıflar yüklenirken hata:', error);
-      alert('Kayıtlı sınıflar yüklenemedi.');
+      toast.error('Kayıtlı sınıflar yüklenemedi.');
     }
   };
 
   const loadClass = async (cls: StudentList, options?: { mode?: 'replace' | 'append' }) => {
     if (!cls.id) {
-      alert('Seçilen sınıf bulunamadı.');
+      toast.error('Seçilen sınıf bulunamadı.');
       return;
     }
     const mode = options?.mode ?? 'replace';
@@ -415,11 +470,11 @@ function MainApp() {
         if (mode === 'replace') {
           setStudents([]);
         }
-        alert('Bu sınıfta kayıtlı öğrenci listesi bulunamadı.');
+        toast.warning('Bu sınıfta kayıtlı öğrenci listesi bulunamadı.');
       }
     } catch (error) {
       console.error('Öğrenciler yüklenirken hata:', error);
-      alert('Öğrenci listesi yüklenemedi.');
+      toast.error('Öğrenci listesi yüklenemedi.');
     } finally {
       setShowClassModal(false);
     }
@@ -427,11 +482,11 @@ function MainApp() {
 
   const saveCurrentClass = async () => {
     if (!metadata.className) {
-      alert('Lütfen önce sınıf adını giriniz.');
+      toast.warning('Lütfen önce sınıf adını giriniz.');
       return;
     }
     if (students.length === 0) {
-      alert('Kaydedilecek öğrenci listesi boş.');
+      toast.warning('Kaydedilecek öğrenci listesi boş.');
       return;
     }
 
@@ -451,14 +506,14 @@ function MainApp() {
       if (listId) {
         const updated = await studentListService.update(listId, listPayload);
         if (!updated) {
-          alert('Sınıf güncellenemedi. Lütfen veritabanı ayarlarını kontrol edin.');
+          toast.error('Sınıf güncellenemedi. Lütfen veritabanı ayarlarını kontrol edin.');
           return;
         }
         await studentService.deleteByList(listId);
       } else {
         const created = await studentListService.create(listPayload);
         if (!created?.id) {
-          alert('Sınıf kaydedilirken bir hata oluştu. Lütfen veritabanı ayarlarını kontrol edin.');
+          toast.error('Sınıf kaydedilirken bir hata oluştu. Lütfen veritabanı ayarlarını kontrol edin.');
           return;
         }
         listId = created.id;
@@ -475,10 +530,10 @@ function MainApp() {
       const savedStudents = await studentService.bulkCreate(rosterPayload);
       await studentListService.update(listId!, { total_students: savedStudents.length });
 
-      alert(currentStudentListId ? 'Sınıf listesi güncellendi.' : 'Sınıf ve öğrenci listesi başarıyla kaydedildi.');
+      toast.success(currentStudentListId ? 'Sınıf listesi güncellendi.' : 'Sınıf ve öğrenci listesi başarıyla kaydedildi.');
     } catch (error) {
       console.error('Sınıf kaydedilirken hata:', error);
-      alert('Sınıf kaydedilirken bir hata oluştu. Lütfen veritabanı ayarlarını kontrol edin.');
+      toast.error('Sınıf kaydedilirken bir hata oluştu. Lütfen veritabanı ayarlarını kontrol edin.');
     } finally {
       setIsSaving(false);
     }
@@ -497,14 +552,14 @@ function MainApp() {
     setStudents([...students, ...newStudents]);
     setBulkStudentText('');
     setShowBulkAddModal(false);
-    alert(`${names.length} öğrenci eklendi.`);
+    toast.success(`${names.length} öğrenci eklendi.`);
   };
 
   // --- EXISTING HANDLERS ---
 
-  const handleMetadataChange = (field: keyof ExamMetadata, value: string) => {
+  const handleMetadataChange = useCallback((field: keyof ExamMetadata, value: string) => {
     setMetadata(prev => ({ ...prev, [field]: value }));
-  };
+  }, []);
 
   const initQuestions = () => {
     if (questions.length > 0) {
@@ -535,23 +590,25 @@ function MainApp() {
     setStep(Step.QUESTIONS);
   };
 
-  const addQuestion = () => {
-    const newId = questions.length > 0 ? Math.max(...questions.map(q => q.id)) + 1 : 1;
-    setQuestions([...questions, {
-      id: newId,
-      order: questions.length + 1,
-      maxScore: 10,
-      outcome: { code: '', description: '' }
-    }]);
-  };
+  const addQuestion = useCallback(() => {
+    setQuestions(prev => {
+      const newId = prev.length > 0 ? Math.max(...prev.map(q => q.id)) + 1 : 1;
+      return [...prev, {
+        id: newId,
+        order: prev.length + 1,
+        maxScore: 10,
+        outcome: { code: '', description: '' }
+      }];
+    });
+  }, []);
 
-  const removeQuestion = (id: number) => {
-    setQuestions(questions.filter(q => q.id !== id));
-  };
+  const removeQuestion = useCallback((id: number) => {
+    setQuestions(prev => prev.filter(q => q.id !== id));
+  }, []);
 
-  const updateQuestion = (id: number, field: keyof QuestionConfig, value: any) => {
+  const updateQuestion = useCallback((id: number, field: keyof QuestionConfig, value: any) => {
     setQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q));
-  };
+  }, []);
 
   const updateQuestionOutcome = (id: number, code: string) => {
     const description = getOutcomeDescription(code);
@@ -571,23 +628,23 @@ function MainApp() {
     } : q));
   };
 
-  const addStudent = () => {
+  const addStudent = useCallback(() => {
     const newId = createLocalStudentId();
-    setStudents([...students, { id: newId, name: `Öğrenci ${students.length + 1}`, scores: {} }]);
-  };
+    setStudents(prev => [...prev, { id: newId, name: `Öğrenci ${prev.length + 1}`, scores: {} }]);
+  }, []);
 
-  const removeStudent = (id: string) => {
-    setStudents(students.filter(s => s.id !== id));
-  };
+  const removeStudent = useCallback((id: string) => {
+    setStudents(prev => prev.filter(s => s.id !== id));
+  }, []);
 
-  const updateScore = (studentId: string, questionId: number, score: number) => {
+  const updateScore = useCallback((studentId: string, questionId: number, score: number) => {
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
         return { ...s, scores: { ...s.scores, [questionId]: score } };
       }
       return s;
     }));
-  };
+  }, []);
 
   // Analysis Logic
   const analysis: AnalysisResult = useMemo(() => {
@@ -772,6 +829,12 @@ function MainApp() {
             onChange={(e) => handleMetadataChange('date', e.target.value)}
             placeholder="YYYY-MM-DD veya GG.AA.YYYY"
           />
+          {!isExamDateValid && (
+            <p className="mt-2 text-xs text-red-600">Geçersiz tarih biçimi. Kayıtta tarih boş geçilecek.</p>
+          )}
+          {isExamDateValid && trimmedExamDate && normalizedExamDate && normalizedExamDate !== trimmedExamDate && (
+            <p className="mt-2 text-xs text-slate-500">Kaydedilecek format: {normalizedExamDate}</p>
+          )}
         </div>
 
         <div>
@@ -948,7 +1011,7 @@ function MainApp() {
         </button>
         <button onClick={() => {
           if (questions.length === 0) {
-            alert("Lütfen en az bir soru ekleyin.");
+            toast.warning("Lütfen en az bir soru ekleyin.");
             return;
           }
           if (students.length === 0) {
@@ -1208,8 +1271,13 @@ function MainApp() {
                     <UserIcon className="w-5 h-5" />
                   </div>
                 )}
-                <button onClick={signOut} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors" title="Çıkış Yap">
-                  <LogOut className="w-5 h-5" />
+                <button
+                  onClick={signOut}
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  title="Çıkış Yap"
+                  aria-label="Çıkış Yap"
+                >
+                  <LogOut className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -1230,12 +1298,22 @@ function MainApp() {
       {/* Modals */}
       {
         showClassModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="class-modal-title"
+            onKeyDown={(e) => e.key === 'Escape' && setShowClassModal(false)}
+          >
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-xl font-bold text-slate-800">Kayıtlı Sınıflar</h3>
-                <button onClick={() => setShowClassModal(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-6 h-6" />
+                <h3 id="class-modal-title" className="text-xl font-bold text-slate-800">Kayıtlı Sınıflar</h3>
+                <button
+                  onClick={() => setShowClassModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+                  aria-label="Modalı kapat"
+                >
+                  <X className="w-6 h-6" aria-hidden="true" />
                 </button>
               </div>
               <div className="p-6 overflow-y-auto flex-1">
@@ -1278,25 +1356,38 @@ function MainApp() {
 
       {
         showBulkAddModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bulk-add-modal-title"
+            onKeyDown={(e) => e.key === 'Escape' && setShowBulkAddModal(false)}
+          >
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-xl font-bold text-slate-800">Toplu Öğrenci Ekle</h3>
-                <button onClick={() => setShowBulkAddModal(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-6 h-6" />
+                <h3 id="bulk-add-modal-title" className="text-xl font-bold text-slate-800">Toplu Öğrenci Ekle</h3>
+                <button
+                  onClick={() => setShowBulkAddModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+                  aria-label="Modalı kapat"
+                >
+                  <X className="w-6 h-6" aria-hidden="true" />
                 </button>
               </div>
               <div className="p-6">
-                <p className="text-sm text-slate-600 mb-3">Öğrenci isimlerini alt alta yapıştırın veya yazın.</p>
+                <label htmlFor="bulk-student-input" className="text-sm text-slate-600 mb-3 block">Öğrenci isimlerini alt alta yapıştırın veya yazın.</label>
                 <textarea
+                  id="bulk-student-input"
                   className="w-full h-64 border-2 border-slate-300 rounded-lg p-3 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 text-sm"
                   placeholder="Ahmet Yılmaz&#10;Ayşe Demir&#10;Mehmet Kaya..."
                   value={bulkStudentText}
                   onChange={(e) => setBulkStudentText(e.target.value)}
+                  aria-describedby="bulk-student-hint"
                 />
+                <p id="bulk-student-hint" className="sr-only">Her satıra bir öğrenci ismi yazın</p>
                 <div className="mt-4 flex justify-end gap-3">
-                  <button onClick={() => setShowBulkAddModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">İptal</button>
-                  <button onClick={handleBulkAdd} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold">Ekle</button>
+                  <button onClick={() => setShowBulkAddModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium min-h-[44px]">İptal</button>
+                  <button onClick={handleBulkAdd} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold min-h-[44px]">Ekle</button>
                 </div>
               </div>
             </div>
@@ -1318,12 +1409,22 @@ function MainApp() {
       {/* Question Bank Modal */}
       {
         showQuestionBank && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="question-bank-modal-title"
+            onKeyDown={(e) => e.key === 'Escape' && setShowQuestionBank(false)}
+          >
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-800">Soru Bankası</h3>
-                <button onClick={() => setShowQuestionBank(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-6 h-6" />
+                <h3 id="question-bank-modal-title" className="text-lg font-bold text-slate-800">Soru Bankası</h3>
+                <button
+                  onClick={() => setShowQuestionBank(false)}
+                  className="text-slate-400 hover:text-slate-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+                  aria-label="Modalı kapat"
+                >
+                  <X className="w-6 h-6" aria-hidden="true" />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
@@ -1337,12 +1438,22 @@ function MainApp() {
       {/* Student Portal Modal */}
       {
         showStudentPortal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-portal-modal-title"
+            onKeyDown={(e) => e.key === 'Escape' && setShowStudentPortal(false)}
+          >
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-800">Öğrenci Portalı</h3>
-                <button onClick={() => setShowStudentPortal(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-6 h-6" />
+                <h3 id="student-portal-modal-title" className="text-lg font-bold text-slate-800">Öğrenci Portalı</h3>
+                <button
+                  onClick={() => setShowStudentPortal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+                  aria-label="Modalı kapat"
+                >
+                  <X className="w-6 h-6" aria-hidden="true" />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
@@ -1356,12 +1467,22 @@ function MainApp() {
       {/* Parent Portal Modal */}
       {
         showParentPortal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="parent-portal-modal-title"
+            onKeyDown={(e) => e.key === 'Escape' && setShowParentPortal(false)}
+          >
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-800">Veli Portalı</h3>
-                <button onClick={() => setShowParentPortal(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-6 h-6" />
+                <h3 id="parent-portal-modal-title" className="text-lg font-bold text-slate-800">Veli Portalı</h3>
+                <button
+                  onClick={() => setShowParentPortal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+                  aria-label="Modalı kapat"
+                >
+                  <X className="w-6 h-6" aria-hidden="true" />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
@@ -1375,12 +1496,22 @@ function MainApp() {
       {/* Admin Dashboard Modal */}
       {
         showAdminDashboard && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-dashboard-modal-title"
+            onKeyDown={(e) => e.key === 'Escape' && setShowAdminDashboard(false)}
+          >
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-800">Yönetici Dashboard</h3>
-                <button onClick={() => setShowAdminDashboard(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-6 h-6" />
+                <h3 id="admin-dashboard-modal-title" className="text-lg font-bold text-slate-800">Yönetici Dashboard</h3>
+                <button
+                  onClick={() => setShowAdminDashboard(false)}
+                  className="text-slate-400 hover:text-slate-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+                  aria-label="Modalı kapat"
+                >
+                  <X className="w-6 h-6" aria-hidden="true" />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-6 bg-slate-50">

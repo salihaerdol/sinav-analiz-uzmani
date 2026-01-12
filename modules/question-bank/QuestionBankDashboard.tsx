@@ -22,6 +22,7 @@ import {
     QuestionType
 } from './types';
 import { BloomLevel } from '../international-benchmark/types';
+import { useToast } from '../notifications';
 import {
     fetchQuestionBankData,
     createQuestion,
@@ -316,6 +317,7 @@ export const QuestionBankDashboard: React.FC = () => {
     const [formOutcomeId, setFormOutcomeId] = useState<string>('');
     const [tagsInput, setTagsInput] = useState('');
     const [saving, setSaving] = useState(false);
+    const toast = useToast();
 
     const refreshData = async () => {
         const data = await fetchQuestionBankData();
@@ -403,13 +405,13 @@ export const QuestionBankDashboard: React.FC = () => {
         if (success) {
             await refreshData();
         } else {
-            alert('Soru silinemedi.');
+            toast.error('Soru silinemedi.');
         }
     };
 
     const handleSaveQuestion = async () => {
         if (!formData.text.trim()) {
-            alert('Soru metni boş bırakılamaz.');
+            toast.warning('Soru metni boş bırakılamaz.');
             return;
         }
 
@@ -452,7 +454,7 @@ export const QuestionBankDashboard: React.FC = () => {
             await refreshData();
             setIsFormOpen(false);
         } else {
-            alert('Soru kaydedilemedi.');
+            toast.error('Soru kaydedilemedi.');
         }
         setSaving(false);
     };

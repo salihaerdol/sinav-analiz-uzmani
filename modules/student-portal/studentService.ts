@@ -12,6 +12,7 @@ import {
 } from './types';
 import { analysisHistoryService } from '../../services/supabaseHistoryService';
 import { SavedAnalysis } from '../../types';
+import { supabase, isSupabaseConfigured } from '../../services/supabase';
 
 const normalizeName = (value?: string) => (value || '').trim().toLowerCase();
 
@@ -437,3 +438,160 @@ export function getPriorityColor(priority: 'high' | 'medium' | 'low'): string {
         case 'low': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// WRITE OPERATIONS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Çalışma planı görevini tamamlandı olarak işaretle
+ */
+export async function markStudyPlanTaskComplete(taskId: string): Promise<boolean> {
+    if (!isSupabaseConfigured) {
+        console.warn('Supabase yapılandırılmamış, görev tamamlanamadı.');
+        return false;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { error } = await supabase
+        .from('student_study_tasks')
+        .upsert({
+            id: taskId,
+            user_id: user.id,
+            is_completed: true,
+            completed_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+    if (error) {
+        console.error('Görev tamamlanamadı:', error);
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Öğrenci hedefi oluştur
+ */
+export async function createStudentGoal(goal: {
+    title: string;
+    description: string;
+    targetValue: number;
+    unit: string;
+}): Promise<string | null> {
+    if (!isSupabaseConfigured) {
+        console.warn('Supabase yapılandırılmamış, hedef oluşturulamadı.');
+        return null;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('student_goals')
+        .insert({
+            user_id: user.id,
+            title: goal.title,
+            description: goal.description,
+            target_value: goal.targetValue,
+            current_value: 0,
+            unit: goal.unit,
+            status: 'active',
+            created_at: new Date().toISOString()
+        })
+        .select('id')
+        .single();
+
+    if (error) {
+        console.error('Hedef oluşturulamadı:', error);
+        return null;
+    }
+
+    return data?.id || null;
+}
+
+/**
+ * Hedef ilerlemesini güncelle
+ */
+export async function updateGoalProgress(goalId: string, currentValue: number): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+
+    const { error } = await supabase
+        .from('student_goals')
+        .update({
+            current_value: currentValue,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', goalId);
+
+    if (error) {
+        console.error('Hedef güncellenemedi:', error);
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Rozet kazanma durumunu kaydet
+ */
+export async function saveEarnedBadge(badge: {
+    type: Badge['type'];
+    earnedAt: string;
+    points: number;
+}): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { error } = await supabase
+        .from('student_badges')
+        .upsert({
+            user_id: user.id,
+            badge_type: badge.type,
+            earned_at: badge.earnedAt,
+            points: badge.points
+        }, { onConflict: 'user_id,badge_type' });
+
+    if (error) {
+        console.error('Rozet kaydedilemedi:', error);
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Günlük çalışma aktivitesi kaydet
+ */
+export async function logStudyActivity(activity: {
+    date: string;
+    studyMinutes: number;
+    completedTasks: number;
+}): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { error } = await supabase
+        .from('student_activity_log')
+        .upsert({
+            user_id: user.id,
+            activity_date: activity.date,
+            study_minutes: activity.studyMinutes,
+            completed_tasks: activity.completedTasks,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,activity_date' });
+
+    if (error) {
+        console.error('Aktivite kaydedilemedi:', error);
+        return false;
+    }
+
+    return true;
+}
+

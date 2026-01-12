@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Key, Check, AlertCircle, Loader2, Trash2, ExternalLink, Shield, Zap } from 'lucide-react';
 import { userApiKeyService } from '../services/userApiKeyService';
 import { checkApiKeyStatus, validateApiKey } from '../services/geminiService';
+import { useToast } from '../modules/notifications';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -20,6 +21,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     const [keyStatus, setKeyStatus] = useState<'none' | 'valid' | 'invalid' | 'checking'>('checking');
     const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
     const [apiStats, setApiStats] = useState<{ total: number; lastUsed: string | null }>({ total: 0, lastUsed: null });
+    const toast = useToast();
 
     useEffect(() => {
         loadExistingKey();

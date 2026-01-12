@@ -24,6 +24,7 @@ import { ReportComponent, ReportTemplate, ReportComponentType, ReportOptions, DE
 import { reportService } from './reportService';
 import { analysisHistoryService } from '../../services/supabaseHistoryService';
 import { SavedAnalysis } from '../../types';
+import { useToast } from '../notifications';
 
 interface ReportEditorProps {
     exportCanvasId?: string;
@@ -128,6 +129,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
     const [showTemplates, setShowTemplates] = useState(false);
     const [isPreview, setIsPreview] = useState(false);
     const [previewAnalysis, setPreviewAnalysis] = useState<SavedAnalysis | null>(null);
+    const toast = useToast();
 
     // Yeni: Bileşen seçim opsiyonları
     const [componentOptions, setComponentOptions] = useState<ReportOptions>(DEFAULT_REPORT_OPTIONS);
@@ -212,7 +214,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
 
     const handleSave = async () => {
         if (!templateName) {
-            alert('Lütfen şablon adı girin');
+            toast.warning('Lütfen şablon adı girin');
             return;
         }
         setIsSaving(true);
@@ -231,10 +233,10 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ exportCanvasId }) =>
                 // Yeni: Bileşen opsiyonlarını da kaydet
                 componentOptions
             });
-            alert('Şablon başarıyla kaydedildi');
+            toast.success('Şablon başarıyla kaydedildi');
             loadTemplates();
         } catch (err: any) {
-            alert('Hata: ' + err.message);
+            toast.error('Hata: ' + err.message);
         } finally {
             setIsSaving(false);
         }

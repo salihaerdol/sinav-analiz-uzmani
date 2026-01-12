@@ -6,6 +6,7 @@ import {
   RadialBarChart, RadialBar
 } from 'recharts';
 import { generateAIAnalysis } from '../services/geminiService';
+import { useToast } from '../modules/notifications';
 import {
   FileText, Download, Bot, AlertTriangle, CheckCircle, TrendingUp, Users, Target,
   ClipboardList, Globe, Calculator, BarChart2, UserCheck, PieChart as PieChartIcon,
@@ -71,6 +72,7 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('tr');
   const [activeModuleTab, setActiveModuleTab] = useState<ModuleTab | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
 
   const exportScenarios = getExportScenarios(selectedLanguage);
   const moduleTabs: { id: ModuleTab; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -232,7 +234,7 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
       await quickExport(scenario, analysis, metadata, questions, students, chartImages, selectedLanguage);
     } catch (error) {
       console.error("Quick Export failed:", error);
-      alert("PDF oluşturulurken bir hata oluştu.");
+      toast.error("PDF oluşturulurken bir hata oluştu.");
     } finally {
       setExportingPdf(false);
     }
@@ -250,7 +252,7 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
       }
     } catch (error) {
       console.error("PDF Export failed:", error);
-      alert("PDF oluşturulurken bir hata oluştu.");
+      toast.error("PDF oluşturulurken bir hata oluştu.");
     } finally {
       setExportingPdf(false);
     }
@@ -287,7 +289,7 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
     if (!id) return;
     const element = document.getElementById(id);
     if (!element) {
-      alert('PDF için içerik bulunamadı.');
+      toast.warning('PDF için içerik bulunamadı.');
       return;
     }
 
@@ -310,7 +312,7 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
       pdf.save(fileName);
     } catch (error) {
       console.error('Module PDF export failed:', error);
-      alert('PDF oluşturulurken bir hata oluştu.');
+      toast.error('PDF oluşturulurken bir hata oluştu.');
     } finally {
       setExportingPdf(false);
     }
