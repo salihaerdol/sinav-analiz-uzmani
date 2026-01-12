@@ -68,6 +68,33 @@ interface QuickTip {
     color: string;
 }
 
+const buildExamTitle = (analysis: SavedAnalysis) => {
+    const className = analysis.metadata.className || 'Sınıf';
+    const subject = analysis.metadata.subject || 'Ders';
+    const examNumber = analysis.metadata.examNumber || '-';
+    const examType = analysis.metadata.examType || 'Sınav';
+    return `${className} • ${subject} • ${examNumber}. ${examType}`;
+};
+
+const mapAnalysesToExams = (analyses: SavedAnalysis[]): Exam[] => {
+    return analyses.map((analysis) => {
+        const rawDate = analysis.metadata.date || analysis.createdAt || '';
+        const examDate = rawDate ? rawDate.split('T')[0] : '';
+        return {
+            id: analysis.id,
+            title: buildExamTitle(analysis),
+            subject: analysis.metadata.subject || '-',
+            grade: analysis.metadata.grade || '-',
+            exam_date: examDate,
+            term: analysis.metadata.term || '1',
+            exam_number: analysis.metadata.examNumber || '-',
+            exam_type: analysis.metadata.examType || 'Yazılı',
+            status: 'published',
+            class_average: analysis.analysis.classAverage
+        };
+    });
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({
     onNewAnalysis,
     onViewExam,
@@ -165,16 +192,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [lists, exams] = await Promise.all([
+            const [lists, exams, analyses] = await Promise.all([
                 studentListService.getAll(),
-                examService.getAll()
+                examService.getAll(),
+                analysisHistoryService.getAllAnalyses()
             ]);
             setStudentLists(lists);
-            setRecentExams(exams);
-
-            // Yerel geçmiş analizleri yükle
-            const localAnalyses = await analysisHistoryService.getAllAnalyses();
-            setRecentAnalyses(localAnalyses.slice(0, 5));
+            const resolvedExams = exams.length > 0 ? exams : mapAnalysesToExams(analyses);
+            setRecentExams(resolvedExams);
+            setRecentAnalyses(analyses.slice(0, 5));
         } catch (error) {
             console.error('Error loading dashboard data:', error);
         } finally {
