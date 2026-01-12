@@ -737,6 +737,9 @@ export async function exportToWord(
     const averageSuccess = Number.isFinite(analysis.averageSuccess) ? analysis.averageSuccess : classAverage;
     const totalScores = students.map((s) => Object.values(s.scores).reduce((a, b) => a + b, 0));
     const maxScoreValue = totalScores.length ? Math.max(...totalScores) : 0;
+    const pageSize = { width: 11906, height: 16838 };
+    const pageMargins = { top: 1134, bottom: 1134, left: 907, right: 907 };
+    const contentWidth = pageSize.width - pageMargins.left - pageMargins.right;
 
     const tableBorders = {
         top: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
@@ -766,9 +769,24 @@ export async function exportToWord(
         })
     );
 
-    const buildTable = (rows: TableRow[]) => new Table({
+    const makeColumnWidths = (weights: number[]) => {
+        const total = weights.reduce((sum, weight) => sum + weight, 0);
+        let used = 0;
+        return weights.map((weight, index) => {
+            if (index === weights.length - 1) {
+                return contentWidth - used;
+            }
+            const width = Math.round((contentWidth * weight) / total);
+            used += width;
+            return width;
+        });
+    };
+
+    const buildTable = (rows: TableRow[], columnWidths: number[]) => new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         layout: TableLayoutType.FIXED,
+        alignment: AlignmentType.CENTER,
+        columnWidths,
         rows
     });
 
@@ -819,7 +837,7 @@ export async function exportToWord(
                 makeCell(maxScoreValue.toString())
             ]
         })
-    ]);
+    ], makeColumnWidths([1, 1, 1, 1]));
 
     const sortedStudents = [...students].sort((a, b) => {
         const sa = Object.values(a.scores).reduce((x, y) => x + y, 0);
@@ -856,7 +874,10 @@ export async function exportToWord(
         });
     });
 
-    const studentTable = buildTable([studentHeaderRow, ...studentRows]);
+    const studentTable = buildTable(
+        [studentHeaderRow, ...studentRows],
+        makeColumnWidths([10, 40, 15, 15, 20])
+    );
 
     const outcomeHeaderRow = new TableRow({
         tableHeader: true,
@@ -869,21 +890,24 @@ export async function exportToWord(
 
     const outcomeRows = (analysis.outcomeStats ?? []).map((item) => new TableRow({
         children: [
-            makeCell(item.description, { align: AlignmentType.LEFT }),
+            makeCell(normalizeText(item.description), { align: AlignmentType.LEFT }),
             makeCell('-'),
             makeCell(`%${item.successRate.toFixed(1)}`)
         ]
     }));
 
-    const outcomeTable = buildTable([outcomeHeaderRow, ...outcomeRows]);
+    const outcomeTable = buildTable(
+        [outcomeHeaderRow, ...outcomeRows],
+        makeColumnWidths([60, 20, 20])
+    );
 
     const doc = new Document({
         sections: [
             {
                 properties: {
                     page: {
-                        size: { width: 11906, height: 16838 },
-                        margin: { top: 1134, bottom: 1134, left: 907, right: 907 }
+                        size: pageSize,
+                        margin: pageMargins
                     }
                 },
                 children: [
