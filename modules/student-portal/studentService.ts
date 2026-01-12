@@ -458,11 +458,12 @@ export async function markStudyPlanTaskComplete(taskId: string): Promise<boolean
     const { error } = await supabase
         .from('student_study_tasks')
         .upsert({
-            id: taskId,
             user_id: user.id,
+            task_id: taskId,
             is_completed: true,
-            completed_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,task_id' });
 
     if (error) {
         console.error('Görev tamamlanamadı:', error);
@@ -594,4 +595,3 @@ export async function logStudyActivity(activity: {
 
     return true;
 }
-

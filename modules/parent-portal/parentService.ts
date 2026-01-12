@@ -387,11 +387,12 @@ export async function markNotificationAsRead(notificationId: string): Promise<bo
     const { error } = await supabase
         .from('parent_notifications')
         .upsert({
-            id: notificationId,
             user_id: user.id,
+            notification_id: notificationId,
             is_read: true,
-            read_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+            read_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,notification_id' });
 
     if (error) {
         console.error('Bildirim güncellenemedi:', error);
@@ -414,7 +415,8 @@ export async function markAllNotificationsAsRead(): Promise<boolean> {
         .from('parent_notifications')
         .update({
             is_read: true,
-            read_at: new Date().toISOString()
+            read_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
         })
         .eq('user_id', user.id)
         .eq('is_read', false);
@@ -550,7 +552,7 @@ export async function submitParentFeedback(feedback: {
     if (!isSupabaseConfigured) return false;
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user) return false;
 
     const { error } = await supabase
         .from('parent_feedback')

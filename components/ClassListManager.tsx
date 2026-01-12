@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, List, AlertCircle, CheckCircle } from 'lucide-react';
 import { studentListService, StudentList } from '../services/supabase';
-import { useToast } from '../modules/notifications';
 
 export function ClassListManager() {
     const [classLists, setClassLists] = useState<StudentList[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>('');
     const [success, setSuccess] = useState<string>('');
-    const toast = useToast();
     const [newClass, setNewClass] = useState<StudentList>({
         name: '',
         grade: '5',

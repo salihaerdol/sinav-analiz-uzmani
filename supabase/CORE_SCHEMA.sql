@@ -489,6 +489,126 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 );
 
 -- =====================================================
+-- PARENT PORTAL TABLES
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.parent_notifications (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid NOT NULL,
+  notification_id text NOT NULL,
+  type text,
+  title text,
+  message text,
+  data jsonb,
+  is_read boolean DEFAULT false,
+  read_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT parent_notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT parent_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id),
+  CONSTRAINT parent_notifications_user_notification_key UNIQUE (user_id, notification_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.parent_preferences (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid NOT NULL,
+  email_notifications boolean DEFAULT true,
+  push_notifications boolean DEFAULT true,
+  weekly_report boolean DEFAULT true,
+  selected_child_id text,
+  language text DEFAULT 'tr',
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT parent_preferences_pkey PRIMARY KEY (id),
+  CONSTRAINT parent_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id),
+  CONSTRAINT parent_preferences_user_id_key UNIQUE (user_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.parent_child_notes (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid NOT NULL,
+  child_id text NOT NULL,
+  title text NOT NULL,
+  content text NOT NULL,
+  category text DEFAULT 'general' CHECK (category IN ('academic', 'behavior', 'health', 'general')),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT parent_child_notes_pkey PRIMARY KEY (id),
+  CONSTRAINT parent_child_notes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+
+CREATE TABLE IF NOT EXISTS public.parent_feedback (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid NOT NULL,
+  type text NOT NULL CHECK (type IN ('suggestion', 'complaint', 'praise', 'question')),
+  subject text NOT NULL,
+  message text NOT NULL,
+  child_id text,
+  status text DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'resolved')),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT parent_feedback_pkey PRIMARY KEY (id),
+  CONSTRAINT parent_feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+
+-- =====================================================
+-- STUDENT PORTAL TABLES
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.student_study_tasks (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid NOT NULL,
+  task_id text NOT NULL,
+  is_completed boolean DEFAULT false,
+  completed_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT student_study_tasks_pkey PRIMARY KEY (id),
+  CONSTRAINT student_study_tasks_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id),
+  CONSTRAINT student_study_tasks_user_task_key UNIQUE (user_id, task_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.student_goals (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid NOT NULL,
+  title text NOT NULL,
+  description text,
+  target_value numeric NOT NULL,
+  current_value numeric DEFAULT 0,
+  unit text NOT NULL,
+  deadline date,
+  status text DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed')),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT student_goals_pkey PRIMARY KEY (id),
+  CONSTRAINT student_goals_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+
+CREATE TABLE IF NOT EXISTS public.student_badges (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid NOT NULL,
+  badge_type text NOT NULL,
+  earned_at timestamp with time zone,
+  points integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT student_badges_pkey PRIMARY KEY (id),
+  CONSTRAINT student_badges_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id),
+  CONSTRAINT student_badges_user_badge_key UNIQUE (user_id, badge_type)
+);
+
+CREATE TABLE IF NOT EXISTS public.student_activity_log (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid NOT NULL,
+  activity_date date NOT NULL,
+  study_minutes integer DEFAULT 0,
+  completed_tasks integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT student_activity_log_pkey PRIMARY KEY (id),
+  CONSTRAINT student_activity_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id),
+  CONSTRAINT student_activity_log_user_date_key UNIQUE (user_id, activity_date)
+);
+
+-- =====================================================
 -- SAFE ALTER FOR REPORT EDITOR FIELDS
 -- =====================================================
 ALTER TABLE public.report_templates ADD COLUMN IF NOT EXISTS description text;
@@ -533,6 +653,17 @@ CREATE INDEX IF NOT EXISTS idx_qb_questions_subject_grade ON public.question_ban
 CREATE INDEX IF NOT EXISTS idx_qb_questions_topic ON public.question_bank_questions(topic_id);
 CREATE INDEX IF NOT EXISTS idx_qb_questions_outcome ON public.question_bank_questions(outcome_id);
 CREATE INDEX IF NOT EXISTS idx_qb_questions_public ON public.question_bank_questions(is_public);
+CREATE INDEX IF NOT EXISTS idx_parent_notifications_user ON public.parent_notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_parent_notifications_read ON public.parent_notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_parent_preferences_user ON public.parent_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_parent_child_notes_user ON public.parent_child_notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_parent_child_notes_child ON public.parent_child_notes(child_id);
+CREATE INDEX IF NOT EXISTS idx_parent_feedback_user ON public.parent_feedback(user_id);
+CREATE INDEX IF NOT EXISTS idx_parent_feedback_status ON public.parent_feedback(status);
+CREATE INDEX IF NOT EXISTS idx_student_study_tasks_user ON public.student_study_tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_student_goals_user ON public.student_goals(user_id);
+CREATE INDEX IF NOT EXISTS idx_student_badges_user ON public.student_badges(user_id);
+CREATE INDEX IF NOT EXISTS idx_student_activity_user_date ON public.student_activity_log(user_id, activity_date);
 
 -- =====================================================
 -- RLS FOR MODULE TABLES
@@ -800,6 +931,46 @@ CREATE TRIGGER update_user_api_keys_updated_at
   BEFORE UPDATE ON public.user_api_keys
   FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_parent_notifications_updated_at ON public.parent_notifications;
+CREATE TRIGGER update_parent_notifications_updated_at
+  BEFORE UPDATE ON public.parent_notifications
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_parent_preferences_updated_at ON public.parent_preferences;
+CREATE TRIGGER update_parent_preferences_updated_at
+  BEFORE UPDATE ON public.parent_preferences
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_parent_child_notes_updated_at ON public.parent_child_notes;
+CREATE TRIGGER update_parent_child_notes_updated_at
+  BEFORE UPDATE ON public.parent_child_notes
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_parent_feedback_updated_at ON public.parent_feedback;
+CREATE TRIGGER update_parent_feedback_updated_at
+  BEFORE UPDATE ON public.parent_feedback
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_student_study_tasks_updated_at ON public.student_study_tasks;
+CREATE TRIGGER update_student_study_tasks_updated_at
+  BEFORE UPDATE ON public.student_study_tasks
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_student_goals_updated_at ON public.student_goals;
+CREATE TRIGGER update_student_goals_updated_at
+  BEFORE UPDATE ON public.student_goals
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_student_badges_updated_at ON public.student_badges;
+CREATE TRIGGER update_student_badges_updated_at
+  BEFORE UPDATE ON public.student_badges
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_student_activity_log_updated_at ON public.student_activity_log;
+CREATE TRIGGER update_student_activity_log_updated_at
+  BEFORE UPDATE ON public.student_activity_log
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
 -- =====================================================
 -- STORAGE BUCKET FOR OCR FILES
 -- =====================================================
@@ -895,6 +1066,14 @@ ALTER TABLE public.report_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.question_bank_topics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.question_bank_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.question_bank_questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.parent_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.parent_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.parent_child_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.parent_feedback ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_study_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_goals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_badges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_activity_log ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "profile_select_own_or_admin" ON public.user_profiles;
 CREATE POLICY "profile_select_own_or_admin"
@@ -1293,6 +1472,174 @@ WITH CHECK (user_id = auth.uid() OR public.is_admin());
 DROP POLICY IF EXISTS "qb_questions_delete_own_or_admin" ON public.question_bank_questions;
 CREATE POLICY "qb_questions_delete_own_or_admin"
 ON public.question_bank_questions FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_notifications_select_own_or_admin" ON public.parent_notifications;
+CREATE POLICY "parent_notifications_select_own_or_admin"
+ON public.parent_notifications FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_notifications_insert_own_or_admin" ON public.parent_notifications;
+CREATE POLICY "parent_notifications_insert_own_or_admin"
+ON public.parent_notifications FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_notifications_update_own_or_admin" ON public.parent_notifications;
+CREATE POLICY "parent_notifications_update_own_or_admin"
+ON public.parent_notifications FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_notifications_delete_own_or_admin" ON public.parent_notifications;
+CREATE POLICY "parent_notifications_delete_own_or_admin"
+ON public.parent_notifications FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_preferences_select_own_or_admin" ON public.parent_preferences;
+CREATE POLICY "parent_preferences_select_own_or_admin"
+ON public.parent_preferences FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_preferences_insert_own_or_admin" ON public.parent_preferences;
+CREATE POLICY "parent_preferences_insert_own_or_admin"
+ON public.parent_preferences FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_preferences_update_own_or_admin" ON public.parent_preferences;
+CREATE POLICY "parent_preferences_update_own_or_admin"
+ON public.parent_preferences FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_preferences_delete_own_or_admin" ON public.parent_preferences;
+CREATE POLICY "parent_preferences_delete_own_or_admin"
+ON public.parent_preferences FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_child_notes_select_own_or_admin" ON public.parent_child_notes;
+CREATE POLICY "parent_child_notes_select_own_or_admin"
+ON public.parent_child_notes FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_child_notes_insert_own_or_admin" ON public.parent_child_notes;
+CREATE POLICY "parent_child_notes_insert_own_or_admin"
+ON public.parent_child_notes FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_child_notes_update_own_or_admin" ON public.parent_child_notes;
+CREATE POLICY "parent_child_notes_update_own_or_admin"
+ON public.parent_child_notes FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_child_notes_delete_own_or_admin" ON public.parent_child_notes;
+CREATE POLICY "parent_child_notes_delete_own_or_admin"
+ON public.parent_child_notes FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_feedback_select_own_or_admin" ON public.parent_feedback;
+CREATE POLICY "parent_feedback_select_own_or_admin"
+ON public.parent_feedback FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_feedback_insert_own_or_admin" ON public.parent_feedback;
+CREATE POLICY "parent_feedback_insert_own_or_admin"
+ON public.parent_feedback FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_feedback_update_own_or_admin" ON public.parent_feedback;
+CREATE POLICY "parent_feedback_update_own_or_admin"
+ON public.parent_feedback FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "parent_feedback_delete_own_or_admin" ON public.parent_feedback;
+CREATE POLICY "parent_feedback_delete_own_or_admin"
+ON public.parent_feedback FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_study_tasks_select_own_or_admin" ON public.student_study_tasks;
+CREATE POLICY "student_study_tasks_select_own_or_admin"
+ON public.student_study_tasks FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_study_tasks_insert_own_or_admin" ON public.student_study_tasks;
+CREATE POLICY "student_study_tasks_insert_own_or_admin"
+ON public.student_study_tasks FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_study_tasks_update_own_or_admin" ON public.student_study_tasks;
+CREATE POLICY "student_study_tasks_update_own_or_admin"
+ON public.student_study_tasks FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_study_tasks_delete_own_or_admin" ON public.student_study_tasks;
+CREATE POLICY "student_study_tasks_delete_own_or_admin"
+ON public.student_study_tasks FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_goals_select_own_or_admin" ON public.student_goals;
+CREATE POLICY "student_goals_select_own_or_admin"
+ON public.student_goals FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_goals_insert_own_or_admin" ON public.student_goals;
+CREATE POLICY "student_goals_insert_own_or_admin"
+ON public.student_goals FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_goals_update_own_or_admin" ON public.student_goals;
+CREATE POLICY "student_goals_update_own_or_admin"
+ON public.student_goals FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_goals_delete_own_or_admin" ON public.student_goals;
+CREATE POLICY "student_goals_delete_own_or_admin"
+ON public.student_goals FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_badges_select_own_or_admin" ON public.student_badges;
+CREATE POLICY "student_badges_select_own_or_admin"
+ON public.student_badges FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_badges_insert_own_or_admin" ON public.student_badges;
+CREATE POLICY "student_badges_insert_own_or_admin"
+ON public.student_badges FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_badges_update_own_or_admin" ON public.student_badges;
+CREATE POLICY "student_badges_update_own_or_admin"
+ON public.student_badges FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_badges_delete_own_or_admin" ON public.student_badges;
+CREATE POLICY "student_badges_delete_own_or_admin"
+ON public.student_badges FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_activity_log_select_own_or_admin" ON public.student_activity_log;
+CREATE POLICY "student_activity_log_select_own_or_admin"
+ON public.student_activity_log FOR SELECT
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_activity_log_insert_own_or_admin" ON public.student_activity_log;
+CREATE POLICY "student_activity_log_insert_own_or_admin"
+ON public.student_activity_log FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_activity_log_update_own_or_admin" ON public.student_activity_log;
+CREATE POLICY "student_activity_log_update_own_or_admin"
+ON public.student_activity_log FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "student_activity_log_delete_own_or_admin" ON public.student_activity_log;
+CREATE POLICY "student_activity_log_delete_own_or_admin"
+ON public.student_activity_log FOR DELETE
 USING (user_id = auth.uid() OR public.is_admin());
 
 
