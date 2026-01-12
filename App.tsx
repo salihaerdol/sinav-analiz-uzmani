@@ -17,6 +17,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { analysisHistoryService } from './services/supabaseHistoryService';
 import AdminDashboard from './modules/admin-dashboard/AdminDashboard';
 import { QuestionBankDashboard } from './modules/question-bank';
+import { StudentDashboard } from './modules/student-portal';
+import { ParentDashboard } from './modules/parent-portal';
 
 // Steps Enum
 enum Step {
@@ -110,6 +112,8 @@ function MainApp() {
   const [showProgressDashboard, setShowProgressDashboard] = useState(false);    
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [showQuestionBank, setShowQuestionBank] = useState(false);
+  const [showStudentPortal, setShowStudentPortal] = useState(false);
+  const [showParentPortal, setShowParentPortal] = useState(false);
   const [analysisCount, setAnalysisCount] = useState(0);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
@@ -1130,6 +1134,18 @@ function MainApp() {
               >
                 <BookOpen className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Soru Bankası</span>
               </button>
+              <button
+                onClick={() => setShowStudentPortal(true)}
+                className="ml-2 flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors"
+              >
+                <UserIcon className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Öğrenci Portalı</span>
+              </button>
+              <button
+                onClick={() => setShowParentPortal(true)}
+                className="ml-2 flex items-center px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg text-xs font-bold hover:bg-rose-100 transition-colors"
+              >
+                <Users className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Veli Portalı</span>
+              </button>
               {isAdmin && (
                 <button
                   onClick={() => setShowAdminDashboard(true)}
@@ -1298,6 +1314,44 @@ function MainApp() {
               </div>
               <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
                 <QuestionBankDashboard />
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Student Portal Modal */}
+      {
+        showStudentPortal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-800">Öğrenci Portalı</h3>
+                <button onClick={() => setShowStudentPortal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+                <StudentDashboard />
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Parent Portal Modal */}
+      {
+        showParentPortal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-800">Veli Portalı</h3>
+                <button onClick={() => setShowParentPortal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+                <ParentDashboard />
               </div>
             </div>
           </div>
