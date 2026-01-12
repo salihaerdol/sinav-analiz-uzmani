@@ -19,6 +19,8 @@ import AdminDashboard from './modules/admin-dashboard/AdminDashboard';
 import { QuestionBankDashboard } from './modules/question-bank';
 import { StudentDashboard } from './modules/student-portal';
 import { ParentDashboard } from './modules/parent-portal';
+import { NotificationProvider, ToastContainer } from './modules/notifications';
+import { I18nProvider, LanguageSelector } from './modules/i18n';
 
 // Steps Enum
 enum Step {
@@ -1183,6 +1185,7 @@ function MainApp() {
 
               {/* User Profile & Logout */}
               <div className="flex items-center gap-3 pl-4 border-l border-slate-200 ml-4">
+                <LanguageSelector variant="compact" />
                 <div className="flex flex-col items-end hidden sm:flex">
                   <span className="text-sm font-bold text-slate-700">{user?.user_metadata?.full_name || user?.email}</span>
                   <span className="text-xs text-slate-500">{isAdmin ? 'Yönetici' : 'Kullanıcı'}</span>
@@ -1427,8 +1430,13 @@ function AuthWrapper() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AuthWrapper />
-    </AuthProvider>
+    <I18nProvider>
+      <NotificationProvider>
+        <AuthProvider>
+          <AuthWrapper />
+          <ToastContainer />
+        </AuthProvider>
+      </NotificationProvider>
+    </I18nProvider>
   );
 }
