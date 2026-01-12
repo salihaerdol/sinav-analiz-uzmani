@@ -19,7 +19,7 @@ interface AnalysisHistoryDB {
     grade: string;
     subject: string;
     scenario: string;
-    exam_date: string;
+    exam_date: string | null;
     term: string;
     exam_number: string;
     exam_type: string;
@@ -333,7 +333,7 @@ export const analysisHistoryService = {
             grade: metadata.grade,
             subject: metadata.subject,
             scenario: metadata.scenario,
-            exam_date: metadata.date,
+            exam_date: metadata.date || null,
             term: metadata.term,
             exam_number: metadata.examNumber,
             exam_type: metadata.examType,
@@ -455,7 +455,7 @@ export const analysisHistoryService = {
             dbUpdates.grade = updates.metadata.grade;
             dbUpdates.subject = updates.metadata.subject;
             dbUpdates.scenario = updates.metadata.scenario;
-            dbUpdates.exam_date = updates.metadata.date;
+            dbUpdates.exam_date = updates.metadata.date || null;
             dbUpdates.term = updates.metadata.term;
             dbUpdates.exam_number = updates.metadata.examNumber;
             dbUpdates.exam_type = updates.metadata.examType;
@@ -603,8 +603,9 @@ export const analysisHistoryService = {
                 .eq('student_name', student.name)
                 .single();
 
+            const examDate = metadata.date || new Date().toISOString();
             const examEntry = {
-                date: metadata.date,
+                date: examDate,
                 subject: metadata.subject,
                 className: metadata.className,
                 score: studentStat.percentage,
@@ -677,8 +678,9 @@ export const analysisHistoryService = {
             .eq('subject', metadata.subject)
             .single();
 
+        const examDate = metadata.date || new Date().toISOString();
         const examEntry = {
-            date: metadata.date,
+            date: examDate,
             average: analysis.classAverage,
             studentCount: analysis.studentStats.length,
             analysisId: analysisId || null
@@ -869,7 +871,7 @@ export const analysisHistoryService = {
                 grade: db.grade,
                 subject: db.subject,
                 scenario: db.scenario,
-                date: db.exam_date,
+                date: db.exam_date || '',
                 term: db.term as '1' | '2',
                 examNumber: db.exam_number,
                 examType: db.exam_type as 'Yazılı' | 'Sözlü' | 'Performans' | 'Proje',

@@ -19,8 +19,8 @@
 - [x] `types.ts`: `date` alanını `date?` olarak değiştirildi
 - [x] `App.tsx`: `INITIAL_METADATA` içinde `date` varsayılan değeri boş string yapıldı
 - [x] `exportServiceAdvanced.ts`: Tarih koşullu gösterim eklendi (sadece doluysa göster)
-- [ ] Form validasyonunda tarih kontrolünü kaldır
-- [ ] Raporlarda tarih koşullu gösterim ekle
+- [x] Form validasyonunda tarih kontrolünü kaldır
+- [x] Raporlarda tarih koşullu gösterim ekle
 
 **Kabul Kriterleri:**
 - Kullanıcı tarih girmeden analiz oluşturabilmeli
