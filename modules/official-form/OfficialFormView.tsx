@@ -70,7 +70,9 @@ export const OfficialFormView: React.FC<Props> = ({ analysis, metadata, question
                         <p><strong>Sınıf:</strong> {metadata.className}</p>
                         <p><strong>Sınav Dönemi:</strong> {metadata.term}. Dönem</p>
                         <p><strong>Sınav Numarası:</strong> {metadata.examNumber}. Yazılı</p>
-                        <p><strong>Sınav Tarihi:</strong> {metadata.date}</p>
+                        {metadata.date && (
+                            <p><strong>Sınav Tarihi:</strong> {metadata.date}</p>
+                        )}
                     </div>
                     <div className="text-right font-bold">
                         <p>{metadata.className}</p>
@@ -86,7 +88,7 @@ export const OfficialFormView: React.FC<Props> = ({ analysis, metadata, question
                     <thead>
                         <tr className="bg-slate-50">
                             <th rowSpan={2} className="border border-black px-1 py-1 w-6">SIRA NO</th>
-                            <th rowSpan={2} className="border border-black px-1 py-1 w-10">OKU L</th>
+                            <th rowSpan={2} className="border border-black px-1 py-1 w-10">OKUL</th>
                             <th rowSpan={2} className="border border-black px-1 py-1 w-24">ADI</th>
                             <th rowSpan={2} className="border border-black px-1 py-1 w-24">SOYADI</th>
                             <th colSpan={maxQuestions} className="border border-black py-0.5">SORULAR</th>

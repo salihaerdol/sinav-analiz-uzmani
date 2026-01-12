@@ -764,6 +764,16 @@ function MainApp() {
         </div>
 
         <div>
+          <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Sınav Tarihi (Opsiyonel)</label>
+          <input
+            type="date"
+            className="input-primary"
+            value={metadata.date || ''}
+            onChange={(e) => handleMetadataChange('date', e.target.value)}
+          />
+        </div>
+
+        <div>
           <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">Sınav Türü</label>
           <select className="input-primary cursor-pointer appearance-none"
             value={metadata.examType} onChange={(e) => handleMetadataChange('examType', e.target.value as 'Yazılı' | 'Sözlü' | 'Performans' | 'Proje')}>
