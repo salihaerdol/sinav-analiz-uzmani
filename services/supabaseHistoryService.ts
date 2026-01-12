@@ -78,6 +78,48 @@ interface ClassProgressDB {
 
 const LOCAL_STORAGE_PREFIX = 'analysis_history_local_v1';
 
+const padTwo = (value: number) => value.toString().padStart(2, '0');
+
+const normalizeExamDate = (value?: string | null): string | null => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+        const year = Number(isoMatch[1]);
+        const month = Number(isoMatch[2]);
+        const day = Number(isoMatch[3]);
+        const parsed = new Date(Date.UTC(year, month - 1, day));
+        if (
+            parsed.getUTCFullYear() === year &&
+            parsed.getUTCMonth() === month - 1 &&
+            parsed.getUTCDate() === day
+        ) {
+            return `${year}-${padTwo(month)}-${padTwo(day)}`;
+        }
+        return null;
+    }
+
+    const dmyMatch = trimmed.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+    if (dmyMatch) {
+        const day = Number(dmyMatch[1]);
+        const month = Number(dmyMatch[2]);
+        const year = Number(dmyMatch[3]);
+        const parsed = new Date(Date.UTC(year, month - 1, day));
+        if (
+            parsed.getUTCFullYear() === year &&
+            parsed.getUTCMonth() === month - 1 &&
+            parsed.getUTCDate() === day
+        ) {
+            return `${year}-${padTwo(month)}-${padTwo(day)}`;
+        }
+        return null;
+    }
+
+    return null;
+};
+
 const getLocalStorageKey = (userId?: string) => `${LOCAL_STORAGE_PREFIX}:${userId || 'guest'}`;
 
 const readLocalAnalyses = (key: string): SavedAnalysis[] => {
@@ -325,6 +367,11 @@ export const analysisHistoryService = {
             return local;
         }
 
+        const normalizedDate = normalizeExamDate(metadata.date);
+        if (metadata.date && !normalizedDate) {
+            console.warn('Sınav tarihi formatı çözülemedi, değer atlandı:', metadata.date);
+        }
+
         const record = {
             user_id: userId,
             school_name: metadata.schoolName,
@@ -333,7 +380,7 @@ export const analysisHistoryService = {
             grade: metadata.grade,
             subject: metadata.subject,
             scenario: metadata.scenario,
-            exam_date: metadata.date || null,
+            exam_date: normalizedDate,
             term: metadata.term,
             exam_number: metadata.examNumber,
             exam_type: metadata.examType,
@@ -449,13 +496,17 @@ export const analysisHistoryService = {
         const dbUpdates: any = {};
 
         if (updates.metadata) {
+            const normalizedDate = normalizeExamDate(updates.metadata.date);
+            if (updates.metadata.date && !normalizedDate) {
+                console.warn('Sınav tarihi formatı çözülemedi, değer atlandı:', updates.metadata.date);
+            }
             dbUpdates.school_name = updates.metadata.schoolName;
             dbUpdates.teacher_name = updates.metadata.teacherName;
             dbUpdates.class_name = updates.metadata.className;
             dbUpdates.grade = updates.metadata.grade;
             dbUpdates.subject = updates.metadata.subject;
             dbUpdates.scenario = updates.metadata.scenario;
-            dbUpdates.exam_date = updates.metadata.date || null;
+            dbUpdates.exam_date = normalizedDate;
             dbUpdates.term = updates.metadata.term;
             dbUpdates.exam_number = updates.metadata.examNumber;
             dbUpdates.exam_type = updates.metadata.examType;
@@ -603,7 +654,7 @@ export const analysisHistoryService = {
                 .eq('student_name', student.name)
                 .single();
 
-            const examDate = metadata.date || new Date().toISOString();
+            const examDate = normalizeExamDate(metadata.date) || new Date().toISOString();
             const examEntry = {
                 date: examDate,
                 subject: metadata.subject,
@@ -678,7 +729,7 @@ export const analysisHistoryService = {
             .eq('subject', metadata.subject)
             .single();
 
-        const examDate = metadata.date || new Date().toISOString();
+        const examDate = normalizeExamDate(metadata.date) || new Date().toISOString();
         const examEntry = {
             date: examDate,
             average: analysis.classAverage,
