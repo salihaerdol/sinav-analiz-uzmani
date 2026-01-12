@@ -17,7 +17,7 @@ import {
     StudyPlanItem
 } from './types';
 import {
-    generateStudentDemoData,
+    loadStudentDashboardData,
     getBadgeStyle,
     getPriorityColor
 } from './studentService';
@@ -192,8 +192,8 @@ export const StudentDashboard: React.FC = () => {
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
-            await new Promise(r => setTimeout(r, 500));
-            setData(generateStudentDemoData());
+            const dashboardData = await loadStudentDashboardData();
+            setData(dashboardData);
             setLoading(false);
         };
         loadData();
@@ -218,12 +218,23 @@ export const StudentDashboard: React.FC = () => {
         }));
     }, [data]);
 
-    if (loading || !data) {
+    if (loading) {
         return (
             <div className="flex items-center justify-center h-96">
                 <div className="text-center">
                     <div className="w-8 h-8 border-4 border-violet-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                     <p className="text-slate-500">Yükleniyor...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!data) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                    <p className="text-slate-500">Henüz öğrenci verisi bulunamadı.</p>
+                    <p className="text-xs text-slate-400 mt-2">Analiz geçmişi oluşturulduğunda bu ekran otomatik güncellenir.</p>
                 </div>
             </div>
         );

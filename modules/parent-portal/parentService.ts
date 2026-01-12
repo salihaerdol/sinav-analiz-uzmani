@@ -1,7 +1,6 @@
 // =====================================================
 // MODÜL: VELİ PORTALI - SERVİS
 // =====================================================
-
 import {
     StudentSummary,
     ExamResult,
@@ -11,240 +10,301 @@ import {
     ParentNotification,
     ParentDashboardData
 } from './types';
+import { analysisHistoryService } from '../../services/supabaseHistoryService';
+import { SavedAnalysis, Student } from '../../types';
+
+const normalizeName = (value?: string) => (value || '').trim().toLowerCase();
+
+const toDateValue = (value?: string) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed;
+};
+
+const getExamPercentage = (entry: { percentage?: number; score?: number }) => {
+    if (typeof entry.percentage === 'number') return entry.percentage;
+    if (typeof entry.score === 'number') return entry.score;
+    return 0;
+};
+
+const buildRankMap = (analysis: SavedAnalysis) => new Map(
+    [...analysis.analysis.studentStats]
+        .sort((a, b) => b.percentage - a.percentage)
+        .map((item, index) => [item.studentId, index + 1])
+);
+
+const buildExamTitle = (analysis: SavedAnalysis) => {
+    const term = analysis.metadata.term ? `${analysis.metadata.term}. Dönem` : '';
+    const number = analysis.metadata.examNumber ? `${analysis.metadata.examNumber}.` : '';
+    const type = analysis.metadata.examType || '';
+    return [term, number, type].filter(Boolean).join(' ').trim();
+};
+
+const findLatestAnalysisForStudent = (analyses: SavedAnalysis[], studentName: string) => {
+    const nameKey = normalizeName(studentName);
+    return analyses.find((analysis) =>
+        analysis.students.some(student => normalizeName(student.name) === nameKey)
+    );
+};
+
+const findStudentInAnalysis = (analysis: SavedAnalysis, studentName: string) => {
+    const nameKey = normalizeName(studentName);
+    return analysis.students.find(student => normalizeName(student.name) === nameKey);
+};
+
+const getStudentScoreBreakdown = (student: Student, analysis: SavedAnalysis) => {
+    const questions = analysis.questions || [];
+    const scoreMap = student.scores || {};
+    let correct = 0;
+    let wrong = 0;
+    let empty = 0;
+
+    questions.forEach((question) => {
+        const score = scoreMap[question.id] ?? 0;
+        if (score >= question.maxScore) {
+            correct += 1;
+        } else if (score <= 0) {
+            wrong += 1;
+        } else {
+            empty += 1;
+        }
+    });
+
+    return { correct, wrong, empty, totalQuestions: questions.length };
+};
+
+const buildExamResults = (analyses: SavedAnalysis[], studentName: string): ExamResult[] => {
+    const nameKey = normalizeName(studentName);
+    return analyses.flatMap((analysis) => {
+        const student = analysis.students.find(s => normalizeName(s.name) === nameKey);
+        if (!student) return [];
+        const stat = analysis.analysis.studentStats.find(s => s.studentId === student.id);
+        if (!stat) return [];
+        const rankMap = buildRankMap(analysis);
+        const breakdown = getStudentScoreBreakdown(student, analysis);
+        const percentage = stat.percentage;
+
+        return [{
+            id: analysis.id,
+            examTitle: buildExamTitle(analysis),
+            subject: analysis.metadata.subject,
+            date: analysis.metadata.date || analysis.createdAt,
+            score: Math.round(percentage),
+            maxScore: 100,
+            percentage,
+            classAverage: analysis.analysis.classAverage,
+            classRank: rankMap.get(student.id) || 0,
+            totalStudents: analysis.students.length,
+            status: percentage >= 70 ? 'passed' : percentage >= 50 ? 'borderline' : 'failed',
+            correctAnswers: breakdown.correct,
+            wrongAnswers: breakdown.wrong,
+            emptyAnswers: breakdown.empty,
+            totalQuestions: breakdown.totalQuestions
+        }];
+    });
+};
+
+const buildSubjectPerformances = (analyses: SavedAnalysis[], studentName: string): SubjectPerformance[] => {
+    const nameKey = normalizeName(studentName);
+    const subjectMap = new Map<string, { scores: number[]; latest?: SavedAnalysis }>();
+
+    analyses.forEach((analysis) => {
+        const student = analysis.students.find(s => normalizeName(s.name) === nameKey);
+        if (!student) return;
+        const stat = analysis.analysis.studentStats.find(s => s.studentId === student.id);
+        if (!stat) return;
+        const entry = subjectMap.get(analysis.metadata.subject) || { scores: [] };
+        entry.scores.push(stat.percentage);
+        if (!entry.latest) {
+            entry.latest = analysis;
+        }
+        subjectMap.set(analysis.metadata.subject, entry);
+    });
+
+    return Array.from(subjectMap.entries()).map(([subject, entry]) => {
+        const scores = entry.scores;
+        const average = scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : 0;
+        const lastScore = scores[scores.length - 1] || 0;
+        const previousScore = scores.length > 1 ? scores[scores.length - 2] : undefined;
+        const trend = previousScore === undefined
+            ? 'stable'
+            : lastScore > previousScore + 3
+                ? 'up'
+                : lastScore < previousScore - 3
+                    ? 'down'
+                    : 'stable';
+
+        const outcomeStats = entry.latest?.analysis.outcomeStats || [];
+        const sortedOutcomes = [...outcomeStats].sort((a, b) => b.successRate - a.successRate);
+        const strongTopics = sortedOutcomes.filter(o => o.successRate >= 70).slice(0, 2).map(o => o.description);
+        const weakTopics = sortedOutcomes.filter(o => o.successRate < 70).slice(-1).map(o => o.description);
+
+        return {
+            subject,
+            examCount: scores.length,
+            average,
+            trend,
+            strongTopics,
+            weakTopics,
+            lastScore
+        };
+    });
+};
+
+const buildOutcomeAnalyses = (analysis?: SavedAnalysis): OutcomeAnalysis[] => {
+    if (!analysis) return [];
+    return analysis.analysis.outcomeStats.map(o => ({
+        code: o.code,
+        description: o.description,
+        successRate: o.successRate,
+        status: o.successRate >= 70 ? 'strong' : o.successRate >= 50 ? 'average' : 'weak',
+        recommendation: o.successRate < 50 ? 'Ek tekrar yapılması önerilir.' : undefined
+    }));
+};
+
+const buildRecommendations = (outcomes: OutcomeAnalysis[], fallbackSubject?: string): ParentRecommendation[] => {
+    const weakOutcomes = outcomes.filter(o => o.status === 'weak');
+    if (weakOutcomes.length === 0) {
+        return [{
+            id: 'rec-stable',
+            type: 'study_tip',
+            title: 'Düzenli tekrar önerisi',
+            description: 'Kazanımlar dengeli görünüyor. Haftalık kısa tekrarlar başarıyı korur.',
+            priority: 'low',
+            subject: fallbackSubject
+        }];
+    }
+
+    return weakOutcomes.slice(0, 3).map((outcome, index) => ({
+        id: `rec-${index + 1}`,
+        type: outcome.successRate < 40 ? 'study_tip' : 'activity',
+        title: `${outcome.code} için destek`,
+        description: `${outcome.description} kazanımı için ek tekrar ve kısa ödevler önerilir.`,
+        priority: outcome.successRate < 40 ? 'high' : 'medium',
+        subject: fallbackSubject
+    }));
+};
+
+const buildNotifications = (exams: ExamResult[], studentName: string, includeReport: boolean) => {
+    const base = exams.slice(0, 3).map((exam, index) => ({
+        id: `notif-exam-${index + 1}`,
+        type: 'exam_result' as const,
+        title: `${exam.subject} sınav sonucu`,
+        message: `${studentName} için ${exam.subject} sınav sonucu: ${exam.score} puan`,
+        isRead: index > 0,
+        createdAt: exam.date
+    }));
+
+    if (includeReport) {
+        base.unshift({
+            id: 'notif-report',
+            type: 'report_ready',
+            title: 'Analiz raporu hazır',
+            message: `${studentName} için son analiz raporu hazırlandı.`,
+            isRead: false,
+            createdAt: exams[0]?.date || new Date().toISOString()
+        });
+    }
+
+    return base;
+};
 
 /**
- * Demo veri - Veli portalı için
+ * Veli portalı verilerini Supabase analizlerinden üretir.
  */
-export function generateParentDemoData(): ParentDashboardData {
-    const children: StudentSummary[] = [
-        {
-            id: 'child-1',
-            name: 'Elif Yılmaz',
-            className: '6-A',
-            grade: '6',
-            schoolName: 'Örnek Ortaokulu',
-            overallAverage: 78.5,
-            previousAverage: 74.2,
-            trend: 'up',
-            classRank: 8,
-            totalStudentsInClass: 28,
-            lastExamDate: '2026-01-08',
-            lastExamScore: 82,
-            lastExamSubject: 'Matematik'
-        },
-        {
-            id: 'child-2',
-            name: 'Can Yılmaz',
-            className: '4-B',
-            grade: '4',
-            schoolName: 'Örnek İlkokulu',
-            overallAverage: 85.2,
-            previousAverage: 83.1,
-            trend: 'up',
-            classRank: 3,
-            totalStudentsInClass: 25,
-            lastExamDate: '2026-01-10',
-            lastExamScore: 90,
-            lastExamSubject: 'Türkçe'
-        }
-    ];
+export async function loadParentDashboardData(options?: { selectedChildId?: string }): Promise<ParentDashboardData | null> {
+    const [analyses, progressList] = await Promise.all([
+        analysisHistoryService.getAllAnalyses(),
+        analysisHistoryService.getAllStudentProgress()
+    ]);
 
-    const recentExams: ExamResult[] = [
-        {
-            id: 'exam-1',
-            examTitle: '1. Dönem 2. Yazılı',
-            subject: 'Matematik',
-            date: '2026-01-08',
-            score: 82,
-            maxScore: 100,
-            percentage: 82,
-            classAverage: 68.5,
-            classRank: 5,
-            totalStudents: 28,
-            status: 'passed',
-            correctAnswers: 16,
-            wrongAnswers: 3,
-            emptyAnswers: 1,
-            totalQuestions: 20
-        },
-        {
-            id: 'exam-2',
-            examTitle: '1. Dönem 2. Yazılı',
-            subject: 'Türkçe',
-            date: '2026-01-05',
-            score: 75,
-            maxScore: 100,
-            percentage: 75,
-            classAverage: 72.1,
-            classRank: 10,
-            totalStudents: 28,
-            status: 'passed',
-            correctAnswers: 15,
-            wrongAnswers: 4,
-            emptyAnswers: 1,
-            totalQuestions: 20
-        },
-        {
-            id: 'exam-3',
-            examTitle: '1. Dönem 2. Yazılı',
-            subject: 'Fen Bilimleri',
-            date: '2026-01-03',
-            score: 68,
-            maxScore: 100,
-            percentage: 68,
-            classAverage: 65.8,
-            classRank: 12,
-            totalStudents: 28,
-            status: 'passed',
-            correctAnswers: 17,
-            wrongAnswers: 6,
-            emptyAnswers: 2,
-            totalQuestions: 25
-        }
-    ];
+    if (!analyses.length && !progressList.length) {
+        return null;
+    }
 
-    const subjectPerformances: SubjectPerformance[] = [
-        {
-            subject: 'Matematik',
-            examCount: 4,
-            average: 79.5,
-            trend: 'up',
-            strongTopics: ['Doğal Sayılar', 'Kesirler'],
-            weakTopics: ['Ondalık Kesirler'],
-            lastScore: 82
-        },
-        {
-            subject: 'Türkçe',
-            examCount: 4,
-            average: 76.2,
+    const sortedProgress = [...progressList].sort((a, b) => {
+        const aExams = a.examHistory?.length || 0;
+        const bExams = b.examHistory?.length || 0;
+        if (bExams !== aExams) return bExams - aExams;
+        return (b.averagePercentage || 0) - (a.averagePercentage || 0);
+    });
+
+    const children = sortedProgress.length
+        ? sortedProgress.map(progress => {
+            const latestAnalysis = findLatestAnalysisForStudent(analyses, progress.studentName);
+            const rankMap = latestAnalysis ? buildRankMap(latestAnalysis) : new Map<string, number>();
+            const latestExam = progress.examHistory?.[progress.examHistory.length - 1];
+            const previousExam = progress.examHistory?.length > 1
+                ? progress.examHistory[progress.examHistory.length - 2]
+                : undefined;
+            const lastScore = latestExam ? getExamPercentage(latestExam) : progress.averagePercentage;
+            const previousScore = previousExam ? getExamPercentage(previousExam) : progress.averagePercentage;
+            const trend = lastScore > previousScore + 3 ? 'up' : lastScore < previousScore - 3 ? 'down' : 'stable';
+
+            const student = latestAnalysis ? findStudentInAnalysis(latestAnalysis, progress.studentName) : undefined;
+            const classRank = student && latestAnalysis ? rankMap.get(student.id) : undefined;
+            const totalStudentsInClass = latestAnalysis?.students.length;
+
+            return {
+                id: progress.studentId || `student-${normalizeName(progress.studentName)}`,
+                name: progress.studentName,
+                className: progress.className || latestAnalysis?.metadata.className || '-',
+                grade: latestAnalysis?.metadata.grade || '-',
+                schoolName: latestAnalysis?.metadata.schoolName || '-',
+                overallAverage: Number((progress.averagePercentage || 0).toFixed(1)),
+                previousAverage: Number((previousScore || progress.averagePercentage || 0).toFixed(1)),
+                trend,
+                classRank,
+                totalStudentsInClass,
+                lastExamDate: latestExam?.date || latestAnalysis?.metadata.date,
+                lastExamScore: lastScore ? Math.round(lastScore) : undefined,
+                lastExamSubject: latestExam?.subject || latestAnalysis?.metadata.subject
+            } as StudentSummary;
+        })
+        : [];
+
+    if (children.length === 0) {
+        const latestAnalysis = analyses[0];
+        if (!latestAnalysis) return null;
+        const fallbackStudent = latestAnalysis.students[0];
+        if (!fallbackStudent) return null;
+        children.push({
+            id: fallbackStudent.id,
+            name: fallbackStudent.name,
+            className: latestAnalysis.metadata.className,
+            grade: latestAnalysis.metadata.grade,
+            schoolName: latestAnalysis.metadata.schoolName || '-',
+            overallAverage: latestAnalysis.analysis.classAverage,
+            previousAverage: latestAnalysis.analysis.classAverage,
             trend: 'stable',
-            strongTopics: ['Okuma Anlama', 'Dil Bilgisi'],
-            weakTopics: ['Paragraf Analizi'],
-            lastScore: 75
-        },
-        {
-            subject: 'Fen Bilimleri',
-            examCount: 3,
-            average: 71.8,
-            trend: 'up',
-            strongTopics: ['Canlılar', 'Madde ve Değişim'],
-            weakTopics: ['Kuvvet ve Hareket'],
-            lastScore: 68
-        },
-        {
-            subject: 'Sosyal Bilgiler',
-            examCount: 3,
-            average: 82.3,
-            trend: 'up',
-            strongTopics: ['Tarih', 'Coğrafya'],
-            weakTopics: [],
-            lastScore: 85
-        },
-        {
-            subject: 'İngilizce',
-            examCount: 4,
-            average: 74.8,
-            trend: 'down',
-            strongTopics: ['Kelime Bilgisi'],
-            weakTopics: ['Gramer', 'Yazma'],
-            lastScore: 70
-        }
-    ];
+            classRank: 1,
+            totalStudentsInClass: latestAnalysis.students.length,
+            lastExamDate: latestAnalysis.metadata.date,
+            lastExamScore: Math.round(latestAnalysis.analysis.classAverage),
+            lastExamSubject: latestAnalysis.metadata.subject
+        });
+    }
 
-    const outcomes: OutcomeAnalysis[] = [
-        {
-            code: 'M.6.1.2.3',
-            description: 'Doğal sayılarla dört işlem yapar',
-            successRate: 92,
-            status: 'strong'
-        },
-        {
-            code: 'M.6.1.5.2',
-            description: 'Kesirleri karşılaştırır ve sıralar',
-            successRate: 85,
-            status: 'strong'
-        },
-        {
-            code: 'M.6.1.6.4',
-            description: 'Ondalık kesirlerde toplama çıkarma yapar',
-            successRate: 58,
-            status: 'weak',
-            recommendation: 'Günlük 15 dakika ondalık kesir çalışması yapılması önerilir'
-        },
-        {
-            code: 'T.6.3.5.1',
-            description: 'Paragrafın konusunu belirler',
-            successRate: 65,
-            status: 'average',
-            recommendation: 'Hikaye kitabı okuma sayısı artırılabilir'
-        }
-    ];
-
-    const recommendations: ParentRecommendation[] = [
-        {
-            id: 'rec-1',
-            type: 'study_tip',
-            title: 'Ondalık Kesirler için Günlük Pratik',
-            description: 'Elif\'in ondalık kesirler konusunda zorlandığı tespit edildi. Günlük 15 dakika market alışverişi hesaplama oyunu oynamanızı öneriyoruz.',
-            priority: 'high',
-            subject: 'Matematik'
-        },
-        {
-            id: 'rec-2',
-            type: 'activity',
-            title: 'Birlikte Kitap Okuma',
-            description: 'Paragraf anlama becerisini geliştirmek için haftada 2-3 kez birlikte kitap okuma seansları düzenleyin.',
-            priority: 'medium',
-            subject: 'Türkçe'
-        },
-        {
-            id: 'rec-3',
-            type: 'resource',
-            title: 'İngilizce Gramer Videoları',
-            description: 'İngilizce gramer konularını pekiştirmek için eğlenceli video içerikler izletilebilir.',
-            priority: 'medium',
-            subject: 'İngilizce'
-        },
-        {
-            id: 'rec-4',
-            type: 'meeting',
-            title: 'Öğretmen Görüşmesi Önerisi',
-            description: 'Matematik öğretmeninizle bir görüşme planlamanızı öneriyoruz.',
-            priority: 'low',
-            subject: 'Matematik'
-        }
-    ];
-
-    const notifications: ParentNotification[] = [
-        {
-            id: 'notif-1',
-            type: 'exam_result',
-            title: 'Matematik Sınavı Sonucu',
-            message: 'Elif\'in Matematik 1. Dönem 2. Yazılı sonucu açıklandı: 82 puan',
-            isRead: false,
-            createdAt: '2026-01-08T15:30:00Z'
-        },
-        {
-            id: 'notif-2',
-            type: 'report_ready',
-            title: 'Dönem Raporu Hazır',
-            message: 'Elif\'in 1. dönem karne raporu görüntülemeye hazır.',
-            isRead: false,
-            createdAt: '2026-01-07T10:00:00Z'
-        },
-        {
-            id: 'notif-3',
-            type: 'announcement',
-            title: 'Veli Toplantısı',
-            message: '15 Ocak Çarşamba günü saat 18:00\'de veli toplantısı yapılacaktır.',
-            isRead: true,
-            createdAt: '2026-01-05T09:00:00Z'
-        }
-    ];
+    const preferredChild = options?.selectedChildId
+        ? children.find(child => child.id === options.selectedChildId)
+        : undefined;
+    const resolvedChild = preferredChild || children[0];
+    const selectedChildId = resolvedChild?.id || '';
+    const selectedChildName = resolvedChild?.name || '';
+    const selectedAnalyses = analyses.filter((analysis) =>
+        analysis.students.some(student => normalizeName(student.name) === normalizeName(selectedChildName))
+    );
+    const recentExams = buildExamResults(selectedAnalyses, selectedChildName).slice(0, 4);
+    const subjectPerformances = buildSubjectPerformances(selectedAnalyses, selectedChildName);
+    const latestAnalysis = selectedAnalyses[0];
+    const outcomes = buildOutcomeAnalyses(latestAnalysis);
+    const recommendations = buildRecommendations(outcomes, latestAnalysis?.metadata.subject);
+    const notifications = buildNotifications(recentExams, selectedChildName, Boolean(latestAnalysis?.aiSummary));
 
     return {
         children,
-        selectedChildId: 'child-1',
+        selectedChildId,
         recentExams,
         subjectPerformances,
         outcomes,

@@ -1,7 +1,6 @@
 // =====================================================
 // MODÜL: SORU BANKASI - SERVİS
 // =====================================================
-
 import {
     Question,
     QuestionOption,
@@ -11,247 +10,253 @@ import {
     GeneratedExam,
     Topic,
     LearningOutcome,
+    QuestionFormData,
     DifficultyLevel,
     QuestionType
 } from './types';
 import { BloomLevel } from '../international-benchmark/types';
+import { supabase, isSupabaseConfigured } from '../../services/supabase';
 
-// ═══════════════════════════════════════════════════════════════
-// DEMO VERİLER
-// ═══════════════════════════════════════════════════════════════
+interface TopicDB {
+    id: string;
+    user_id: string | null;
+    subject: string;
+    name: string;
+    grade: number;
+    unit_number: number | null;
+    parent_topic_id: string | null;
+    meb_code: string | null;
+    description: string | null;
+    is_public: boolean;
+    created_at: string;
+    updated_at: string;
+}
 
-const DEMO_TOPICS: Topic[] = [
-    { id: 't1', subjectId: 'math', name: 'Doğal Sayılar', grade: 5, unitNumber: 1, mebCode: 'M.5.1' },
-    { id: 't2', subjectId: 'math', name: 'Kesirler', grade: 5, unitNumber: 2, mebCode: 'M.5.2' },
-    { id: 't3', subjectId: 'math', name: 'Ondalık Kesirler', grade: 5, unitNumber: 3, mebCode: 'M.5.3' },
-    { id: 't4', subjectId: 'math', name: 'Geometri', grade: 5, unitNumber: 4, mebCode: 'M.5.4' },
-    { id: 't5', subjectId: 'turkish', name: 'Okuma Anlama', grade: 5, unitNumber: 1, mebCode: 'T.5.1' },
-    { id: 't6', subjectId: 'turkish', name: 'Dil Bilgisi', grade: 5, unitNumber: 2, mebCode: 'T.5.2' },
-    { id: 't7', subjectId: 'science', name: 'Canlılar Dünyası', grade: 5, unitNumber: 1, mebCode: 'F.5.1' },
-    { id: 't8', subjectId: 'science', name: 'Kuvvet ve Hareket', grade: 5, unitNumber: 2, mebCode: 'F.5.2' },
-];
+interface OutcomeDB {
+    id: string;
+    user_id: string | null;
+    topic_id: string | null;
+    code: string;
+    description: string;
+    bloom_level: string | null;
+    grade: number | null;
+    subject: string | null;
+    is_public: boolean;
+    created_at: string;
+    updated_at: string;
+}
 
-const DEMO_OUTCOMES: LearningOutcome[] = [
-    { id: 'o1', topicId: 't1', code: 'M.5.1.1.1', description: 'Doğal sayıları okur ve yazar', bloomLevel: 'Hatırlama', grade: 5, subject: 'Matematik' },
-    { id: 'o2', topicId: 't1', code: 'M.5.1.1.2', description: 'Doğal sayıları karşılaştırır', bloomLevel: 'Anlama', grade: 5, subject: 'Matematik' },
-    { id: 'o3', topicId: 't1', code: 'M.5.1.2.1', description: 'Dört işlem yapar', bloomLevel: 'Uygulama', grade: 5, subject: 'Matematik' },
-    { id: 'o4', topicId: 't2', code: 'M.5.2.1.1', description: 'Kesirleri modelle gösterir', bloomLevel: 'Anlama', grade: 5, subject: 'Matematik' },
-    { id: 'o5', topicId: 't2', code: 'M.5.2.2.1', description: 'Kesirlerde toplama çıkarma yapar', bloomLevel: 'Uygulama', grade: 5, subject: 'Matematik' },
-];
+interface QuestionDB {
+    id: string;
+    user_id: string | null;
+    text: string;
+    type: string;
+    subject: string;
+    grade: number;
+    options: QuestionOption[] | null;
+    correct_answer: string | null;
+    explanation: string | null;
+    image_url: string | null;
+    topic_id: string | null;
+    outcome_id: string | null;
+    outcome_code: string | null;
+    bloom_level: string | null;
+    difficulty: string | null;
+    usage_count: number | null;
+    average_success_rate: number | null;
+    tags: string[] | null;
+    is_public: boolean;
+    is_approved: boolean;
+    created_at: string;
+    updated_at: string;
+}
 
-export function generateDemoQuestions(): Question[] {
-    const questions: Question[] = [
-        {
-            id: 'q1',
-            text: '345 + 678 işleminin sonucu kaçtır?',
-            type: 'multiple_choice',
-            subject: 'Matematik',
-            grade: 5,
-            options: [
-                { id: 'a', text: '1023', isCorrect: true },
-                { id: 'b', text: '1013', isCorrect: false },
-                { id: 'c', text: '1123', isCorrect: false },
-                { id: 'd', text: '923', isCorrect: false },
-            ],
-            bloomLevel: 'Uygulama',
-            difficulty: 'easy',
-            topicId: 't1',
-            topicName: 'Doğal Sayılar',
-            outcomeCode: 'M.5.1.2.1',
-            usageCount: 45,
-            averageSuccessRate: 82,
-            tags: ['toplama', 'dört işlem'],
-            createdBy: 'teacher-1',
-            createdAt: '2026-01-01',
-            updatedAt: '2026-01-01',
-            isPublic: true,
-            isApproved: true
-        },
-        {
-            id: 'q2',
-            text: 'Aşağıdakilerden hangisi 3/4 kesrini doğru gösterir?',
-            type: 'multiple_choice',
-            subject: 'Matematik',
-            grade: 5,
-            options: [
-                { id: 'a', text: 'Bir bütünün 3 parçaya bölünmüş hali', isCorrect: false },
-                { id: 'b', text: 'Bir bütünün 4 parçaya bölünüp 3 parçasının alınması', isCorrect: true },
-                { id: 'c', text: '3 bütünün 4\'e bölünmesi', isCorrect: false },
-                { id: 'd', text: '4 bütünün 3\'e bölünmesi', isCorrect: false },
-            ],
-            bloomLevel: 'Anlama',
-            difficulty: 'medium',
-            topicId: 't2',
-            topicName: 'Kesirler',
-            outcomeCode: 'M.5.2.1.1',
-            usageCount: 38,
-            averageSuccessRate: 65,
-            tags: ['kesir', 'kavram'],
-            createdBy: 'teacher-1',
-            createdAt: '2026-01-02',
-            updatedAt: '2026-01-02',
-            isPublic: true,
-            isApproved: true
-        },
-        {
-            id: 'q3',
-            text: '1/4 + 2/4 işleminin sonucu kaçtır?',
-            type: 'multiple_choice',
-            subject: 'Matematik',
-            grade: 5,
-            options: [
-                { id: 'a', text: '3/8', isCorrect: false },
-                { id: 'b', text: '3/4', isCorrect: true },
-                { id: 'c', text: '2/4', isCorrect: false },
-                { id: 'd', text: '1/2', isCorrect: false },
-            ],
-            bloomLevel: 'Uygulama',
-            difficulty: 'easy',
-            topicId: 't2',
-            topicName: 'Kesirler',
-            outcomeCode: 'M.5.2.2.1',
-            usageCount: 52,
-            averageSuccessRate: 78,
-            tags: ['kesir', 'toplama'],
-            createdBy: 'teacher-1',
-            createdAt: '2026-01-03',
-            updatedAt: '2026-01-03',
-            isPublic: true,
-            isApproved: true
-        },
-        {
-            id: 'q4',
-            text: 'Bir üçgenin iç açıları toplamı kaç derecedir?',
-            type: 'multiple_choice',
-            subject: 'Matematik',
-            grade: 5,
-            options: [
-                { id: 'a', text: '90°', isCorrect: false },
-                { id: 'b', text: '180°', isCorrect: true },
-                { id: 'c', text: '270°', isCorrect: false },
-                { id: 'd', text: '360°', isCorrect: false },
-            ],
-            bloomLevel: 'Hatırlama',
-            difficulty: 'easy',
-            topicId: 't4',
-            topicName: 'Geometri',
-            outcomeCode: 'M.5.4.1.1',
-            usageCount: 67,
-            averageSuccessRate: 85,
-            tags: ['üçgen', 'açı'],
-            createdBy: 'teacher-2',
-            createdAt: '2026-01-04',
-            updatedAt: '2026-01-04',
-            isPublic: true,
-            isApproved: true
-        },
-        {
-            id: 'q5',
-            text: 'Bir market, 3 kg elma 45 TL\'ye satmaktadır. Bu marketten 5 kg elma almak isteyen bir kişi kaç TL ödemelidir?',
-            type: 'multiple_choice',
-            subject: 'Matematik',
-            grade: 5,
-            options: [
-                { id: 'a', text: '60 TL', isCorrect: false },
-                { id: 'b', text: '75 TL', isCorrect: true },
-                { id: 'c', text: '90 TL', isCorrect: false },
-                { id: 'd', text: '65 TL', isCorrect: false },
-            ],
-            bloomLevel: 'Analiz',
-            difficulty: 'hard',
-            topicId: 't1',
-            topicName: 'Doğal Sayılar',
-            outcomeCode: 'M.5.1.3.1',
-            usageCount: 29,
-            averageSuccessRate: 52,
-            tags: ['problem', 'orantı'],
-            createdBy: 'teacher-1',
-            createdAt: '2026-01-05',
-            updatedAt: '2026-01-05',
-            isPublic: true,
-            isApproved: true
-        },
-        {
-            id: 'q6',
-            text: 'Aşağıdaki cümlelerden hangisinde özne belirtilmemiştir?',
-            type: 'multiple_choice',
-            subject: 'Türkçe',
-            grade: 5,
-            options: [
-                { id: 'a', text: 'Ali okula gitti.', isCorrect: false },
-                { id: 'b', text: 'Yarın hava güzel olacak.', isCorrect: true },
-                { id: 'c', text: 'Kedim süt içiyor.', isCorrect: false },
-                { id: 'd', text: 'Annem yemek yapıyor.', isCorrect: false },
-            ],
-            bloomLevel: 'Analiz',
-            difficulty: 'medium',
-            topicId: 't6',
-            topicName: 'Dil Bilgisi',
-            outcomeCode: 'T.5.2.3.1',
-            usageCount: 41,
-            averageSuccessRate: 58,
-            tags: ['özne', 'cümle'],
-            createdBy: 'teacher-3',
-            createdAt: '2026-01-06',
-            updatedAt: '2026-01-06',
-            isPublic: true,
-            isApproved: true
-        },
-        {
-            id: 'q7',
-            text: 'Bitkilerin fotosentez yapabilmesi için aşağıdakilerden hangisi gerekli DEĞİLDİR?',
-            type: 'multiple_choice',
-            subject: 'Fen Bilimleri',
-            grade: 5,
-            options: [
-                { id: 'a', text: 'Güneş ışığı', isCorrect: false },
-                { id: 'b', text: 'Su', isCorrect: false },
-                { id: 'c', text: 'Karbondioksit', isCorrect: false },
-                { id: 'd', text: 'Oksijen', isCorrect: true },
-            ],
-            bloomLevel: 'Anlama',
-            difficulty: 'medium',
-            topicId: 't7',
-            topicName: 'Canlılar Dünyası',
-            outcomeCode: 'F.5.1.2.1',
-            usageCount: 55,
-            averageSuccessRate: 62,
-            tags: ['fotosentez', 'bitki'],
-            createdBy: 'teacher-4',
-            createdAt: '2026-01-07',
-            updatedAt: '2026-01-07',
-            isPublic: true,
-            isApproved: true
-        },
-        {
-            id: 'q8',
-            text: '0,25 ondalık kesrinin kesir olarak yazılışı hangisidir?',
-            type: 'multiple_choice',
-            subject: 'Matematik',
-            grade: 5,
-            options: [
-                { id: 'a', text: '1/4', isCorrect: true },
-                { id: 'b', text: '1/2', isCorrect: false },
-                { id: 'c', text: '2/5', isCorrect: false },
-                { id: 'd', text: '1/5', isCorrect: false },
-            ],
-            bloomLevel: 'Uygulama',
-            difficulty: 'medium',
-            topicId: 't3',
-            topicName: 'Ondalık Kesirler',
-            outcomeCode: 'M.5.3.1.1',
-            usageCount: 33,
-            averageSuccessRate: 68,
-            tags: ['ondalık', 'dönüşüm'],
-            createdBy: 'teacher-1',
-            createdAt: '2026-01-08',
-            updatedAt: '2026-01-08',
-            isPublic: true,
-            isApproved: true
-        }
-    ];
+const mapTopic = (db: TopicDB): Topic => ({
+    id: db.id,
+    subjectId: db.subject,
+    name: db.name,
+    grade: db.grade,
+    unitNumber: db.unit_number || 0,
+    parentTopicId: db.parent_topic_id || undefined,
+    mebCode: db.meb_code || undefined,
+    description: db.description || undefined
+});
 
-    return questions;
+const mapOutcome = (db: OutcomeDB): LearningOutcome => ({
+    id: db.id,
+    topicId: db.topic_id || '',
+    code: db.code,
+    description: db.description,
+    bloomLevel: (db.bloom_level as BloomLevel) || 'Anlama',
+    grade: db.grade || 0,
+    subject: db.subject || ''
+});
+
+const mapQuestion = (
+    db: QuestionDB,
+    topicMap: Map<string, Topic>,
+    outcomeMap: Map<string, LearningOutcome>
+): Question => {
+    const topic = db.topic_id ? topicMap.get(db.topic_id) : undefined;
+    const outcome = db.outcome_id ? outcomeMap.get(db.outcome_id) : undefined;
+    const bloom = (db.bloom_level as BloomLevel) || outcome?.bloomLevel || 'Anlama';
+    const difficulty = (db.difficulty as DifficultyLevel) || 'medium';
+    const type = (db.type as QuestionType) || 'multiple_choice';
+
+    return {
+        id: db.id,
+        text: db.text,
+        type,
+        subject: db.subject,
+        grade: Number(db.grade) || 0,
+        options: Array.isArray(db.options) ? db.options : undefined,
+        correctAnswer: db.correct_answer || undefined,
+        explanation: db.explanation || undefined,
+        imageUrl: db.image_url || undefined,
+        topicId: db.topic_id || undefined,
+        topicName: topic?.name,
+        outcomeId: db.outcome_id || outcome?.id,
+        outcomeCode: db.outcome_code || outcome?.code,
+        bloomLevel: bloom,
+        difficulty,
+        usageCount: db.usage_count || 0,
+        averageSuccessRate: db.average_success_rate ?? undefined,
+        tags: db.tags || [],
+        createdBy: db.user_id || 'public',
+        createdAt: db.created_at,
+        updatedAt: db.updated_at,
+        isPublic: db.is_public,
+        isApproved: db.is_approved
+    };
+};
+
+export async function fetchQuestionBankData(): Promise<{
+    questions: Question[];
+    topics: Topic[];
+    outcomes: LearningOutcome[];
+}> {
+    if (!isSupabaseConfigured) {
+        return { questions: [], topics: [], outcomes: [] };
+    }
+
+    const [topicsResult, outcomesResult, questionsResult] = await Promise.all([
+        supabase.from('question_bank_topics').select('*').order('name', { ascending: true }),
+        supabase.from('question_bank_outcomes').select('*').order('code', { ascending: true }),
+        supabase.from('question_bank_questions').select('*').order('created_at', { ascending: false })
+    ]);
+
+    if (topicsResult.error || outcomesResult.error || questionsResult.error) {
+        console.error('Soru bankasi verileri getirilemedi:', {
+            topicsError: topicsResult.error,
+            outcomesError: outcomesResult.error,
+            questionsError: questionsResult.error
+        });
+        return { questions: [], topics: [], outcomes: [] };
+    }
+
+    const topics = (topicsResult.data || []).map(mapTopic);
+    const outcomes = (outcomesResult.data || []).map(mapOutcome);
+    const topicMap = new Map(topics.map(topic => [topic.id, topic]));
+    const outcomeMap = new Map(outcomes.map(outcome => [outcome.id, outcome]));
+
+    const questions = (questionsResult.data || []).map((question) =>
+        mapQuestion(question as QuestionDB, topicMap, outcomeMap)
+    );
+
+    return { questions, topics, outcomes };
+}
+
+type QuestionFormInput = QuestionFormData & { outcomeId?: string };
+
+const buildQuestionPayload = (input: QuestionFormInput) => {
+    const options = input.type === 'multiple_choice' ? input.options : null;
+    const correctAnswer = input.type === 'multiple_choice'
+        ? (input.correctAnswer || options?.find(option => option.isCorrect)?.id || null)
+        : (input.correctAnswer || null);
+
+    return {
+        text: input.text,
+        type: input.type,
+        subject: input.subject,
+        grade: input.grade,
+        options,
+        correct_answer: correctAnswer,
+        explanation: input.explanation || null,
+        image_url: null,
+        topic_id: input.topicId || null,
+        outcome_id: input.outcomeId || null,
+        outcome_code: input.outcomeCode || null,
+        bloom_level: input.bloomLevel,
+        difficulty: input.difficulty,
+        tags: input.tags || [],
+        is_public: Boolean(input.isPublic),
+        is_approved: Boolean(input.isPublic)
+    };
+};
+
+export async function createQuestion(input: QuestionFormInput): Promise<boolean> {
+    if (!isSupabaseConfigured) {
+        return false;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return false;
+    }
+
+    const payload = {
+        ...buildQuestionPayload(input),
+        user_id: user.id
+    };
+
+    const { error } = await supabase
+        .from('question_bank_questions')
+        .insert(payload);
+
+    if (error) {
+        console.error('Soru eklenemedi:', error);
+        return false;
+    }
+
+    return true;
+}
+
+export async function updateQuestion(id: string, input: QuestionFormInput): Promise<boolean> {
+    if (!isSupabaseConfigured) {
+        return false;
+    }
+
+    const payload = buildQuestionPayload(input);
+
+    const { error } = await supabase
+        .from('question_bank_questions')
+        .update(payload)
+        .eq('id', id);
+
+    if (error) {
+        console.error('Soru guncellenemedi:', error);
+        return false;
+    }
+
+    return true;
+}
+
+export async function deleteQuestion(id: string): Promise<boolean> {
+    if (!isSupabaseConfigured) {
+        return false;
+    }
+
+    const { error } = await supabase
+        .from('question_bank_questions')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.error('Soru silinemedi:', error);
+        return false;
+    }
+
+    return true;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -310,9 +315,15 @@ export function calculateQuestionBankStats(questions: Question[]): QuestionBankS
     questions.forEach(q => {
         bySubject[q.subject] = (bySubject[q.subject] || 0) + 1;
         byGrade[q.grade] = (byGrade[q.grade] || 0) + 1;
-        byBloomLevel[q.bloomLevel]++;
-        byDifficulty[q.difficulty]++;
-        byType[q.type]++;
+        if (byBloomLevel[q.bloomLevel] !== undefined) {
+            byBloomLevel[q.bloomLevel] += 1;
+        }
+        if (byDifficulty[q.difficulty] !== undefined) {
+            byDifficulty[q.difficulty] += 1;
+        }
+        if (byType[q.type] !== undefined) {
+            byType[q.type] += 1;
+        }
 
         if (new Date(q.createdAt) >= sevenDaysAgo) {
             recentlyAdded++;
@@ -450,5 +461,3 @@ export function getBloomColor(level: BloomLevel): string {
     };
     return colors[level];
 }
-
-export { DEMO_TOPICS, DEMO_OUTCOMES };

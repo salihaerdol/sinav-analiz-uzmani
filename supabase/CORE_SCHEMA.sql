@@ -35,12 +35,12 @@ BEGIN
                               set_byte(
                                 set_byte(
                                   '\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000'::bytea,
-                                  0, (unix_ts_ms >> 40) & 255),
-                                1, (unix_ts_ms >> 32) & 255),
-                              2, (unix_ts_ms >> 24) & 255),
-                            3, (unix_ts_ms >> 16) & 255),
-                          4, (unix_ts_ms >> 8) & 255),
-                        5, unix_ts_ms & 255),
+                                  0, ((unix_ts_ms >> 40) & 255)::int),
+                                1, ((unix_ts_ms >> 32) & 255)::int),
+                              2, ((unix_ts_ms >> 24) & 255)::int),
+                            3, ((unix_ts_ms >> 16) & 255)::int),
+                          4, ((unix_ts_ms >> 8) & 255)::int),
+                        5, (unix_ts_ms & 255)::int),
                       6, (get_byte(rand_bytes, 0) & 15) | 112),
                     7, get_byte(rand_bytes, 1)),
                   8, (get_byte(rand_bytes, 2) & 63) | 128),
@@ -292,6 +292,70 @@ CREATE TABLE IF NOT EXISTS public.user_api_keys (
 -- =====================================================
 -- MODULE TABLES
 -- =====================================================
+CREATE TABLE IF NOT EXISTS public.question_bank_topics (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid,
+  subject text NOT NULL,
+  name text NOT NULL,
+  grade integer NOT NULL,
+  unit_number integer,
+  parent_topic_id uuid,
+  meb_code text,
+  description text,
+  is_public boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT question_bank_topics_pkey PRIMARY KEY (id),
+  CONSTRAINT question_bank_topics_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id),
+  CONSTRAINT question_bank_topics_parent_fkey FOREIGN KEY (parent_topic_id) REFERENCES public.question_bank_topics(id)
+);
+
+CREATE TABLE IF NOT EXISTS public.question_bank_outcomes (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid,
+  topic_id uuid,
+  code text NOT NULL,
+  description text NOT NULL,
+  bloom_level text,
+  grade integer,
+  subject text,
+  is_public boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT question_bank_outcomes_pkey PRIMARY KEY (id),
+  CONSTRAINT question_bank_outcomes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id),
+  CONSTRAINT question_bank_outcomes_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.question_bank_topics(id)
+);
+
+CREATE TABLE IF NOT EXISTS public.question_bank_questions (
+  id uuid NOT NULL DEFAULT uuid_generate_v7(),
+  user_id uuid,
+  text text NOT NULL,
+  type text NOT NULL,
+  subject text NOT NULL,
+  grade integer NOT NULL,
+  options jsonb,
+  correct_answer text,
+  explanation text,
+  image_url text,
+  topic_id uuid,
+  outcome_id uuid,
+  outcome_code text,
+  bloom_level text,
+  difficulty text,
+  usage_count integer DEFAULT 0,
+  average_success_rate numeric,
+  tags text[] DEFAULT '{}'::text[],
+  is_public boolean DEFAULT false,
+  is_approved boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT question_bank_questions_pkey PRIMARY KEY (id),
+  CONSTRAINT question_bank_questions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id),
+  CONSTRAINT question_bank_questions_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.question_bank_topics(id),
+  CONSTRAINT question_bank_questions_outcome_id_fkey FOREIGN KEY (outcome_id) REFERENCES public.question_bank_outcomes(id)
+);
+
 CREATE TABLE IF NOT EXISTS public.bloom_taxonomy_tags (
   id uuid NOT NULL DEFAULT uuid_generate_v7(),
   question_id uuid,
@@ -460,6 +524,15 @@ CREATE INDEX IF NOT EXISTS idx_ocr_user ON public.ocr_scans(user_id);
 CREATE INDEX IF NOT EXISTS idx_ocr_status ON public.ocr_scans(status);
 CREATE INDEX IF NOT EXISTS idx_template_user ON public.report_templates(user_id);
 CREATE INDEX IF NOT EXISTS idx_template_type ON public.report_templates(template_type);
+CREATE INDEX IF NOT EXISTS idx_qb_topics_user ON public.question_bank_topics(user_id);
+CREATE INDEX IF NOT EXISTS idx_qb_topics_subject_grade ON public.question_bank_topics(subject, grade);
+CREATE INDEX IF NOT EXISTS idx_qb_outcomes_user ON public.question_bank_outcomes(user_id);
+CREATE INDEX IF NOT EXISTS idx_qb_outcomes_topic ON public.question_bank_outcomes(topic_id);
+CREATE INDEX IF NOT EXISTS idx_qb_questions_user ON public.question_bank_questions(user_id);
+CREATE INDEX IF NOT EXISTS idx_qb_questions_subject_grade ON public.question_bank_questions(subject, grade);
+CREATE INDEX IF NOT EXISTS idx_qb_questions_topic ON public.question_bank_questions(topic_id);
+CREATE INDEX IF NOT EXISTS idx_qb_questions_outcome ON public.question_bank_questions(outcome_id);
+CREATE INDEX IF NOT EXISTS idx_qb_questions_public ON public.question_bank_questions(is_public);
 
 -- =====================================================
 -- RLS FOR MODULE TABLES
@@ -657,6 +730,21 @@ CREATE TRIGGER update_template_updated_at
   BEFORE UPDATE ON public.report_templates
   FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_qb_topics_updated_at ON public.question_bank_topics;
+CREATE TRIGGER update_qb_topics_updated_at
+  BEFORE UPDATE ON public.question_bank_topics
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_qb_outcomes_updated_at ON public.question_bank_outcomes;
+CREATE TRIGGER update_qb_outcomes_updated_at
+  BEFORE UPDATE ON public.question_bank_outcomes
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_qb_questions_updated_at ON public.question_bank_questions;
+CREATE TRIGGER update_qb_questions_updated_at
+  BEFORE UPDATE ON public.question_bank_questions
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
 DROP TRIGGER IF EXISTS update_user_profiles_updated_at ON public.user_profiles;
 CREATE TRIGGER update_user_profiles_updated_at
   BEFORE UPDATE ON public.user_profiles
@@ -804,6 +892,9 @@ ALTER TABLE public.psychometric_analysis ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.student_risk_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ocr_scans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.report_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.question_bank_topics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.question_bank_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.question_bank_questions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "profile_select_own_or_admin" ON public.user_profiles;
 CREATE POLICY "profile_select_own_or_admin"
@@ -1139,6 +1230,69 @@ WITH CHECK (user_id = auth.uid() OR public.is_admin());
 DROP POLICY IF EXISTS "report_templates_delete_own_or_admin" ON public.report_templates;
 CREATE POLICY "report_templates_delete_own_or_admin"
 ON public.report_templates FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_topics_select_public_or_own" ON public.question_bank_topics;
+CREATE POLICY "qb_topics_select_public_or_own"
+ON public.question_bank_topics FOR SELECT
+USING (is_public = true OR user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_topics_insert_own_or_admin" ON public.question_bank_topics;
+CREATE POLICY "qb_topics_insert_own_or_admin"
+ON public.question_bank_topics FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_topics_update_own_or_admin" ON public.question_bank_topics;
+CREATE POLICY "qb_topics_update_own_or_admin"
+ON public.question_bank_topics FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_topics_delete_own_or_admin" ON public.question_bank_topics;
+CREATE POLICY "qb_topics_delete_own_or_admin"
+ON public.question_bank_topics FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_outcomes_select_public_or_own" ON public.question_bank_outcomes;
+CREATE POLICY "qb_outcomes_select_public_or_own"
+ON public.question_bank_outcomes FOR SELECT
+USING (is_public = true OR user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_outcomes_insert_own_or_admin" ON public.question_bank_outcomes;
+CREATE POLICY "qb_outcomes_insert_own_or_admin"
+ON public.question_bank_outcomes FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_outcomes_update_own_or_admin" ON public.question_bank_outcomes;
+CREATE POLICY "qb_outcomes_update_own_or_admin"
+ON public.question_bank_outcomes FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_outcomes_delete_own_or_admin" ON public.question_bank_outcomes;
+CREATE POLICY "qb_outcomes_delete_own_or_admin"
+ON public.question_bank_outcomes FOR DELETE
+USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_questions_select_public_or_own" ON public.question_bank_questions;
+CREATE POLICY "qb_questions_select_public_or_own"
+ON public.question_bank_questions FOR SELECT
+USING (is_public = true OR user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_questions_insert_own_or_admin" ON public.question_bank_questions;
+CREATE POLICY "qb_questions_insert_own_or_admin"
+ON public.question_bank_questions FOR INSERT
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_questions_update_own_or_admin" ON public.question_bank_questions;
+CREATE POLICY "qb_questions_update_own_or_admin"
+ON public.question_bank_questions FOR UPDATE
+USING (user_id = auth.uid() OR public.is_admin())
+WITH CHECK (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "qb_questions_delete_own_or_admin" ON public.question_bank_questions;
+CREATE POLICY "qb_questions_delete_own_or_admin"
+ON public.question_bank_questions FOR DELETE
 USING (user_id = auth.uid() OR public.is_admin());
 
 

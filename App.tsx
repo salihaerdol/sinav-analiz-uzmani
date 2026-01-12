@@ -2,7 +2,7 @@
 import { getScenarioData, getOutcomeDescription } from './data/curriculum';
 import { QuestionConfig, Student, ExamMetadata, AnalysisResult, SavedAnalysis } from './types';
 import { AnalysisView } from './components/AnalysisView';
-import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X, History, TrendingUp, Key } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, LayoutDashboard, Settings, Info, Save, RotateCcw, LogOut, User as UserIcon, Users, FileText, Upload, Download, RefreshCw, List, ExternalLink, X, History, TrendingUp, Key, BookOpen } from 'lucide-react';
 import { ScenarioVisualSelector } from './components/ScenarioVisualSelector';
 import { MEB_SCENARIOS } from './services/mebScraperAdvanced';
 import { getScenarioTemplate, saveScenarioTemplate } from './services/mebScenarioService';
@@ -16,6 +16,7 @@ import { ProgressDashboard } from './components/ProgressDashboard';
 import { SettingsModal } from './components/SettingsModal';
 import { analysisHistoryService } from './services/supabaseHistoryService';
 import AdminDashboard from './modules/admin-dashboard/AdminDashboard';
+import { QuestionBankDashboard } from './modules/question-bank';
 
 // Steps Enum
 enum Step {
@@ -106,8 +107,9 @@ function MainApp() {
   const [savedClasses, setSavedClasses] = useState<StudentList[]>([]);
   const [bulkStudentText, setBulkStudentText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [showProgressDashboard, setShowProgressDashboard] = useState(false);
+  const [showProgressDashboard, setShowProgressDashboard] = useState(false);    
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  const [showQuestionBank, setShowQuestionBank] = useState(false);
   const [analysisCount, setAnalysisCount] = useState(0);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
@@ -1122,6 +1124,12 @@ function MainApp() {
                   </span>
                 )}
               </button>
+              <button
+                onClick={() => setShowQuestionBank(true)}
+                className="ml-2 flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors"
+              >
+                <BookOpen className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Soru Bankası</span>
+              </button>
               {isAdmin && (
                 <button
                   onClick={() => setShowAdminDashboard(true)}
@@ -1274,6 +1282,25 @@ function MainApp() {
             onClose={() => setShowProgressDashboard(false)}
             scope={isAdmin ? 'all' : 'own'}
           />
+        )
+      }
+
+      {/* Question Bank Modal */}
+      {
+        showQuestionBank && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-800">Soru Bankası</h3>
+                <button onClick={() => setShowQuestionBank(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+                <QuestionBankDashboard />
+              </div>
+            </div>
+          </div>
         )
       }
 

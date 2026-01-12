@@ -129,6 +129,87 @@ const DEMO_CLASSES = [
   }
 ];
 
+const QUESTION_BANK_TOPICS = [
+  { key: 'math-5-1', subject: 'Matematik', name: 'Dogal Sayilar', grade: 5, unitNumber: 1, mebCode: 'M.5.1', description: 'Dogal sayilar ve islemler' },
+  { key: 'math-5-2', subject: 'Matematik', name: 'Kesirler', grade: 5, unitNumber: 2, mebCode: 'M.5.2', description: 'Kesir kavrami ve islemler' },
+  { key: 'science-5-1', subject: 'Fen Bilimleri', name: 'Canlilar Dunyasi', grade: 5, unitNumber: 1, mebCode: 'F.5.1', description: 'Canlilarin temel ozellikleri' }
+];
+
+const QUESTION_BANK_OUTCOMES = [
+  { key: 'M.5.1.1.1', topicKey: 'math-5-1', code: 'M.5.1.1.1', description: 'Dogal sayilari okur ve yazar', bloomLevel: 'Anlama', grade: 5, subject: 'Matematik' },
+  { key: 'M.5.2.1.1', topicKey: 'math-5-2', code: 'M.5.2.1.1', description: 'Kesirleri karsilastirir', bloomLevel: 'Uygulama', grade: 5, subject: 'Matematik' },
+  { key: 'F.5.1.1.1', topicKey: 'science-5-1', code: 'F.5.1.1.1', description: 'Canlilarin yasam alanlarini aciklar', bloomLevel: 'Anlama', grade: 5, subject: 'Fen Bilimleri' }
+];
+
+const QUESTION_BANK_QUESTIONS = [
+  {
+    text: '325 + 478 isleminin sonucu kactir?',
+    type: 'multiple_choice',
+    subject: 'Matematik',
+    grade: 5,
+    options: [
+      { id: 'a', text: '803', isCorrect: true },
+      { id: 'b', text: '793', isCorrect: false },
+      { id: 'c', text: '813', isCorrect: false },
+      { id: 'd', text: '703', isCorrect: false }
+    ],
+    bloomLevel: 'Uygulama',
+    difficulty: 'easy',
+    topicKey: 'math-5-1',
+    outcomeKey: 'M.5.1.1.1',
+    usageCount: 12,
+    averageSuccessRate: 78,
+    tags: ['toplama', 'dort-islem'],
+    explanation: 'Basit toplama islemi.',
+    isPublic: true,
+    isApproved: true
+  },
+  {
+    text: '1/4 + 2/4 isleminin sonucu kactir?',
+    type: 'multiple_choice',
+    subject: 'Matematik',
+    grade: 5,
+    options: [
+      { id: 'a', text: '3/4', isCorrect: true },
+      { id: 'b', text: '1/2', isCorrect: false },
+      { id: 'c', text: '3/8', isCorrect: false },
+      { id: 'd', text: '2/4', isCorrect: false }
+    ],
+    bloomLevel: 'Uygulama',
+    difficulty: 'medium',
+    topicKey: 'math-5-2',
+    outcomeKey: 'M.5.2.1.1',
+    usageCount: 9,
+    averageSuccessRate: 71,
+    tags: ['kesir', 'toplama'],
+    explanation: 'Paydalar esit oldugunda paylar toplanir.',
+    isPublic: true,
+    isApproved: true
+  },
+  {
+    text: 'Bitkilerin fotosentez yapmasi icin hangisi gereklidir?',
+    type: 'multiple_choice',
+    subject: 'Fen Bilimleri',
+    grade: 5,
+    options: [
+      { id: 'a', text: 'Gunes isigi', isCorrect: true },
+      { id: 'b', text: 'Tuz', isCorrect: false },
+      { id: 'c', text: 'Pil', isCorrect: false },
+      { id: 'd', text: 'Metal', isCorrect: false }
+    ],
+    bloomLevel: 'Anlama',
+    difficulty: 'easy',
+    topicKey: 'science-5-1',
+    outcomeKey: 'F.5.1.1.1',
+    usageCount: 7,
+    averageSuccessRate: 83,
+    tags: ['fotosentez', 'bitki'],
+    explanation: 'Fotosentez icin isik enerjisi gerekir.',
+    isPublic: true,
+    isApproved: true
+  }
+];
+
 const FIRST_NAMES = [
   'Ahmet', 'Mehmet', 'Ali', 'Ayse', 'Fatma', 'Zeynep', 'Mustafa', 'Emine',
   'Huseyin', 'Hatice', 'Can', 'Ece', 'Burak', 'Selin', 'Mert', 'Derya',
@@ -358,41 +439,174 @@ const seedAnalysisHistory = async (client, userId, metadata, analysis, questions
   return true;
 };
 
+const ensureQuestionBankTopic = async (client, topic) => {
+  const { rows } = await client.query(
+    `SELECT id FROM public.question_bank_topics
+     WHERE subject = $1 AND grade = $2 AND name = $3
+     LIMIT 1;`,
+    [topic.subject, topic.grade, topic.name]
+  );
+
+  if (rows.length > 0) {
+    return rows[0].id;
+  }
+
+  const insert = await client.query(
+    `INSERT INTO public.question_bank_topics
+      (subject, name, grade, unit_number, meb_code, description, is_public)
+     VALUES ($1, $2, $3, $4, $5, $6, true)
+     RETURNING id;`,
+    [
+      topic.subject,
+      topic.name,
+      topic.grade,
+      topic.unitNumber,
+      topic.mebCode || null,
+      topic.description || null
+    ]
+  );
+
+  return insert.rows[0].id;
+};
+
+const ensureQuestionBankOutcome = async (client, outcome, topicId) => {
+  const { rows } = await client.query(
+    `SELECT id FROM public.question_bank_outcomes
+     WHERE code = $1
+     LIMIT 1;`,
+    [outcome.code]
+  );
+
+  if (rows.length > 0) {
+    return rows[0].id;
+  }
+
+  const insert = await client.query(
+    `INSERT INTO public.question_bank_outcomes
+      (topic_id, code, description, bloom_level, grade, subject, is_public)
+     VALUES ($1, $2, $3, $4, $5, $6, true)
+     RETURNING id;`,
+    [
+      topicId,
+      outcome.code,
+      outcome.description,
+      outcome.bloomLevel,
+      outcome.grade,
+      outcome.subject
+    ]
+  );
+
+  return insert.rows[0].id;
+};
+
+const ensureQuestionBankQuestion = async (client, question, topicId, outcomeId) => {
+  const { rows } = await client.query(
+    `SELECT id FROM public.question_bank_questions
+     WHERE text = $1 AND subject = $2 AND grade = $3
+     LIMIT 1;`,
+    [question.text, question.subject, question.grade]
+  );
+
+  if (rows.length > 0) {
+    return false;
+  }
+
+  await client.query(
+    `INSERT INTO public.question_bank_questions
+      (text, type, subject, grade, options, correct_answer, explanation, image_url,
+       topic_id, outcome_id, outcome_code, bloom_level, difficulty, usage_count,
+       average_success_rate, tags, is_public, is_approved)
+     VALUES
+      ($1, $2, $3, $4, $5, $6, $7, $8,
+       $9, $10, $11, $12, $13, $14,
+       $15, $16, $17, $18);`,
+    [
+      question.text,
+      question.type,
+      question.subject,
+      question.grade,
+      JSON.stringify(question.options || []),
+      question.correctAnswer || null,
+      question.explanation || null,
+      question.imageUrl || null,
+      topicId,
+      outcomeId,
+      question.outcomeKey || null,
+      question.bloomLevel,
+      question.difficulty,
+      question.usageCount || 0,
+      question.averageSuccessRate || null,
+      question.tags || [],
+      question.isPublic === false ? false : true,
+      question.isApproved === false ? false : true
+    ]
+  );
+
+  return true;
+};
+
+const seedQuestionBankData = async (client) => {
+  const topicMap = new Map();
+  for (const topic of QUESTION_BANK_TOPICS) {
+    const topicId = await ensureQuestionBankTopic(client, topic);
+    topicMap.set(topic.key, topicId);
+  }
+
+  const outcomeMap = new Map();
+  for (const outcome of QUESTION_BANK_OUTCOMES) {
+    const topicId = topicMap.get(outcome.topicKey);
+    if (!topicId) continue;
+    const outcomeId = await ensureQuestionBankOutcome(client, outcome, topicId);
+    outcomeMap.set(outcome.key, outcomeId);
+  }
+
+  let insertedCount = 0;
+  for (const question of QUESTION_BANK_QUESTIONS) {
+    const topicId = topicMap.get(question.topicKey);
+    const outcomeId = outcomeMap.get(question.outcomeKey);
+    const inserted = await ensureQuestionBankQuestion(client, question, topicId, outcomeId);
+    if (inserted) insertedCount += 1;
+  }
+
+  console.log(`Seeded ${insertedCount} question bank records.`);
+};
+
 const seedDemoData = async (client) => {
   await ensureAdminProfiles(client);
   const admins = await loadAdminUsers(client);
 
   if (admins.length === 0) {
-    console.warn('No admin users found yet. Create users first, then rerun seed.');
-    return;
-  }
+    console.warn('No admin users found yet. Create users first, then rerun seed for analyses.');
+  } else {
+    let seededCount = 0;
 
-  let seededCount = 0;
+    for (const admin of admins) {
+      for (const demo of DEMO_CLASSES) {
+        const students = buildStudents(demo.questions, demo.studentCount, demo.scoreBase, demo.key.toLowerCase());
+        const analysis = calculateAnalysis(demo.questions, students);
 
-  for (const admin of admins) {
-    for (const demo of DEMO_CLASSES) {
-      const students = buildStudents(demo.questions, demo.studentCount, demo.scoreBase, demo.key.toLowerCase());
-      const analysis = calculateAnalysis(demo.questions, students);
+        const listId = await ensureStudentList(client, admin.id, demo.metadata, demo.studentCount);
+        await seedStudents(client, listId, students);
 
-      const listId = await ensureStudentList(client, admin.id, demo.metadata, demo.studentCount);
-      await seedStudents(client, listId, students);
+        const seeded = await seedAnalysisHistory(
+          client,
+          admin.id,
+          demo.metadata,
+          analysis,
+          demo.questions,
+          students
+        );
 
-      const seeded = await seedAnalysisHistory(
-        client,
-        admin.id,
-        demo.metadata,
-        analysis,
-        demo.questions,
-        students
-      );
-
-      if (seeded) {
-        seededCount += 1;
+        if (seeded) {
+          seededCount += 1;
+        }
       }
     }
+
+    console.log(`Seeded ${seededCount} analysis records.`);
   }
 
-  console.log(`Seeded ${seededCount} analysis records.`);
+  await seedQuestionBankData(client);
 };
 
 const run = async () => {

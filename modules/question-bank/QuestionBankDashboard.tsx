@@ -14,24 +14,53 @@ import {
 import {
     Question,
     QuestionBankFilter,
-    QuestionBankStats,
-    DifficultyLevel
+    DifficultyLevel,
+    Topic,
+    LearningOutcome,
+    QuestionFormData,
+    QuestionOption,
+    QuestionType
 } from './types';
 import { BloomLevel } from '../international-benchmark/types';
 import {
-    generateDemoQuestions,
+    fetchQuestionBankData,
+    createQuestion,
+    updateQuestion,
+    deleteQuestion,
     filterQuestions,
     calculateQuestionBankStats,
     getDifficultyLabel,
     getDifficultyColor,
     getQuestionTypeLabel,
-    getBloomColor,
-    DEMO_TOPICS
+    getBloomColor
 } from './questionBankService';
 
 // ═══════════════════════════════════════════════════════════════
 // ALT BİLEŞENLER
 // ═══════════════════════════════════════════════════════════════
+
+const DEFAULT_OPTIONS = (): QuestionOption[] => ([
+    { id: 'a', text: '', isCorrect: true },
+    { id: 'b', text: '', isCorrect: false },
+    { id: 'c', text: '', isCorrect: false },
+    { id: 'd', text: '', isCorrect: false }
+]);
+
+const createEmptyFormData = (subject?: string, grade?: number): QuestionFormData => ({
+    text: '',
+    type: 'multiple_choice',
+    subject: subject || 'Matematik',
+    grade: grade || 5,
+    options: DEFAULT_OPTIONS(),
+    correctAnswer: 'a',
+    explanation: '',
+    topicId: '',
+    outcomeCode: '',
+    bloomLevel: 'Anlama',
+    difficulty: 'medium',
+    tags: [],
+    isPublic: false
+});
 
 /**
  * İstatistik Kartı
@@ -58,8 +87,9 @@ const StatCard: React.FC<{
  */
 const FilterPanel: React.FC<{
     filter: QuestionBankFilter;
+    topics: Topic[];
     onFilterChange: (filter: QuestionBankFilter) => void;
-}> = ({ filter, onFilterChange }) => {
+}> = ({ filter, topics, onFilterChange }) => {
     const subjects = ['Matematik', 'Türkçe', 'Fen Bilimleri', 'Sosyal Bilgiler', 'İngilizce'];
     const grades = [5, 6, 7, 8];
     const difficulties: DifficultyLevel[] = ['very_easy', 'easy', 'medium', 'hard', 'very_hard'];
@@ -115,7 +145,7 @@ const FilterPanel: React.FC<{
                     className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
                 >
                     <option value="">Tüm Konular</option>
-                    {DEMO_TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
 
                 <div className="relative">
@@ -139,7 +169,10 @@ const FilterPanel: React.FC<{
 const QuestionCard: React.FC<{
     question: Question;
     onView: () => void;
-}> = ({ question, onView }) => (
+    onCopy: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+}> = ({ question, onView, onCopy, onEdit, onDelete }) => (
     <div className="bg-white rounded-xl p-4 border border-slate-100 hover:shadow-md transition-shadow">
         <div className="flex items-start justify-between mb-3">
             <div className="flex-1">
@@ -169,11 +202,14 @@ const QuestionCard: React.FC<{
                 <button onClick={onView} className="p-1.5 hover:bg-slate-100 rounded">
                     <Eye className="w-4 h-4" />
                 </button>
-                <button className="p-1.5 hover:bg-slate-100 rounded">
+                <button onClick={onCopy} className="p-1.5 hover:bg-slate-100 rounded">
                     <Copy className="w-4 h-4" />
                 </button>
-                <button className="p-1.5 hover:bg-slate-100 rounded">
+                <button onClick={onEdit} className="p-1.5 hover:bg-slate-100 rounded">
                     <Edit className="w-4 h-4" />
+                </button>
+                <button onClick={onDelete} className="p-1.5 hover:bg-slate-100 rounded text-rose-500">
+                    <Trash2 className="w-4 h-4" />
                 </button>
             </div>
         </div>
@@ -232,12 +268,12 @@ const QuestionDetailModal: React.FC<{
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div><span className="text-slate-500">Ders:</span> {question.subject}</div>
                             <div><span className="text-slate-500">Sınıf:</span> {question.grade}. Sınıf</div>
-                            <div><span className="text-slate-500">Konu:</span> {question.topicName}</div>
-                            <div><span className="text-slate-500">Kazanım:</span> {question.outcomeCode}</div>
+                            <div><span className="text-slate-500">Konu:</span> {question.topicName || '-'}</div>
+                            <div><span className="text-slate-500">Kazanım:</span> {question.outcomeCode || '-'}</div>
                             <div><span className="text-slate-500">Bloom:</span> {question.bloomLevel}</div>
                             <div><span className="text-slate-500">Zorluk:</span> {getDifficultyLabel(question.difficulty)}</div>
                             <div><span className="text-slate-500">Kullanım:</span> {question.usageCount} kez</div>
-                            <div><span className="text-slate-500">Başarı:</span> %{question.averageSuccessRate}</div>
+                            <div><span className="text-slate-500">Başarı:</span> {question.averageSuccessRate !== undefined ? `%${question.averageSuccessRate}` : '-'}</div>
                         </div>
 
                         {question.explanation && (
@@ -268,19 +304,193 @@ const QuestionDetailModal: React.FC<{
 
 export const QuestionBankDashboard: React.FC = () => {
     const [questions, setQuestions] = useState<Question[]>([]);
+    const [topics, setTopics] = useState<Topic[]>([]);
+    const [outcomes, setOutcomes] = useState<LearningOutcome[]>([]);
     const [filter, setFilter] = useState<QuestionBankFilter>({});
     const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+    const [formQuestionId, setFormQuestionId] = useState<string | null>(null);
+    const [formData, setFormData] = useState<QuestionFormData>(() => createEmptyFormData());
+    const [formOutcomeId, setFormOutcomeId] = useState<string>('');
+    const [tagsInput, setTagsInput] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    const refreshData = async () => {
+        const data = await fetchQuestionBankData();
+        setQuestions(data.questions);
+        setTopics(data.topics);
+        setOutcomes(data.outcomes);
+    };
 
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
-            await new Promise(r => setTimeout(r, 300));
-            setQuestions(generateDemoQuestions());
+            await refreshData();
             setLoading(false);
         };
         loadData();
     }, []);
+
+    const handleNewQuestion = () => {
+        const subject = filter.subject || 'Matematik';
+        const grade = filter.grade || 5;
+        const emptyForm = createEmptyFormData(subject, grade);
+        setFormMode('create');
+        setFormQuestionId(null);
+        setFormOutcomeId('');
+        setFormData(emptyForm);
+        setTagsInput('');
+        setIsFormOpen(true);
+    };
+
+    const buildFormFromQuestion = (question: Question): QuestionFormData => {
+        const options = question.options && question.options.length > 0
+            ? question.options
+            : DEFAULT_OPTIONS();
+        const correctId = question.correctAnswer || options.find(opt => opt.isCorrect)?.id || options[0]?.id || 'a';
+        const normalizedOptions = options.map(opt => ({
+            ...opt,
+            isCorrect: opt.id === correctId
+        }));
+
+        return {
+            text: question.text,
+            type: question.type,
+            subject: question.subject,
+            grade: question.grade,
+            options: normalizedOptions,
+            correctAnswer: correctId,
+            explanation: question.explanation || '',
+            topicId: question.topicId || '',
+            outcomeCode: question.outcomeCode || '',
+            bloomLevel: question.bloomLevel,
+            difficulty: question.difficulty,
+            tags: question.tags || [],
+            isPublic: question.isPublic
+        };
+    };
+
+    const handleEditQuestion = (question: Question) => {
+        const outcomeId = question.outcomeId || outcomes.find(o => o.code === question.outcomeCode)?.id || '';
+        const form = buildFormFromQuestion(question);
+        setFormMode('edit');
+        setFormQuestionId(question.id);
+        setFormData(form);
+        setFormOutcomeId(outcomeId);
+        setTagsInput(form.tags.join(', '));
+        setIsFormOpen(true);
+    };
+
+    const handleCopyQuestion = (question: Question) => {
+        const outcomeId = question.outcomeId || outcomes.find(o => o.code === question.outcomeCode)?.id || '';
+        const form = buildFormFromQuestion(question);
+        setFormMode('create');
+        setFormQuestionId(null);
+        setFormData({
+            ...form,
+            text: `${form.text} (Kopya)`
+        });
+        setFormOutcomeId(outcomeId);
+        setTagsInput(form.tags.join(', '));
+        setIsFormOpen(true);
+    };
+
+    const handleDeleteQuestion = async (questionId: string) => {
+        if (!confirm('Bu soruyu silmek istiyor musunuz?')) return;
+        const success = await deleteQuestion(questionId);
+        if (success) {
+            await refreshData();
+        } else {
+            alert('Soru silinemedi.');
+        }
+    };
+
+    const handleSaveQuestion = async () => {
+        if (!formData.text.trim()) {
+            alert('Soru metni boş bırakılamaz.');
+            return;
+        }
+
+        setSaving(true);
+        const tags = tagsInput
+            .split(',')
+            .map(tag => tag.trim())
+            .filter(Boolean);
+
+        let options = formData.options || [];
+        let correctAnswer = formData.correctAnswer;
+
+        if (formData.type === 'multiple_choice') {
+            if (options.length === 0) {
+                options = DEFAULT_OPTIONS();
+            }
+            const hasCorrect = options.some(opt => opt.isCorrect);
+            if (!hasCorrect && options.length > 0) {
+                options = options.map((opt, idx) => ({ ...opt, isCorrect: idx === 0 }));
+            }
+            correctAnswer = options.find(opt => opt.isCorrect)?.id || options[0]?.id || '';
+        }
+
+        const payload = {
+            ...formData,
+            options: formData.type === 'multiple_choice' ? options : [],
+            correctAnswer,
+            tags,
+            outcomeCode: formData.outcomeCode || (formOutcomeId
+                ? outcomes.find(o => o.id === formOutcomeId)?.code || ''
+                : ''),
+            outcomeId: formOutcomeId || undefined
+        };
+
+        const success = formMode === 'edit' && formQuestionId
+            ? await updateQuestion(formQuestionId, payload)
+            : await createQuestion(payload);
+
+        if (success) {
+            await refreshData();
+            setIsFormOpen(false);
+        } else {
+            alert('Soru kaydedilemedi.');
+        }
+        setSaving(false);
+    };
+
+    const availableTopics = useMemo(() => {
+        return topics.filter(topic =>
+            (!formData.subject || topic.subjectId === formData.subject) &&
+            (!formData.grade || topic.grade === formData.grade)
+        );
+    }, [topics, formData.subject, formData.grade]);
+
+    const availableOutcomes = useMemo(() => {
+        return outcomes.filter(outcome =>
+            (!formData.subject || outcome.subject === formData.subject) &&
+            (!formData.grade || outcome.grade === formData.grade) &&
+            (!formData.topicId || outcome.topicId === formData.topicId)
+        );
+    }, [outcomes, formData.subject, formData.grade, formData.topicId]);
+
+    const handleOptionTextChange = (optionId: string, value: string) => {
+        setFormData(prev => ({
+            ...prev,
+            options: (prev.options?.length ? prev.options : DEFAULT_OPTIONS()).map(option =>
+                option.id === optionId ? { ...option, text: value } : option
+            )
+        }));
+    };
+
+    const handleCorrectOptionChange = (optionId: string) => {
+        setFormData(prev => ({
+            ...prev,
+            correctAnswer: optionId,
+            options: (prev.options?.length ? prev.options : DEFAULT_OPTIONS()).map(option => ({
+                ...option,
+                isCorrect: option.id === optionId
+            }))
+        }));
+    };
 
     const filteredQuestions = useMemo(() => {
         return filterQuestions(questions, filter);
@@ -289,6 +499,12 @@ export const QuestionBankDashboard: React.FC = () => {
     const stats = useMemo(() => {
         return calculateQuestionBankStats(questions);
     }, [questions]);
+
+    const subjects = ['Matematik', 'Türkçe', 'Fen Bilimleri', 'Sosyal Bilgiler', 'İngilizce'];
+    const grades = [5, 6, 7, 8];
+    const difficulties: DifficultyLevel[] = ['very_easy', 'easy', 'medium', 'hard', 'very_hard'];
+    const bloomLevels: BloomLevel[] = ['Hatırlama', 'Anlama', 'Uygulama', 'Analiz', 'Değerlendirme', 'Yaratma'];
+    const questionTypes: QuestionType[] = ['multiple_choice', 'true_false', 'short_answer', 'essay', 'matching', 'fill_blank'];
 
     const bloomChartData = useMemo(() => {
         return Object.entries(stats.byBloomLevel).map(([level, count]) => ({
@@ -318,7 +534,10 @@ export const QuestionBankDashboard: React.FC = () => {
                     <h1 className="text-2xl font-bold text-slate-800">Soru Bankası</h1>
                     <p className="text-slate-500">Sorularınızı yönetin ve yeni sınavlar oluşturun</p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                <button
+                    onClick={handleNewQuestion}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
                     <Plus className="w-4 h-4" />
                     Yeni Soru
                 </button>
@@ -347,7 +566,9 @@ export const QuestionBankDashboard: React.FC = () => {
                 <StatCard
                     icon={<BarChart2 className="w-5 h-5 text-violet-600" />}
                     label="Ortalama Başarı"
-                    value={`%${Math.round(questions.reduce((a, q) => a + (q.averageSuccessRate || 0), 0) / questions.length)}`}
+                    value={`%${questions.length
+                        ? Math.round(questions.reduce((a, q) => a + (q.averageSuccessRate || 0), 0) / questions.length)
+                        : 0}`}
                     color="bg-violet-100"
                 />
             </div>
@@ -396,7 +617,7 @@ export const QuestionBankDashboard: React.FC = () => {
             </div>
 
             {/* Filtreler */}
-            <FilterPanel filter={filter} onFilterChange={setFilter} />
+            <FilterPanel filter={filter} topics={topics} onFilterChange={setFilter} />
 
             {/* Sonuç Bilgisi */}
             <div className="flex items-center justify-between">
@@ -418,6 +639,9 @@ export const QuestionBankDashboard: React.FC = () => {
                         key={q.id}
                         question={q}
                         onView={() => setSelectedQuestion(q)}
+                        onCopy={() => handleCopyQuestion(q)}
+                        onEdit={() => handleEditQuestion(q)}
+                        onDelete={() => handleDeleteQuestion(q.id)}
                     />
                 ))}
             </div>
@@ -434,6 +658,240 @@ export const QuestionBankDashboard: React.FC = () => {
                 question={selectedQuestion}
                 onClose={() => setSelectedQuestion(null)}
             />
+
+            {isFormOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-slate-800">
+                                {formMode === 'edit' ? 'Soruyu Düzenle' : 'Yeni Soru'}
+                            </h3>
+                            <button onClick={() => setIsFormOpen(false)} className="text-slate-400 hover:text-slate-600">
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Soru Metni</label>
+                                <textarea
+                                    value={formData.text}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, text: e.target.value }))}
+                                    className="w-full h-28 border border-slate-200 rounded-lg p-3 text-sm"
+                                    placeholder="Soru metnini giriniz"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Ders</label>
+                                    <select
+                                        value={formData.subject}
+                                        onChange={(e) => {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                subject: e.target.value,
+                                                topicId: '',
+                                                outcomeCode: ''
+                                            }));
+                                            setFormOutcomeId('');
+                                        }}
+                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm"
+                                    >
+                                        {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Sınıf</label>
+                                    <select
+                                        value={formData.grade}
+                                        onChange={(e) => {
+                                            const grade = Number(e.target.value);
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                grade,
+                                                topicId: '',
+                                                outcomeCode: ''
+                                            }));
+                                            setFormOutcomeId('');
+                                        }}
+                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm"
+                                    >
+                                        {grades.map(g => <option key={g} value={g}>{g}. Sınıf</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Soru Türü</label>
+                                    <select
+                                        value={formData.type}
+                                        onChange={(e) => {
+                                            const nextType = e.target.value as QuestionType;
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                type: nextType,
+                                                options: nextType === 'multiple_choice' && (!prev.options || prev.options.length === 0)
+                                                    ? DEFAULT_OPTIONS()
+                                                    : prev.options
+                                            }));
+                                        }}
+                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm"
+                                    >
+                                        {questionTypes.map(type => (
+                                            <option key={type} value={type}>{getQuestionTypeLabel(type)}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Bloom</label>
+                                    <select
+                                        value={formData.bloomLevel}
+                                        onChange={(e) => setFormData(prev => ({
+                                            ...prev,
+                                            bloomLevel: e.target.value as BloomLevel
+                                        }))}
+                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm"
+                                    >
+                                        {bloomLevels.map(level => <option key={level} value={level}>{level}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Zorluk</label>
+                                    <select
+                                        value={formData.difficulty}
+                                        onChange={(e) => setFormData(prev => ({
+                                            ...prev,
+                                            difficulty: e.target.value as DifficultyLevel
+                                        }))}
+                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm"
+                                    >
+                                        {difficulties.map(d => <option key={d} value={d}>{getDifficultyLabel(d)}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Konu</label>
+                                    <select
+                                        value={formData.topicId}
+                                        onChange={(e) => {
+                                            const nextTopic = e.target.value;
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                topicId: nextTopic,
+                                                outcomeCode: ''
+                                            }));
+                                            setFormOutcomeId('');
+                                        }}
+                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm"
+                                    >
+                                        <option value="">Seçiniz</option>
+                                        {availableTopics.map(topic => (
+                                            <option key={topic.id} value={topic.id}>{topic.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Kazanım</label>
+                                    <select
+                                        value={formOutcomeId}
+                                        onChange={(e) => {
+                                            const nextOutcomeId = e.target.value;
+                                            const outcome = outcomes.find(item => item.id === nextOutcomeId);
+                                            setFormOutcomeId(nextOutcomeId);
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                outcomeCode: outcome?.code || ''
+                                            }));
+                                        }}
+                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm"
+                                    >
+                                        <option value="">Seçiniz</option>
+                                        {availableOutcomes.map(outcome => (
+                                            <option key={outcome.id} value={outcome.id}>
+                                                {outcome.code} - {outcome.description}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Etiketler</label>
+                                    <input
+                                        value={tagsInput}
+                                        onChange={(e) => setTagsInput(e.target.value)}
+                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm"
+                                        placeholder="etiket1, etiket2"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Açıklama</label>
+                                <textarea
+                                    value={formData.explanation}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, explanation: e.target.value }))}
+                                    className="w-full h-20 border border-slate-200 rounded-lg p-3 text-sm"
+                                    placeholder="Soru açıklaması (opsiyonel)"
+                                />
+                            </div>
+
+                            {formData.type === 'multiple_choice' ? (
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-slate-700">Seçenekler</label>
+                                    {(formData.options?.length ? formData.options : DEFAULT_OPTIONS()).map(option => (
+                                        <div key={option.id} className="flex items-center gap-3">
+                                            <input
+                                                type="radio"
+                                                name="correctOption"
+                                                checked={option.isCorrect}
+                                                onChange={() => handleCorrectOptionChange(option.id)}
+                                            />
+                                            <input
+                                                value={option.text}
+                                                onChange={(e) => handleOptionTextChange(option.id, e.target.value)}
+                                                className="flex-1 border border-slate-200 rounded-lg p-2 text-sm"
+                                                placeholder={`${option.id.toUpperCase()} şıkkı`}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Doğru Cevap</label>
+                                    <input
+                                        value={formData.correctAnswer}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, correctAnswer: e.target.value }))}
+                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm"
+                                    />
+                                </div>
+                            )}
+
+                            <label className="flex items-center gap-2 text-sm text-slate-700">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.isPublic}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, isPublic: e.target.checked }))}
+                                />
+                                Herkese açık olarak paylaş
+                            </label>
+                        </div>
+                        <div className="p-4 border-t border-slate-100 flex justify-end gap-3">
+                            <button onClick={() => setIsFormOpen(false)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200">
+                                İptal
+                            </button>
+                            <button
+                                onClick={handleSaveQuestion}
+                                disabled={saving}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60"
+                            >
+                                {saving ? 'Kaydediliyor...' : 'Kaydet'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
