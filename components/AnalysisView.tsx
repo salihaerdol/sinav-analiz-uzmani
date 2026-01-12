@@ -31,6 +31,7 @@ import { BloomAnalysis } from '../modules/bloom-taxonomy';
 import { OCRScanner } from '../modules/ocr-scanner';
 import { ReportEditor } from '../modules/report-editor';
 import { OfficialFormView } from '../modules/official-form';
+import { AIAssistantDashboard } from '../modules/ai-assistant';
 
 interface Props {
   analysis: AnalysisResult;
@@ -47,7 +48,7 @@ const scenarioIcons: Record<ExportScenario, React.ReactNode> = {
   student_cards: <GraduationCap className="w-4 h-4" />
 };
 
-type ModuleTab = 'psychometric' | 'risk' | 'bloom' | 'ocr' | 'report' | 'official';
+type ModuleTab = 'psychometric' | 'risk' | 'bloom' | 'ocr' | 'report' | 'official' | 'ai';
 
 // Helper functions for statistics
 const calculateStandardDeviation = (scores: number[]) => {
@@ -76,6 +77,7 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
 
   const exportScenarios = getExportScenarios(selectedLanguage);
   const moduleTabs: { id: ModuleTab; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: 'ai', label: 'AI Asistan', description: 'Akıllı analiz ve öneriler', icon: Sparkles },
     { id: 'psychometric', label: 'Psikometrik', description: 'Soru kalitesi ve test güvenilirliği', icon: Gauge },
     { id: 'risk', label: 'Risk', description: 'Öğrenci risk dağılımı ve öneriler', icon: AlertTriangle },
     { id: 'bloom', label: 'Bloom', description: 'Bilişsel düzey dağılımı', icon: Brain },
@@ -84,6 +86,7 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
     { id: 'official', label: 'Resmi Form', description: 'MEB resmi sınav analiz formu', icon: FileText }
   ];
   const moduleTabStyles: Record<ModuleTab, string> = {
+    ai: 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-indigo-600',
     psychometric: 'bg-indigo-600 text-white border-indigo-600',
     risk: 'bg-rose-600 text-white border-rose-600',
     bloom: 'bg-sky-600 text-white border-sky-600',
@@ -381,6 +384,16 @@ export const AnalysisView: React.FC<Props> = ({ analysis, metadata, questions, s
               </div>
             </div>
             <div className="mt-4">
+              {activeModuleTab === 'ai' && (
+                <div id="module-ai" className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <AIAssistantDashboard
+                    analysis={analysis}
+                    metadata={metadata}
+                    students={students}
+                    questions={questions}
+                  />
+                </div>
+              )}
               {activeModuleTab === 'psychometric' && (
                 <div id="module-psychometric" className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                   <PsychometricAnalysis questions={questions} students={students} />
